@@ -126,15 +126,21 @@ def _guess_account_kind(name: str) -> tuple[str, str] | None:
     user corrects it with PATCH /api/accounts/{id}. Returns None for
     accounts that aren't supported in the MVP (investment, loan, unknown) —
     those get no accounts row at all, per AGENTS.md's "Supported accounts
-    only" note."""
+    only" note.
+
+    Real card products are branded unpredictably ("Venture X", "Platinum
+    Card", "Sapphire Reserve") so matching credit-card keywords misses most
+    of them. checking/savings accounts are reliably named, so it's simpler
+    and more accurate to key off those and treat everything else as a
+    liability credit card."""
     lowered = name.lower()
     if any(kw in lowered for kw in _SKIP_KEYWORDS):
         return None
-    if any(kw in lowered for kw in ("credit", "card", "visa", "mastercard", "amex", "americanexpress", "capitalone", "discover")):
-        return "liability", "credit_card"
+    if "checking" in lowered:
+        return "asset", "checking"
     if "saving" in lowered:
         return "asset", "savings"
-    return "asset", "checking"
+    return "liability", "credit_card"
 
 
 def _account_number(external_id: str, name: str) -> tuple[str, str]:

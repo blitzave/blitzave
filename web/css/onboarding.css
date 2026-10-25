@@ -1,0 +1,288 @@
+/* BlitZave — onboarding flow.
+   Full-bleed, centered, no sidebar (base.css's .is-onboarding rules handle
+   that part of the shell). One idea per step; motion only ever answers a
+   step change — nothing here animates on its own except the sync pulse,
+   which is the one moment the user is deliberately asked to wait. */
+
+.onboarding {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-6);
+  width: 100%;
+  max-width: 440px;
+}
+
+/* ---------------------------- Progress rail ---------------------------- */
+
+.onboarding-progress {
+  display: flex;
+  gap: var(--space-2);
+  width: 100%;
+  max-width: 200px;
+}
+
+.onboarding-progress-seg {
+  flex: 1 1 0;
+  height: 3px;
+  border-radius: var(--radius-chip);
+  background: var(--line-faint);
+  transition: background var(--t-base) var(--ease-out);
+}
+
+.onboarding-progress-seg.is-complete {
+  background: var(--accent);
+}
+
+.onboarding-progress-seg.is-active {
+  background: var(--accent-hover);
+}
+
+/* ------------------------------- Panel ------------------------------- */
+
+.onboarding-panel {
+  width: 100%;
+  padding: var(--space-7) var(--space-6);
+  opacity: 0;
+  transform: translateY(4px);
+  transition: opacity var(--t-base) var(--ease-out),
+    transform var(--t-base) var(--ease-out);
+}
+
+.onboarding-panel.is-visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.onboarding-step {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-4);
+  text-align: left;
+}
+
+.onboarding-step-center {
+  align-items: center;
+  text-align: center;
+}
+
+.onboarding-eyebrow {
+  font-size: var(--text-xs);
+  color: var(--text-faint);
+}
+
+.onboarding-title {
+  font-size: var(--text-xl);
+}
+
+.onboarding-title:focus-visible {
+  outline: none;
+  box-shadow: none;
+}
+
+.onboarding-body {
+  font-size: var(--text-base);
+  color: var(--text-secondary);
+  line-height: var(--leading-body);
+}
+
+.onboarding-hint {
+  font-size: var(--text-xs);
+  color: var(--text-faint);
+}
+
+.onboarding-dynamic {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  width: 100%;
+}
+
+.onboarding-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  width: 100%;
+}
+
+.onboarding-actions-center {
+  justify-content: center;
+}
+
+.onboarding-cta {
+  padding: var(--space-3) var(--space-6);
+}
+
+.onboarding-skip {
+  align-self: center;
+  margin-top: var(--space-1);
+}
+
+/* -------------------------------- Step 1 -------------------------------- */
+
+.onboarding-brand {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.onboarding-brand-mark {
+  width: 40px;
+  height: 40px;
+}
+
+.onboarding-brand-name {
+  font-size: var(--text-xl);
+  font-weight: var(--weight-semibold);
+  letter-spacing: -0.01em;
+  color: var(--text-primary);
+}
+
+.onboarding-brand-name:focus-visible {
+  outline: none;
+  box-shadow: none;
+}
+
+.onboarding-tagline {
+  max-width: 32ch;
+  font-size: var(--text-md);
+  color: var(--text-secondary);
+  line-height: var(--leading-body);
+}
+
+/* -------------------------------- Step 2 -------------------------------- */
+
+.onboarding-check {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+}
+
+.onboarding-spinner-ring {
+  width: 14px;
+  height: 14px;
+  flex: none;
+  border: 1.5px solid var(--text-faint);
+  border-top-color: transparent;
+  border-radius: 50%;
+  animation: bz-spin 0.7s linear infinite;
+}
+
+.onboarding-token-input {
+  min-height: 92px;
+  resize: vertical;
+  font-size: var(--text-sm);
+}
+
+/* -------------------------------- Step 3 -------------------------------- */
+
+.onboarding-sync-indicator {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-4);
+  padding: var(--space-4) 0;
+  width: 100%;
+}
+
+.onboarding-sync-dot {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--accent);
+  animation: bz-breathe 1.8s ease-in-out infinite;
+}
+
+@keyframes bz-breathe {
+  0%,
+  100% {
+    transform: scale(0.8);
+    opacity: 0.5;
+  }
+  50% {
+    transform: scale(1.15);
+    opacity: 1;
+  }
+}
+
+/* -------------------------------- Step 4 -------------------------------- */
+
+.onboarding-accounts {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  max-height: 280px;
+  overflow-y: auto;
+}
+
+.onboarding-account-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  padding: var(--space-3) var(--space-4);
+  background: var(--bg-well);
+  border: 1px solid var(--line-faint);
+  border-radius: var(--radius-control);
+}
+
+.onboarding-account-name {
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+  color: var(--text-primary);
+}
+
+.onboarding-account-sub {
+  margin-top: 2px;
+  font-size: var(--text-xs);
+  color: var(--text-faint);
+}
+
+.onboarding-account-balance {
+  font-size: var(--text-md);
+  font-weight: var(--weight-medium);
+  color: var(--text-primary);
+}
+
+/* -------------------------------- Step 5 -------------------------------- */
+
+.onboarding-pointers {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  width: 100%;
+}
+
+.onboarding-pointer {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  background: var(--bg-well);
+  border-radius: var(--radius-control);
+}
+
+.onboarding-pointer-dot {
+  flex: none;
+  width: 6px;
+  height: 6px;
+  margin-top: 7px;
+  border-radius: 50%;
+  background: var(--accent);
+}
+
+.onboarding-pointer-title {
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+  color: var(--text-primary);
+}
+
+.onboarding-pointer-body {
+  margin-top: 2px;
+  font-size: var(--text-xs);
+  color: var(--text-secondary);
+}

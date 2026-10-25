@@ -79,9 +79,9 @@ def test_post_sync_after_connecting_ingests_the_fixture(client, monkeypatch):
     response = client.post("/api/sync")
     assert response.status_code == 200
     body = response.json()
-    assert body["accounts"] == 2
-    assert body["transactions"] == 4
-    assert body["balances"] == 2
+    assert body["accounts"] == 4
+    assert body["transactions"] == 10
+    assert body["balances"] == 4
 
 
 def _connect_and_sync(client, monkeypatch):
@@ -101,9 +101,11 @@ def test_get_accounts_lists_ingested_accounts(client, monkeypatch):
     response = client.get("/api/accounts")
     assert response.status_code == 200
     rows = response.json()
-    assert len(rows) == 2
+    assert len(rows) == 4
     types = {r["account_type"] for r in rows}
     assert types == {"asset", "liability"}
+    # the public id is SimpleFIN's own account id, not an internal sequential one
+    assert all(r["id"].startswith("ACT-") for r in rows)
 
 
 def test_patch_account_corrects_type(client, monkeypatch):
@@ -115,6 +117,11 @@ def test_patch_account_corrects_type(client, monkeypatch):
         json={"account_type": "asset", "asset_type": "savings"},
     )
     assert response.status_code == 200
+    # the PATCH response is the full updated account, same shape as the list
+    body = response.json()
+    assert body["asset_type"] == "savings"
+    assert body["display_name"] == checking["display_name"]
+    assert "balance_display" in body
 
     updated = next(r for r in client.get("/api/accounts").json() if r["id"] == checking["id"])
     assert updated["asset_type"] == "savings"

@@ -1,0 +1,288 @@
+/* BlitZave — transactions page + shared transactions-table component.
+   Owned by the transactions agent. Builds on tokens.css / base.css —
+   see DESIGN.md before adding anything not covered here. */
+
+/* ============================== Page shell ============================== */
+
+.txns-page-header {
+  margin-bottom: var(--space-5);
+}
+
+.txns-page-title {
+  font-size: var(--text-xl);
+}
+
+/* =============================== Filter bar =============================== */
+
+.txns-filterbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+  margin-bottom: var(--space-4);
+}
+
+.txn-filter-search {
+  flex: 1 1 240px;
+  min-width: 200px;
+}
+
+.txn-filter-dates {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex: 0 0 auto;
+}
+
+.txn-filter-dates .input {
+  width: 150px;
+}
+
+.txn-date-sep {
+  color: var(--text-faint);
+}
+
+.txns-filterbar .select {
+  width: auto;
+  min-width: 160px;
+  flex: 0 0 auto;
+}
+
+.txn-clear-filters {
+  font-size: var(--text-sm);
+  white-space: nowrap;
+}
+
+.txn-clear-filters.is-hidden {
+  display: none;
+}
+
+/* ============================= Table container ============================= */
+
+.txns-table-wrap {
+  padding: 0;
+  overflow: hidden;
+}
+
+.txns-table-wrap .empty-state {
+  background: transparent;
+}
+
+.txns-skeleton {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-5);
+}
+
+.txns-skeleton-row {
+  height: 20px;
+}
+
+.txns-table th:first-child,
+.txns-table td:first-child {
+  width: 128px;
+}
+
+.txns-table th:last-child,
+.txns-table td:last-child {
+  width: 120px;
+}
+
+.txn-row {
+  cursor: pointer;
+}
+
+.txn-row:focus-visible {
+  outline: none;
+  box-shadow: inset var(--focus-ring);
+}
+
+.txn-row.is-expanded td {
+  background: var(--bg-well);
+}
+
+.txns-table td.txn-date-cell {
+  color: var(--text-secondary);
+}
+
+.txn-desc {
+  color: var(--text-primary);
+}
+
+.txn-merchant {
+  margin-top: var(--space-1);
+  font-size: var(--text-xs);
+  color: var(--text-faint);
+}
+
+.txn-cat-cell,
+.txn-tag-cell {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+}
+
+.txn-uncategorized {
+  font-size: var(--text-xs);
+  color: var(--text-faint);
+}
+
+/* Specificity note: base.css's `.table td` rule sets color at (0,1,1) —
+   a bare class here would lose to it, so these are scoped through
+   `.txns-table td` to win cleanly regardless of stylesheet order. */
+.txns-table td.txn-amount-credit {
+  color: var(--accent);
+  font-weight: var(--weight-medium);
+}
+
+.txns-table td.txn-amount-debit {
+  color: var(--text-primary);
+  font-weight: var(--weight-medium);
+}
+
+/* =============================== Pagination =============================== */
+
+.txns-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin-top: var(--space-4);
+}
+
+.txns-page-count {
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+}
+
+.txns-page-btns {
+  display: flex;
+  gap: var(--space-2);
+}
+
+/* ============================= Editor panel ============================= */
+
+.txn-editor-row td {
+  padding: 0;
+}
+
+.txn-editor-wrap {
+  max-height: 0;
+  overflow: hidden;
+  background: var(--bg-well);
+  transition: max-height var(--t-slow) var(--ease-out);
+}
+
+.txn-editor {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  padding: var(--space-5);
+}
+
+.txn-editor-section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.txn-editor-divider {
+  height: 1px;
+  background: var(--line-faint);
+}
+
+.txn-section-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.txn-section-title {
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+  color: var(--text-secondary);
+}
+
+.txn-set-by {
+  font-size: var(--text-xs);
+}
+
+.txn-cat-empty {
+  font-size: var(--text-sm);
+  color: var(--text-faint);
+}
+
+.txn-split-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.txn-split-category {
+  flex: 1 1 auto;
+}
+
+.txn-split-percent {
+  flex: 0 0 64px;
+  width: 64px;
+  text-align: right;
+}
+
+.txn-split-percent-sign {
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+}
+
+.txn-remove-split {
+  flex: 0 0 auto;
+  padding: var(--space-1) var(--space-2);
+  font-size: var(--text-md);
+  line-height: 1;
+  color: var(--text-faint);
+}
+
+.txn-remove-split:hover {
+  color: var(--danger);
+}
+
+.txn-add-split {
+  align-self: flex-start;
+}
+
+.txn-split-hint {
+  font-size: var(--text-xs);
+  color: var(--text-secondary);
+}
+
+.txn-split-hint.is-off {
+  color: var(--text-primary);
+}
+
+.txn-save-categories,
+.txn-save-tags {
+  align-self: flex-start;
+  margin-top: var(--space-1);
+}
+
+.txn-tag-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.txn-add-tag-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-top: var(--space-1);
+}
+
+.txn-new-tag-input {
+  flex: 0 1 200px;
+}
+
+.txn-editor-reminder {
+  font-size: var(--text-xs);
+  color: var(--text-faint);
+}

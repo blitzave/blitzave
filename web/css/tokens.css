@@ -1,0 +1,107 @@
+/* BlitZave — design tokens
+   Dark only. Graphite surfaces with a cold green undertone, one glacial-mint
+   accent, soft off-white text. Everything here is a decision; nothing is a
+   framework default. See DESIGN.md for usage. */
+
+:root {
+  color-scheme: dark;
+
+  /* ----- Surfaces (darkest to lightest) -----
+     All darks carry a slight cold cast so the mint accent sits in them
+     naturally. Never pure #000. */
+  --bg-page: #0b0e0d;        /* the page itself */
+  --bg-raised: #141a18;      /* cards, sidebar, anything that sits on the page */
+  --bg-well: #1b2320;        /* inputs, hovers, inset areas inside a card */
+  --bg-lift: #222b28;        /* pressed / selected / second-level hover */
+
+  /* ----- Hairlines -----
+     Borders do the work shadows would. Keep them faint. */
+  --line-faint: rgba(236, 244, 240, 0.07);   /* card edges, dividers */
+  --line-strong: rgba(236, 244, 240, 0.14);  /* interactive element edges */
+  --line-accent: rgba(116, 231, 208, 0.45);  /* focused inputs, active edges */
+
+  /* ----- Text tiers ----- */
+  --text-primary: #eaf1ee;   /* numerals, headings, primary copy */
+  --text-secondary: #93a29c; /* supporting copy, labels, table headers */
+  --text-faint: #5c6a64;     /* timestamps, placeholders, de-emphasis */
+
+  /* ----- The accent: glacial mint -----
+     One accent, used sparingly: primary actions, the active nav marker,
+     focus rings, the sync pulse. If a screen has mint in more than two
+     places, remove one. */
+  --accent: #74e7d0;
+  --accent-hover: #8ff0dd;             /* lighter, for hover on mint things */
+  --accent-press: #5fd2bb;             /* darker, for active/pressed */
+  --accent-ink: #06201a;               /* text set on a mint fill */
+  --accent-soft: rgba(116, 231, 208, 0.12);  /* tints: chips, highlights */
+  --accent-soft-hover: rgba(116, 231, 208, 0.2);
+
+  /* ----- Status (reserved) -----
+     Danger is for actual failures only — a request that errored, a sync that
+     could not complete. Never for spending, negative balances, or any
+     ordinary number. Success is for completed actions (connected, saved). */
+  --danger: #f2766b;
+  --danger-soft: rgba(242, 118, 107, 0.12);
+  --success: #86d9a8;
+  --success-soft: rgba(134, 217, 168, 0.12);
+
+  /* ----- Type -----
+     One family. Numerals are the hero: large, medium weight, tabular. */
+  --font-ui: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI",
+             sans-serif;
+  --text-xs: 0.781rem;    /* 12.5px — timestamps, fine print */
+  --text-sm: 0.875rem;    /* 14px — table cells, secondary copy */
+  --text-base: 0.9375rem; /* 15px — body */
+  --text-md: 1.0625rem;   /* 17px — card titles, emphasized rows */
+  --text-lg: 1.375rem;    /* 22px — section numerals, modal titles */
+  --text-xl: 1.75rem;     /* 28px — page headings */
+  --text-display: 2.625rem; /* 42px — the one number a page leads with */
+
+  --weight-regular: 400;
+  --weight-medium: 500;
+  --weight-semibold: 600;
+
+  --leading-tight: 1.2;
+  --leading-body: 1.55;
+
+  /* Numerals: always pair these two. */
+  --numeric: tabular-nums;
+  --tracking-numeral: -0.02em;
+
+  /* ----- Spacing scale (4px base) ----- */
+  --space-1: 0.25rem;   /*  4px */
+  --space-2: 0.5rem;    /*  8px */
+  --space-3: 0.75rem;   /* 12px */
+  --space-4: 1rem;      /* 16px */
+  --space-5: 1.5rem;    /* 24px */
+  --space-6: 2rem;      /* 32px */
+  --space-7: 3rem;      /* 48px */
+  --space-8: 4rem;      /* 64px */
+
+  /* ----- Radii (tiered — hierarchy, not uniformity) ----- */
+  --radius-card: 16px;    /* cards, panels, toasts */
+  --radius-control: 10px; /* buttons, inputs, selects */
+  --radius-chip: 999px;   /* chips, badges, pills */
+
+  /* ----- Motion -----
+     Motion answers an action; nothing animates on page entry. */
+  --ease-out: cubic-bezier(0.25, 0.46, 0.45, 0.94);
+  --t-fast: 150ms;
+  --t-base: 200ms;
+  --t-slow: 250ms;
+
+  /* ----- Layout ----- */
+  --sidebar-width: 224px;
+  --content-max: 1040px;
+
+  /* ----- Focus ring ----- */
+  --focus-ring: 0 0 0 2px var(--bg-page), 0 0 0 4px var(--line-accent);
+
+  /* ----- Elevation (reserved for things that float ABOVE the page, like a
+     toast — cards never use this; they use a hairline instead) ----- */
+  --shadow-float: 0 16px 32px -12px rgba(2, 6, 5, 0.55);
+
+  /* ----- Stacking ----- */
+  --z-shell: 1;
+  --z-toast: 100;
+}
