@@ -1,0 +1,78 @@
+{
+  "_fixture_note": "Synthetic, hand-written to match SimpleFIN's documented protocol shape (https://www.simplefin.org/protocol.html). Not a captured real demo-bank response — no demo credentials were available when this was written. See AGENTS.md task 4 for the real thing when available.",
+  "errors": [],
+  "accounts": [
+    {
+      "org": { "domain": "chase.com", "sfin-url": "https://example.org/sfin", "name": "Chase" },
+      "id": "ACT-chase-0001",
+      "name": "Total Checking ...1234",
+      "currency": "USD",
+      "balance": "2543.10",
+      "available-balance": "2543.10",
+      "balance-date": 1759276800,
+      "transactions": [
+        {
+          "id": "TXN-chase-0001",
+          "posted": 1759190400,
+          "amount": "-4.50",
+          "description": "BLUE BOTTLE COFFEE",
+          "payee": "Blue Bottle Coffee",
+          "pending": false
+        },
+        {
+          "id": "TXN-chase-0002",
+          "posted": 1759104000,
+          "amount": "1500.00",
+          "description": "ACME CORP PAYROLL",
+          "payee": "Acme Corp",
+          "pending": false
+        },
+        {
+          "id": "TXN-chase-0003",
+          "posted": 1759276800,
+          "amount": "-32.00",
+          "description": "PENDING - WHOLE FOODS",
+          "payee": "Whole Foods",
+          "pending": true
+        }
+      ]
+    },
+    {
+      "org": { "domain": "americanexpress.com", "sfin-url": "https://example.org/sfin", "name": "American Express" },
+      "id": "ACT-amex-9f8e7d6c",
+      "name": "Platinum Rewards Card",
+      "currency": "USD",
+      "balance": "-312.45",
+      "available-balance": "4687.55",
+      "balance-date": 1759276800,
+      "transactions": [
+        {
+          "id": "TXN-amex-0001",
+          "posted": 1759190400,
+          "amount": "-89.99",
+          "description": "DELTA AIR LINES",
+          "payee": "Delta Air Lines",
+          "pending": false
+        },
+        {
+          "id": "TXN-amex-0002",
+          "posted": 1759104000,
+          "amount": "25.00",
+          "description": "STATEMENT CREDIT",
+          "payee": "American Express",
+          "pending": false
+        }
+      ]
+    },
+    {
+      "org": { "domain": "fidelity.com", "sfin-url": "https://example.org/sfin", "name": "Fidelity" },
+      "id": "ACT-fidelity-401k",
+      "name": "401k Rollover IRA",
+      "currency": "USD",
+      "balance": "45210.33",
+      "available-balance": "45210.33",
+      "balance-date": 1759276800,
+      "transactions": []
+    }
+  ]
+}

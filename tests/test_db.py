@@ -14,6 +14,8 @@ EXPECTED_TABLES = {
     "transactions",
     "transaction_tags",
     "transfers",
+    "balances",
+    "job_runs",
 }
 
 
@@ -32,10 +34,12 @@ def test_migrate_twice_is_a_noop(tmp_path):
     db.migrate(conn)
     version_once = conn.execute("PRAGMA user_version").fetchone()[0]
 
-    db.migrate(conn)  # must not re-run 001_init.sql against existing tables
+    db.migrate(conn)  # must not re-run any migration against existing tables
     version_twice = conn.execute("PRAGMA user_version").fetchone()[0]
 
-    assert version_once == version_twice == 1
+    latest_migration = max(db.MIGRATIONS_DIR.glob("*.sql")).name
+    expected_version = int(latest_migration.split("_", 1)[0])
+    assert version_once == version_twice == expected_version
 
 
 def test_connect_creates_home_dir_with_0700(tmp_path, monkeypatch):

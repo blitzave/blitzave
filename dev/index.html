@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>BlitZave — dev tool</title>
+  <link rel="stylesheet" href="/dev/style.css" />
+</head>
+<body>
+  <header>
+    <h1>BlitZave <span class="tag">dev tool</span></h1>
+    <p class="warning">
+      Throwaway debug page, not the product UI. See AGENTS.md ("Exception: engine/dev/").
+    </p>
+  </header>
+
+  <main>
+    <section class="card">
+      <h2>Health</h2>
+      <button id="health-check">GET /api/health</button>
+      <pre id="health-result" class="result">—</pre>
+    </section>
+
+    <section class="card">
+      <h2>SimpleFIN connection</h2>
+      <div class="row">
+        <span id="connect-badge" class="badge unknown">unknown</span>
+        <button id="connect-refresh">refresh</button>
+      </div>
+
+      <form id="connect-form">
+        <label for="setup-token">Setup token (from SimpleFIN Bridge)</label>
+        <textarea id="setup-token" rows="3" placeholder="paste the base64 setup token here"></textarea>
+        <button type="submit">POST /api/connect</button>
+      </form>
+      <pre id="connect-result" class="result">—</pre>
+    </section>
+
+    <section class="card">
+      <h2>Sync</h2>
+      <button id="sync-trigger">POST /api/sync</button>
+      <pre id="sync-result" class="result">—</pre>
+    </section>
+
+    <section class="card">
+      <h2>Accounts</h2>
+      <button id="accounts-load">GET /api/accounts</button>
+      <pre id="accounts-result" class="result">—</pre>
+
+      <form id="account-correction-form">
+        <label for="account-id">Account id</label>
+        <input id="account-id" type="number" placeholder="1" />
+        <label for="account-type">account_type</label>
+        <select id="account-type">
+          <option value="asset">asset</option>
+          <option value="liability">liability</option>
+        </select>
+        <label for="account-subtype">asset_type / liability_type</label>
+        <input id="account-subtype" type="text" placeholder="checking | savings | credit_card | loan" />
+        <button type="submit">PATCH /api/accounts/{id}</button>
+      </form>
+      <pre id="account-correction-result" class="result">—</pre>
+    </section>
+  </main>
+
+  <script src="/dev/app.js"></script>
+</body>
+</html>
