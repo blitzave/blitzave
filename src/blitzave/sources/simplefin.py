@@ -130,7 +130,7 @@ def _guess_account_kind(name: str) -> tuple[str, str] | None:
     lowered = name.lower()
     if any(kw in lowered for kw in _SKIP_KEYWORDS):
         return None
-    if any(kw in lowered for kw in ("credit", "card", "visa", "mastercard", "amex")):
+    if any(kw in lowered for kw in ("credit", "card", "visa", "mastercard", "amex", "americanexpress", "capitalone", "discover")):
         return "liability", "credit_card"
     if "saving" in lowered:
         return "asset", "savings"
