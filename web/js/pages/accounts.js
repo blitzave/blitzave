@@ -3,6 +3,11 @@
 // cards. No net-worth math here; there is no total endpoint, so we never
 // invent one.
 //
+// This is the signature screen of the whole app: liability (credit card)
+// accounts render as Apple-Wallet-style dark cards; asset accounts stay
+// plain white cards with the same bold-ink balance treatment. The contrast
+// between the two faces is the point — see accounts.css.
+//
 // Owned by the accounts agent.
 
 import * as api from "../api.js";
@@ -11,6 +16,17 @@ import { navigate } from "../router.js";
 const ASSET_LABELS = { checking: "Checking", savings: "Savings" };
 const LIABILITY_LABELS = { credit_card: "Credit card", loan: "Loan" };
 
+// Real inline SVG, 16-20px, currentColor, round caps — see DESIGN.md's
+// iconography rule. Same dot pattern the categories page uses, for a
+// consistent ellipsis across the app.
+const ICON_ELLIPSIS = `
+  <svg class="account-card-menu-icon" viewBox="0 0 24 24" aria-hidden="true">
+    <circle cx="5" cy="12" r="1.8" fill="currentColor" stroke="none" />
+    <circle cx="12" cy="12" r="1.8" fill="currentColor" stroke="none" />
+    <circle cx="19" cy="12" r="1.8" fill="currentColor" stroke="none" />
+  </svg>
+`;
+
 function subtypeLabel(account) {
   if (account.account_type === "asset") {
     return ASSET_LABELS[account.asset_type] || "Account";
@@ -18,8 +34,11 @@ function subtypeLabel(account) {
   return LIABILITY_LABELS[account.liability_type] || "Account";
 }
 
+// Reclassifying a card as an asset makes the API echo the account's own name
+// back as its bank name — don't show the same line twice.
 function institution(account) {
-  return account.bank_name || account.issuer_name || "";
+  const label = account.bank_name || account.issuer_name || "";
+  return label === account.name ? "" : label;
 }
 
 // balance_as_of is a date (sometimes date-only "YYYY-MM-DD"). Parse as UTC
@@ -102,9 +121,14 @@ function renderLoading(root) {
 function skeletonCardMarkup() {
   return `
     <div class="card account-card">
-      <div class="skeleton skeleton-text" style="width: 55%; height: 1.1em;"></div>
-      <div class="skeleton skeleton-text" style="width: 35%; height: 0.8em; margin-top: 10px;"></div>
-      <div class="skeleton" style="width: 60%; height: 2.2em; margin-top: 18px;"></div>
+      <div class="account-card-head">
+        <div class="skeleton skeleton-text" style="width: 40%; height: 0.8em;"></div>
+        <div class="skeleton skeleton-text" style="width: 65%; height: 1.1em; margin-top: 10px;"></div>
+      </div>
+      <div class="account-card-bottom">
+        <div class="skeleton" style="width: 60%; height: 2.3em;"></div>
+        <div class="skeleton skeleton-text" style="width: 30%; height: 0.7em; margin-top: 8px;"></div>
+      </div>
     </div>
   `;
 }
@@ -114,7 +138,7 @@ function renderError(root, err, retry) {
     <div class="empty-state">
       <p class="empty-state-title">Couldn't load your accounts</p>
       <p class="empty-state-body"></p>
-      <button class="btn btn-ghost" type="button" id="accounts-retry">Try again</button>
+      <button class="btn btn-ghost accounts-state-action" type="button" id="accounts-retry">Try again</button>
     </div>
   `;
   root.querySelector(".empty-state-body").textContent =
@@ -127,7 +151,7 @@ function renderEmpty(root) {
     <div class="empty-state">
       <p class="empty-state-title">Nothing connected yet</p>
       <p class="empty-state-body">Sync with your bank aggregator to bring your accounts in.</p>
-      <button class="btn btn-primary" type="button" id="accounts-sync">Sync accounts</button>
+      <button class="btn btn-primary accounts-state-action" type="button" id="accounts-sync">Sync accounts</button>
     </div>
   `;
 
@@ -189,31 +213,21 @@ function renderGroup(root, title, accounts) {
 }
 
 function renderCard(root, account) {
+  const isWallet = account.account_type === "liability";
+
   const card = document.createElement("article");
-  card.className = "card card-interactive account-card";
+  card.className = isWallet
+    ? "card card-interactive account-card account-card--wallet"
+    : "card card-interactive account-card";
   card.tabIndex = 0;
   card.setAttribute("role", "button");
-  card.setAttribute("aria-label", `Open ${account.display_name}`);
+  card.setAttribute("aria-label", `Open ${account.name || account.display_name}`);
+
+  const head = document.createElement("div");
+  head.className = "account-card-head";
 
   const top = document.createElement("div");
   top.className = "account-card-top";
-
-  const idBlock = document.createElement("div");
-  const name = document.createElement("p");
-  name.className = "account-card-name";
-  name.textContent = account.display_name;
-  const inst = document.createElement("p");
-  inst.className = "account-card-institution";
-  inst.textContent = institution(account);
-  idBlock.appendChild(name);
-  idBlock.appendChild(inst);
-
-  const actions = document.createElement("div");
-  actions.className = "account-card-actions";
-
-  const badge = document.createElement("span");
-  badge.className = "badge";
-  badge.textContent = subtypeLabel(account);
 
   const menuWrap = document.createElement("div");
   menuWrap.className = "account-card-menu";
@@ -222,7 +236,7 @@ function renderCard(root, account) {
   menuBtn.type = "button";
   menuBtn.className = "account-card-menu-btn";
   menuBtn.setAttribute("aria-label", "Account options");
-  menuBtn.textContent = "⋯";
+  menuBtn.innerHTML = ICON_ELLIPSIS;
 
   const popover = buildEditPopover(root, account);
   openPopovers.push(popover);
@@ -237,11 +251,54 @@ function renderCard(root, account) {
   menuWrap.appendChild(menuBtn);
   menuWrap.appendChild(popover);
 
-  actions.appendChild(badge);
-  actions.appendChild(menuWrap);
+  const name = document.createElement("p");
+  name.className = "account-card-name";
+  name.textContent = account.name || account.display_name;
 
-  top.appendChild(idBlock);
-  top.appendChild(actions);
+  if (isWallet) {
+    // Wallet face: issuer small at top-left, ellipsis at top-right, card
+    // name below. No badge — the issuer line already tells you what this
+    // is; a redundant "Credit card" pill would just be noise on a face
+    // that's already doing one thing.
+    const issuer = document.createElement("span");
+    issuer.className = "account-card-issuer";
+    issuer.textContent = institution(account);
+
+    top.appendChild(issuer);
+    top.appendChild(menuWrap);
+
+    head.appendChild(top);
+    head.appendChild(name);
+  } else {
+    // Asset face: name + institution on the left, type badge + menu on
+    // the right — the original identity block, just with the bolder
+    // balance treatment below.
+    const idBlock = document.createElement("div");
+    idBlock.appendChild(name);
+    const instLabel = institution(account);
+    if (instLabel) {
+      const inst = document.createElement("p");
+      inst.className = "account-card-institution";
+      inst.textContent = instLabel;
+      idBlock.appendChild(inst);
+    }
+
+    const actions = document.createElement("div");
+    actions.className = "account-card-actions";
+    const badge = document.createElement("span");
+    badge.className = "badge";
+    badge.textContent = subtypeLabel(account);
+    actions.appendChild(badge);
+    actions.appendChild(menuWrap);
+
+    top.appendChild(idBlock);
+    top.appendChild(actions);
+
+    head.appendChild(top);
+  }
+
+  const bottom = document.createElement("div");
+  bottom.className = "account-card-bottom";
 
   const balance = document.createElement("p");
   balance.className = "account-card-balance u-tabular";
@@ -251,9 +308,11 @@ function renderCard(root, account) {
   asOf.className = "account-card-asof";
   asOf.textContent = account.balance_as_of ? `as of ${formatAsOf(account.balance_as_of)}` : "";
 
-  card.appendChild(top);
-  card.appendChild(balance);
-  card.appendChild(asOf);
+  bottom.appendChild(balance);
+  bottom.appendChild(asOf);
+
+  card.appendChild(head);
+  card.appendChild(bottom);
 
   card.addEventListener("click", () => navigate(`/accounts/${account.id}`));
   card.addEventListener("keydown", (e) => {

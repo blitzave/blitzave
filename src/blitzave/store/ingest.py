@@ -9,15 +9,16 @@ logger = logging.getLogger(__name__)
 
 
 def upsert_account(conn: sqlite3.Connection, user_id: int, row: AccountRow) -> int:
-    """Insert the account if it's new. Never update an existing one — once a
-    user corrects account_type/asset_type/etc. (PATCH /api/accounts/{id},
-    not built yet), a resync must not overwrite it, and the simplest way to
-    guarantee that is to never touch an existing row at all."""
+    """Insert the account if it's new. For an existing one, only the
+    institution name is refreshed — account_type and asset_type/
+    liability_type are the user's to correct (PATCH /api/accounts/{id}), so a
+    resync never touches them."""
     existing = conn.execute(
         "SELECT id FROM accounts WHERE source = 'simplefin' AND external_id = ?",
         (row.external_id,),
     ).fetchone()
     if existing is not None:
+        _refresh_institution(conn, existing[0], row.bank_name or row.issuer_name)
         return existing[0]
 
     cursor = conn.execute(
@@ -41,6 +42,22 @@ def upsert_account(conn: sqlite3.Connection, user_id: int, row: AccountRow) -> i
         )
     conn.commit()
     return account_id
+
+
+def _refresh_institution(conn: sqlite3.Connection, account_id: int, institution: str | None) -> None:
+    """The institution is the bank's data, not a user correction, so every
+    sync may refresh it. This also repairs rows an early parser stored with
+    the account's own name as the issuer. "Unknown" is the parser's
+    placeholder for a missing org, never better than what's stored."""
+    if not institution or institution == "Unknown":
+        return
+    conn.execute(
+        "UPDATE assets SET bank_name = ? WHERE account_id = ?", (institution, account_id)
+    )
+    conn.execute(
+        "UPDATE liabilities SET issuer_name = ? WHERE account_id = ?", (institution, account_id)
+    )
+    conn.commit()
 
 
 def upsert_transaction(conn: sqlite3.Connection, user_id: int, account_id: int, row: TxRow) -> None:

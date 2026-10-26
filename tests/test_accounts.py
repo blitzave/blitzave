@@ -48,6 +48,7 @@ def test_list_accounts_shows_asset_and_liability_fields(conn, user_id):
             "id": "ACT-1",  # SimpleFIN's own account id, not an internal sequential one
             "account_type": "asset",
             "account_number": "1234",
+            "name": "Checking ...1234",  # the human name from meta leads
             "display_name": "asset-1234",
             "bank_name": "Chase",
             "asset_type": "checking",
@@ -90,8 +91,20 @@ def test_update_account_type_flips_asset_to_liability(conn, user_id):
         "SELECT issuer_name, liability_type FROM liabilities WHERE account_id = ?",
         (account_id,),
     ).fetchone()
-    # no prior issuer_name existed — falls back to the SimpleFIN-guessed name in meta
-    assert liability == ("Checking ...1234", "credit_card")
+    # the institution travels with the account: the bank becomes the issuer
+    assert liability == ("Chase", "credit_card")
+
+
+def test_update_account_type_round_trip_keeps_the_institution(conn, user_id):
+    account_id = _make_checking_account(conn, user_id)
+
+    accounts.update_account_type(conn, "ACT-1", "liability", None, "credit_card")
+    accounts.update_account_type(conn, "ACT-1", "asset", "checking", None)
+
+    bank_name = conn.execute(
+        "SELECT bank_name FROM assets WHERE account_id = ?", (account_id,)
+    ).fetchone()[0]
+    assert bank_name == "Chase"  # not replaced by the account's own name
 
 
 def test_update_account_type_raises_not_found_for_unknown_id(conn):

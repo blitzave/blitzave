@@ -1,11 +1,44 @@
 /* BlitZave — categories page.
-   Tracker ("Where it went") first, management ("Your categories") below.
-   Built entirely from tokens.css / base.css — see DESIGN.md. */
+   Monthly expense budgets first, category management below.
+   Built from tokens.css / base.css — see DESIGN.md. */
 
 .categories-page {
   display: flex;
   flex-direction: column;
   gap: var(--space-6);
+
+  /* Data hues for the "Where it went" bars — a small set of
+     muted-but-distinct colors (Apple Health metric energy, ~70%
+     saturation), rotating by category id. Scoped here, not in tokens.css:
+     these mean "category #N", nothing else. They also color the leading dot
+     on each row of "Your categories", so a category reads as the same hue
+     in both places. --warn (ochre) / --danger (coral) stay reserved for
+     real status and are never reused here. */
+  --cat-hue-0: #4f7cd1; /* blue */
+  --cat-hue-1: #8c6fd4; /* violet */
+  --cat-hue-2: #2f9c92; /* teal */
+  --cat-hue-3: #cc6f94; /* rose */
+  --cat-hue-4: #74a35b; /* sage */
+}
+
+/* ============================== Page header ============================== */
+
+.categories-intro {
+  margin-bottom: var(--space-2);
+}
+
+.categories-intro-title {
+  font-size: var(--text-title);
+}
+
+.categories-intro-lede {
+  margin-top: var(--space-2);
+  color: var(--text-secondary);
+  font-size: var(--text-base);
+}
+
+.section-title {
+  font-size: var(--text-lg);
 }
 
 /* ============================= Tracker card ============================= */
@@ -25,127 +58,385 @@
   gap: var(--space-3);
 }
 
+/* The month switcher reads as one segmented pill — chevrons and label
+   share a single well-toned background, not three separate controls.
+   36px buttons + 4px padding = a 44px pill, the kit's control height. */
 .month-nav {
-  display: flex;
+  display: inline-flex;
   align-items: center;
-  gap: var(--space-2);
+  gap: var(--space-1);
+  padding: var(--space-1);
+  background: var(--bg-well);
+  border-radius: var(--radius-chip);
 }
 
 .month-nav-btn {
   display: flex;
+  flex: none;
   align-items: center;
   justify-content: center;
-  width: 28px;
-  height: 28px;
-  background: var(--bg-well);
-  border: 1px solid var(--line-faint);
-  border-radius: var(--radius-control);
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
   color: var(--text-secondary);
-  font-size: var(--text-md);
-  line-height: 1;
   transition: background var(--t-fast) var(--ease-out),
     color var(--t-fast) var(--ease-out),
-    border-color var(--t-fast) var(--ease-out);
+    box-shadow var(--t-fast) var(--ease-out),
+    transform var(--t-fast) var(--ease-out);
 }
 
 .month-nav-btn:hover {
-  background: var(--bg-lift);
+  background: var(--bg-raised);
   color: var(--text-primary);
-  border-color: var(--line-strong);
+  box-shadow: var(--shadow-card);
+}
+
+.month-nav-btn:active {
+  transform: scale(0.94);
+}
+
+/* base.css rounds every focus ring to the control radius; these two are a
+   circle and a pill, so the ring has to follow their shape. */
+.month-nav-btn:focus-visible {
+  border-radius: 50%;
+}
+
+.category-kind-badge:focus-visible {
+  border-radius: var(--radius-chip);
+}
+
+.month-nav-icon {
+  width: 16px;
+  height: 16px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 1.75;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
 
 .month-nav-label {
-  min-width: 11ch;
+  min-width: 12ch;
+  padding: 0 var(--space-2);
   text-align: center;
   font-size: var(--text-sm);
-  color: var(--text-secondary);
+  font-weight: var(--weight-semibold);
+  color: var(--text-primary);
 }
 
-.category-bars {
-  display: flex;
-  flex-direction: column;
+/* Monthly expense cards keep the current light surfaces and data hues.
+   Budget use stays the category's color, including above-budget months. */
+.tracker-lede {
+  margin-top: var(--space-2);
+  color: var(--text-secondary);
+  font-size: var(--text-sm);
+  max-width: 48ch;
+}
+
+.category-budget-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: start;
   gap: var(--space-4);
 }
 
-.category-bar-row {
+.category-budget-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  min-width: 0;
+  padding: var(--space-5);
+  background: var(--bg-raised);
+  border: 1px solid var(--line-faint);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-card);
+}
+
+.category-budget-heading,
+.category-budget-title,
+.category-bar-row-top {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.category-budget-heading,
+.category-bar-row-top {
+  justify-content: space-between;
+}
+
+.category-budget-title {
+  min-width: 0;
+}
+
+.category-budget-title h3 {
+  font-size: var(--text-md);
+  line-height: var(--leading-body);
+  overflow-wrap: anywhere;
+}
+
+.category-budget-ring {
+  position: relative;
+  flex: none;
+  width: var(--space-8);
+  height: var(--space-8);
+  display: grid;
+  place-items: center;
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semibold);
+  color: var(--text-secondary);
+}
+
+.category-budget-ring svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  fill: none;
+  stroke-width: 3;
+  transform: rotate(-90deg);
+}
+
+.category-budget-ring-track {
+  stroke: var(--bg-well);
+}
+
+.category-budget-ring-fill {
+  stroke: var(--bar-hue);
+  stroke-linecap: round;
+}
+
+.category-budget-ring > span {
+  max-width: 6ch;
+  font-size: clamp(0.625rem, 1vw, var(--text-xs));
+  text-align: center;
+}
+
+.category-budget-values {
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
 }
 
-.category-bar-row-top {
+.category-budget-values > div {
   display: flex;
   align-items: baseline;
   justify-content: space-between;
   gap: var(--space-3);
 }
 
-.category-bar-name {
+.category-budget-values dt {
   font-size: var(--text-sm);
-  font-weight: var(--weight-medium);
-  color: var(--text-primary);
+  color: var(--text-secondary);
 }
 
-.category-bar-name.is-muted {
+.category-budget-values dd {
+  font-weight: var(--weight-semibold);
+  text-align: right;
+  overflow-wrap: anywhere;
+}
+
+.category-budget-values .category-budget-spent {
+  font-size: var(--text-lg);
+  font-weight: var(--weight-bold);
+  letter-spacing: var(--tracking-tight);
+}
+
+.category-budget-context {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-height: var(--space-8);
+}
+
+.category-budget-pace,
+.category-budget-projection,
+.category-budget-progress-caption,
+.category-activity-note {
+  color: var(--text-secondary);
+  font-size: var(--text-sm);
+}
+
+.category-budget-projection strong {
+  color: var(--text-primary);
+  font-weight: var(--weight-semibold);
+}
+
+.category-budget-progress {
+  position: relative;
+  height: var(--space-2);
+  margin-top: var(--space-1);
+  background: var(--bg-well);
+  border-radius: var(--radius-chip);
+}
+
+.category-budget-progress-fill {
+  height: 100%;
+  background: var(--bar-hue);
+  border-radius: inherit;
+}
+
+.category-budget-month-marker {
+  position: absolute;
+  top: calc(var(--space-1) * -1);
+  width: 2px;
+  height: var(--space-4);
+  background: var(--text-secondary);
+  transform: translateX(-50%);
+  border-radius: var(--radius-chip);
+}
+
+.category-budget-progress-caption {
+  font-size: var(--text-xs);
+}
+
+.category-budget-edit {
+  align-self: flex-start;
+  margin-left: calc(var(--space-3) * -1);
+}
+
+.category-budget-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-4);
+  background: var(--bg-well);
+  border-radius: var(--radius-control);
+}
+
+.category-budget-form .input {
+  background: var(--bg-raised);
+}
+
+.category-budget-form-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.category-activity-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  min-height: 44px;
+  padding: var(--space-2) 0;
+  border-top: 1px solid var(--line-faint);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+  text-align: left;
+}
+
+.category-activity-toggle:hover {
+  color: var(--accent);
+}
+
+.quiet-categories-icon {
+  width: var(--space-4);
+  height: var(--space-4);
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.75;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  transition: transform var(--t-fast) var(--ease-out);
+}
+
+.category-activity-toggle.is-open .quiet-categories-icon {
+  transform: rotate(180deg);
+}
+
+.category-activity {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.category-activity-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-3) 0;
+  border-bottom: 1px solid var(--line-faint);
+  font-size: var(--text-sm);
+}
+
+.category-activity-description {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.category-activity-description > p:first-child {
+  font-weight: var(--weight-medium);
+}
+
+.category-activity-subtext {
+  margin-top: var(--space-1);
+  color: var(--text-secondary);
+  font-size: var(--text-xs);
+}
+
+.category-activity-amount {
+  flex: none;
+  font-weight: var(--weight-semibold);
+  text-align: right;
+}
+
+.category-activity-amount > span {
+  display: block;
+  font-size: var(--text-xs);
   font-weight: var(--weight-regular);
   color: var(--text-secondary);
 }
 
-.category-bar-amount {
-  font-size: var(--text-sm);
+.category-activity-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  font-size: var(--text-xs);
   color: var(--text-secondary);
-  flex: none;
 }
 
-.category-bar-track {
-  height: 8px;
-  background: var(--bg-well);
-  border-radius: var(--radius-chip);
-  overflow: hidden;
+.category-uncategorized {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--line-faint);
+  font-size: var(--text-sm);
+}
+
+.category-uncategorized > div {
+  flex: 1 1 auto;
+}
+
+.category-uncategorized p {
+  color: var(--text-secondary);
+}
+
+.category-uncategorized > span {
+  font-weight: var(--weight-semibold);
 }
 
 .category-bar-track-skeleton {
-  height: 8px;
+  height: var(--space-3);
   width: 100%;
+  border-radius: var(--radius-chip);
 }
 
-.category-bar-fill {
-  height: 100%;
-  background: var(--accent-soft-hover);
-  border-radius: inherit;
-  transition: width var(--t-slow) var(--ease-out);
+.tracker-empty {
+  padding: var(--space-6) var(--space-4);
 }
 
-.quiet-categories {
-  margin-top: var(--space-1);
-}
-
-.quiet-categories-summary {
-  cursor: pointer;
-  padding: var(--space-2) 0;
-  font-size: var(--text-xs);
-  color: var(--text-faint);
-  list-style: none;
-  user-select: none;
-}
-
-.quiet-categories-summary::-webkit-details-marker {
-  display: none;
-}
-
-.quiet-categories-list {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-1);
-  padding-top: var(--space-2);
-}
-
-.quiet-categories-list li {
-  display: flex;
-  justify-content: space-between;
-  gap: var(--space-3);
-  font-size: var(--text-xs);
-  color: var(--text-faint);
+@media (max-width: 760px) {
+  .category-budget-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
 
 /* ============================= Manage card ============================= */
@@ -168,11 +459,13 @@
 }
 
 .category-row-skeleton {
-  height: 40px;
+  height: 44px;
   width: 100%;
 }
 
-/* --- New category form --- */
+/* --- New category form ---
+   The form is a well, and kit inputs are wells too — left alone they'd
+   vanish into it. Inside the form they go white with a hairline instead. */
 
 .new-category-form {
   display: flex;
@@ -181,8 +474,23 @@
   gap: var(--space-3);
   padding: var(--space-4);
   background: var(--bg-well);
-  border: 1px solid var(--line-faint);
-  border-radius: var(--radius-control);
+  border-radius: 16px;
+}
+
+.new-category-form .input,
+.new-category-form .select {
+  background-color: var(--bg-raised);
+  border-color: var(--line-faint);
+}
+
+.new-category-form .input:hover,
+.new-category-form .select:hover {
+  border-color: var(--line-strong);
+}
+
+.new-category-form .input:focus-visible,
+.new-category-form .select:focus-visible {
+  border-color: var(--line-accent);
 }
 
 .new-category-field-name {
@@ -208,12 +516,12 @@
 .category-group {
   display: flex;
   flex-direction: column;
-  gap: var(--space-2);
+  gap: var(--space-1);
 }
 
 .category-group-title {
-  font-size: var(--text-xs);
-  font-weight: var(--weight-medium);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
   color: var(--text-secondary);
 }
 
@@ -225,36 +533,53 @@
 .category-row {
   display: flex;
   flex-direction: column;
-  gap: var(--space-1);
-  padding: var(--space-3) 0;
   border-bottom: 1px solid var(--line-faint);
 }
 
 .category-list .category-row:last-child {
   border-bottom: none;
-  padding-bottom: 0;
 }
 
 .category-row-top {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
-  gap: var(--space-3);
+  gap: var(--space-2) var(--space-3);
+  min-height: 52px;
 }
 
 .category-row-main {
   display: flex;
+  flex: 1 1 auto;
   align-items: center;
   gap: var(--space-2);
   min-width: 0;
 }
 
+/* The same hue the category's bar wears in the tracker; income and
+   savings aren't in the tracker, so they get a neutral dot. */
+.category-dot {
+  flex: none;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--dot-hue, var(--bg-lift));
+}
+
 .category-name {
-  padding: var(--space-1) var(--space-2);
-  margin-left: calc(var(--space-2) * -1);
+  min-width: 0;
+  min-height: 44px;
+  padding: 0 var(--space-2);
+  margin-left: calc(var(--space-1) * -1);
   border-radius: var(--radius-control);
-  font-size: var(--text-sm);
+  font-size: var(--text-base);
+  font-weight: var(--weight-medium);
   color: var(--text-primary);
+  text-align: left;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   transition: background var(--t-fast) var(--ease-out);
 }
 
@@ -263,11 +588,21 @@
 }
 
 .category-name-input {
-  max-width: 220px;
+  max-width: 240px;
 }
 
+/* A badge that's also a button: the pill stays small, the tap target
+   reaches 44px through the pseudo-element. */
 .category-kind-badge {
+  position: relative;
+  flex: none;
   transition: background var(--t-fast) var(--ease-out);
+}
+
+.category-kind-badge::after {
+  content: "";
+  position: absolute;
+  inset: -12px -6px;
 }
 
 .category-kind-badge:hover {
@@ -276,9 +611,8 @@
 
 .category-kind-select {
   width: auto;
-  max-width: 140px;
-  padding: var(--space-1) var(--space-6) var(--space-1) var(--space-2);
-  font-size: var(--text-xs);
+  max-width: 150px;
+  font-size: var(--text-sm);
 }
 
 .category-row-actions {
@@ -286,16 +620,33 @@
 }
 
 .category-menu-btn {
-  padding: var(--space-1) var(--space-2);
-  font-size: var(--text-md);
-  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border-radius: var(--radius-control);
+  color: var(--text-secondary);
+  transition: background var(--t-fast) var(--ease-out),
+    color var(--t-fast) var(--ease-out);
+}
+
+.category-menu-btn:hover {
+  background: var(--bg-well);
+  color: var(--text-primary);
+}
+
+.category-menu-icon {
+  width: 18px;
+  height: 18px;
 }
 
 .category-confirm {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: var(--space-2);
-  font-size: var(--text-xs);
+  font-size: var(--text-sm);
 }
 
 .category-confirm-label {
@@ -303,11 +654,84 @@
   white-space: nowrap;
 }
 
-.category-confirm .btn {
-  padding: var(--space-1) var(--space-3);
-  font-size: var(--text-xs);
+.category-row-error {
+  margin: 0 0 var(--space-3);
 }
 
-.category-row-error {
-  margin: 0;
+/* A calm "not yet" (name taken, category still in use): secondary text
+   with a small ochre marker. Ochre means heads-up; coral stays reserved
+   for a request that really failed (.field-error). */
+.category-note {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 0 var(--space-1);
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+}
+
+.category-note::before {
+  content: "";
+  flex: none;
+  width: 6px;
+  height: 6px;
+  margin-right: var(--space-1);
+  border-radius: 50%;
+  background: var(--warn);
+  transform: translateY(-1px);
+}
+
+/* In a list row the marker sits under the category's hue dot (10px wide)
+   and the text starts under the name: 2 + 6 + 10 + the 4px gap = 22px. */
+.category-row > .category-note::before {
+  margin-left: 2px;
+  margin-right: 10px;
+}
+
+/* --- Add-category row: an Apple-list "+ New" affordance, not a header
+   button --- */
+
+.category-add-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  width: 100%;
+  min-height: 44px;
+  padding: var(--space-2);
+  margin-left: calc(var(--space-2) * -1);
+  border-radius: var(--radius-control);
+  color: var(--accent);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+  text-align: left;
+  transition: background var(--t-fast) var(--ease-out);
+}
+
+.category-add-row:hover {
+  background: var(--accent-soft);
+}
+
+.category-add-row:active {
+  background: var(--accent-soft-hover);
+}
+
+.category-add-icon-wrap {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.category-add-icon {
+  width: 14px;
+  height: 14px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 1.9;
+  stroke-linecap: round;
 }

@@ -1,5 +1,5 @@
 // BlitZave — onboarding. The user's first impression: one idea per step,
-// a slim progress indicator, 200ms step transitions. Nothing here computes
+// a slim progress indicator, 240ms step transitions. Nothing here computes
 // money — balances only ever pass through *_display strings from the API,
 // and the only numbers this page invents itself are plain counts (accounts
 // synced, transactions synced), never money.
@@ -12,14 +12,82 @@
 import * as api from "../api.js";
 
 const TOTAL_STEPS = 5;
-const STEP_TRANSITION_MS = 200; // matches --t-base
+const STEP_TRANSITION_MS = 240; // matches onboarding.css's bespoke page-turn duration
 
 const BRAND_MARK = `
   <svg class="onboarding-brand-mark" viewBox="0 0 64 64" aria-hidden="true">
-    <rect width="64" height="64" rx="14" fill="var(--bg-well)" />
-    <path d="M14 40 C22 40 26 28 34 28 C42 28 44 18 50 14" stroke="var(--accent)"
+    <rect width="64" height="64" rx="14" fill="var(--accent)" />
+    <path d="M14 40 C22 40 26 28 34 28 C42 28 44 18 50 14" stroke="var(--accent-ink)"
       stroke-width="5" stroke-linecap="round" fill="none" />
-    <circle cx="50" cy="14" r="4" fill="var(--accent)" />
+    <circle cx="50" cy="14" r="4" fill="var(--accent-ink)" />
+  </svg>
+`;
+
+// Small inline icons, scoped to onboarding only. The three "mini" icons
+// deliberately mirror the shapes in main.js's sidebar nav (same paths, a
+// touch smaller) so the step-5 preview reads as a promise of the real app,
+// not a different visual language.
+const ICON_LOCK = `
+  <span class="onboarding-tile onboarding-tile-round" aria-hidden="true">
+    <svg viewBox="0 0 24 24">
+      <rect x="5" y="11" width="14" height="9" rx="2.2" />
+      <path d="M8 11V8a4 4 0 0 1 8 0v3" />
+    </svg>
+  </span>
+`;
+
+// The only two places this flow uses pine — both are a confirmed action.
+const ICON_CHECK = `
+  <span class="onboarding-tile onboarding-tile-round onboarding-tile-success" aria-hidden="true">
+    <svg viewBox="0 0 24 24">
+      <path d="M5.5 12.5l4.5 4.5L18.5 8" />
+    </svg>
+  </span>
+`;
+
+// Account-kind glyphs for the step-4 preview: the same card shape as the
+// sidebar's Accounts icon for credit cards, a bank facade for cash accounts.
+const ICON_CARD = `
+  <svg viewBox="0 0 24 24" aria-hidden="true">
+    <rect x="2.75" y="6" width="18.5" height="13" rx="2.5" />
+    <path d="M2.75 10h18.5" />
+    <circle cx="17" cy="14.5" r="1" fill="currentColor" stroke="none" />
+  </svg>
+`;
+
+const ICON_BANK = `
+  <svg viewBox="0 0 24 24" aria-hidden="true">
+    <path d="M3.5 9.5 12 4l8.5 5.5" />
+    <path d="M5.5 10v7M10 10v7M14 10v7M18.5 10v7" />
+    <path d="M3.5 19.5h17" />
+  </svg>
+`;
+
+const ASSET_LABELS = { checking: "Checking", savings: "Savings" };
+const LIABILITY_LABELS = { credit_card: "Credit card", loan: "Loan" };
+
+const ICON_TRANSACTIONS_MINI = `
+  <svg viewBox="0 0 24 24" aria-hidden="true">
+    <path d="M7 4.5v12.5M7 17l-3-3M7 17l3-3" />
+    <path d="M17 19.5V7M17 7l-3 3M17 7l3 3" />
+  </svg>
+`;
+
+const ICON_CATEGORIES_MINI = `
+  <svg viewBox="0 0 24 24" aria-hidden="true">
+    <rect x="3.25" y="3.25" width="7.5" height="7.5" rx="1.8" />
+    <rect x="13.25" y="3.25" width="7.5" height="7.5" rx="1.8" />
+    <rect x="3.25" y="13.25" width="7.5" height="7.5" rx="1.8" />
+    <rect x="13.25" y="13.25" width="7.5" height="7.5" rx="1.8" />
+  </svg>
+`;
+
+const ICON_SYNC_MINI = `
+  <svg viewBox="0 0 24 24" aria-hidden="true">
+    <path d="M20 11a8 8 0 0 0-13.7-4.7L4 8.6" />
+    <path d="M4 4v4.6h4.6" />
+    <path d="M4 13a8 8 0 0 0 13.7 4.7L20 15.4" />
+    <path d="M20 20v-4.6h-4.6" />
   </svg>
 `;
 
@@ -27,9 +95,27 @@ function pluralize(n, word) {
   return `${n} ${word}${n === 1 ? "" : "s"}`;
 }
 
+// Backend error text arrives as a bare lowercase clause ("could not reach
+// SimpleFIN: …"). Make it read as a sentence before more copy follows it.
+function asSentence(text) {
+  const t = String(text || "").trim();
+  if (!t) return "";
+  const capped = t[0].toUpperCase() + t.slice(1);
+  return /[.!?…]$/.test(capped) ? capped : `${capped}.`;
+}
+
 function finishOnboarding() {
   localStorage.setItem("bz.onboarded", "1");
   window.__bz.refreshShell();
+}
+
+function stepHeadMarkup(step, title) {
+  return `
+    <header class="onboarding-head">
+      <p class="onboarding-eyebrow">Step ${step} of ${TOTAL_STEPS}</p>
+      <h2 class="onboarding-title" tabindex="-1" data-step-focus>${title}</h2>
+    </header>
+  `;
 }
 
 function skipLinkMarkup() {
@@ -75,9 +161,17 @@ export function render(root, _params) {
     if (!renderFn) return;
     updateProgress(step);
 
+    // Step 1 drops the card chrome entirely (see .onboarding-panel.is-bare
+    // in onboarding.css) — toggle it in step with the content swap so it
+    // never flashes while the panel is visible.
+    const swap = () => {
+      panel.classList.toggle("is-bare", step === 1);
+      renderFn(panel, ctx);
+    };
+
     const isFirstPaint = panel.childElementCount === 0;
     if (isFirstPaint) {
-      renderFn(panel, ctx);
+      swap();
       requestAnimationFrame(() => {
         panel.classList.add("is-visible");
         focusHeading(panel);
@@ -88,7 +182,7 @@ export function render(root, _params) {
     panel.classList.remove("is-visible");
     window.setTimeout(() => {
       if (!panel.isConnected) return; // navigated away mid-transition
-      renderFn(panel, ctx);
+      swap();
       requestAnimationFrame(() => {
         panel.classList.add("is-visible");
         focusHeading(panel);
@@ -132,8 +226,7 @@ function renderWelcome(panel, ctx) {
 function renderConnect(panel, ctx) {
   panel.innerHTML = `
     <div class="onboarding-step">
-      <p class="onboarding-eyebrow">Step 2 of 5</p>
-      <h2 class="onboarding-title" tabindex="-1" data-step-focus>Connect your bank</h2>
+      ${stepHeadMarkup(2, "Connect your bank")}
       <div id="connect-body" class="onboarding-dynamic">
         <div class="onboarding-check">
           <span class="onboarding-spinner-ring" aria-hidden="true"></span>
@@ -168,7 +261,10 @@ function renderConnect(panel, ctx) {
 
 function renderAlreadyConnected(body, ctx) {
   body.innerHTML = `
-    <p class="onboarding-body">Already connected — your bank link is ready to go.</p>
+    <div class="onboarding-confirmed">
+      ${ICON_CHECK}
+      <p class="onboarding-body">Already connected — your bank link is ready to go.</p>
+    </div>
     <div class="onboarding-actions">
       <button type="button" class="btn btn-primary onboarding-cta" data-action="continue">Continue</button>
     </div>
@@ -178,9 +274,12 @@ function renderAlreadyConnected(body, ctx) {
 
 function renderConnectForm(body, ctx) {
   body.innerHTML = `
-    <p class="onboarding-body">SimpleFIN gives BlitZave read-only access to your accounts — it can see
-      balances and transactions, but it can never move money. The setup token stays in your Mac's
-      keychain, and nothing leaves this machine except the sync itself.</p>
+    <div class="onboarding-trust">
+      ${ICON_LOCK}
+      <p class="onboarding-body onboarding-body-sm">SimpleFIN gives BlitZave read-only access to your accounts — it can see
+        balances and transactions, but it can never move money. The setup token stays in your Mac's
+        keychain, and nothing leaves this machine except the sync itself.</p>
+    </div>
     <form id="connect-form" class="onboarding-form" novalidate>
       <div class="field">
         <label class="field-label" for="setup-token">Setup token</label>
@@ -227,7 +326,7 @@ function renderConnectForm(body, ctx) {
       ctx.goTo(3);
     } catch (err) {
       if (!body.isConnected) return;
-      showError(err.detail || "Couldn't connect. Double-check the token and try again.");
+      showError(asSentence(err.detail) || "Couldn't connect. Double-check the token and try again.");
       submitBtn.disabled = false;
       submitBtn.textContent = "Connect";
     }
@@ -240,8 +339,7 @@ function renderConnectForm(body, ctx) {
 function renderSync(panel, ctx) {
   panel.innerHTML = `
     <div class="onboarding-step">
-      <p class="onboarding-eyebrow">Step 3 of 5</p>
-      <h2 class="onboarding-title" tabindex="-1" data-step-focus>Bringing in your accounts</h2>
+      ${stepHeadMarkup(3, "Bringing in your accounts")}
       <div id="sync-body" class="onboarding-dynamic"></div>
       ${skipLinkMarkup()}
     </div>
@@ -269,8 +367,11 @@ function runSync(body, ctx) {
       const accountCount = Number.isFinite(result?.accounts) ? result.accounts : 0;
       const txCount = Number.isFinite(result?.transactions) ? result.transactions : 0;
       body.innerHTML = `
-        <p class="onboarding-body">${pluralize(accountCount, "account")},
-          ${pluralize(txCount, "transaction")} — you're all set.</p>
+        <div class="onboarding-confirmed">
+          ${ICON_CHECK}
+          <p class="onboarding-body">${pluralize(accountCount, "account")},
+            ${pluralize(txCount, "transaction")} — you're all set.</p>
+        </div>
         <div class="onboarding-actions">
           <button type="button" class="btn btn-primary onboarding-cta" data-action="continue">Continue</button>
         </div>
@@ -280,7 +381,7 @@ function runSync(body, ctx) {
     .catch((err) => {
       if (!body.isConnected) return;
       body.innerHTML = `
-        <p class="onboarding-body">${err.detail || "The sync didn't go through."} No rush — try again
+        <p class="onboarding-body">${escapeHtml(asSentence(err.detail) || "The sync didn't go through.")} No rush — try again
           when you're ready.</p>
         <div class="onboarding-actions">
           <button type="button" class="btn btn-ghost" data-action="retry">Try again</button>
@@ -294,20 +395,25 @@ function runSync(body, ctx) {
 // Meet your accounts.
 
 function accountSubtitle(acc) {
-  if (acc.account_type === "liability") return acc.issuer_name || acc.bank_name || "";
-  return acc.bank_name || acc.issuer_name || "";
+  const isLiability = acc.account_type === "liability";
+  const institution = isLiability
+    ? acc.issuer_name || acc.bank_name
+    : acc.bank_name || acc.issuer_name;
+  const kind = isLiability
+    ? LIABILITY_LABELS[acc.liability_type]
+    : ASSET_LABELS[acc.asset_type];
+  return [institution, kind].filter(Boolean).join(" · ");
 }
 
 function renderAccounts(panel, ctx) {
   panel.innerHTML = `
     <div class="onboarding-step">
-      <p class="onboarding-eyebrow">Step 4 of 5</p>
-      <h2 class="onboarding-title" tabindex="-1" data-step-focus>Meet your accounts</h2>
+      ${stepHeadMarkup(4, "Meet your accounts")}
       <div id="accounts-body" class="onboarding-dynamic">
         <div class="onboarding-accounts">
-          <div class="skeleton" style="height: 56px;"></div>
-          <div class="skeleton" style="height: 56px;"></div>
-          <div class="skeleton" style="height: 56px;"></div>
+          <div class="skeleton"></div>
+          <div class="skeleton"></div>
+          <div class="skeleton"></div>
         </div>
       </div>
       ${skipLinkMarkup()}
@@ -342,9 +448,14 @@ function loadAccounts(body, ctx) {
         .map(
           (acc) => `
           <div class="onboarding-account-card">
-            <div>
-              <p class="onboarding-account-name">${escapeHtml(acc.display_name)}</p>
-              <p class="onboarding-account-sub">${escapeHtml(accountSubtitle(acc))}</p>
+            <div class="onboarding-account-id">
+              <span class="onboarding-tile" aria-hidden="true">${
+                acc.account_type === "liability" ? ICON_CARD : ICON_BANK
+              }</span>
+              <div class="onboarding-account-text">
+                <p class="onboarding-account-name">${escapeHtml(acc.name || acc.display_name)}</p>
+                <p class="onboarding-account-sub">${escapeHtml(accountSubtitle(acc))}</p>
+              </div>
             </div>
             <p class="onboarding-account-balance u-tabular">${escapeHtml(acc.balance_display)}</p>
           </div>`
@@ -363,7 +474,7 @@ function loadAccounts(body, ctx) {
     .catch((err) => {
       if (!body.isConnected) return;
       body.innerHTML = `
-        <p class="onboarding-body">${err.detail || "Couldn't load your accounts just now."}</p>
+        <p class="onboarding-body">${escapeHtml(asSentence(err.detail) || "Couldn't load your accounts just now.")}</p>
         <div class="onboarding-actions">
           <button type="button" class="btn btn-ghost" data-action="retry">Try again</button>
         </div>
@@ -384,25 +495,24 @@ function escapeHtml(value) {
 function renderFinish(panel, _ctx) {
   panel.innerHTML = `
     <div class="onboarding-step">
-      <p class="onboarding-eyebrow">Step 5 of 5</p>
-      <h2 class="onboarding-title" tabindex="-1" data-step-focus>You're set</h2>
+      ${stepHeadMarkup(5, "You're set")}
       <div class="onboarding-pointers">
         <div class="onboarding-pointer">
-          <span class="onboarding-pointer-dot" aria-hidden="true"></span>
+          <span class="onboarding-tile" aria-hidden="true">${ICON_TRANSACTIONS_MINI}</span>
           <div>
             <p class="onboarding-pointer-title">Transactions</p>
             <p class="onboarding-pointer-body">Review what came in and categorize what matters.</p>
           </div>
         </div>
         <div class="onboarding-pointer">
-          <span class="onboarding-pointer-dot" aria-hidden="true"></span>
+          <span class="onboarding-tile" aria-hidden="true">${ICON_CATEGORIES_MINI}</span>
           <div>
             <p class="onboarding-pointer-title">Categories</p>
             <p class="onboarding-pointer-body">See where it's going, organized your way.</p>
           </div>
         </div>
         <div class="onboarding-pointer">
-          <span class="onboarding-pointer-dot" aria-hidden="true"></span>
+          <span class="onboarding-tile" aria-hidden="true">${ICON_SYNC_MINI}</span>
           <div>
             <p class="onboarding-pointer-title">Sync, anytime</p>
             <p class="onboarding-pointer-body">One click, top of the sidebar, whenever you want the latest.</p>

@@ -152,3 +152,47 @@ export function patchTransaction(id, body) {
     body: JSON.stringify(body),
   });
 }
+
+// ----------------------------- Adjustments -----------------------------
+// A pair of transactions that cancel out — a refund, reversal, payment, or
+// money moved between accounts — linked so neither counts as spending or income.
+
+export function adjustmentCandidates(transactionId) {
+  return request(`/api/transactions/${encodeURIComponent(transactionId)}/transfer-candidates`);
+}
+
+export function listAdjustments() {
+  return request("/api/transfers");
+}
+
+export function createAdjustment(transactionId, counterpartId) {
+  return request("/api/transfers", {
+    method: "POST",
+    body: JSON.stringify({ transaction_id: transactionId, counterpart_id: counterpartId }),
+  });
+}
+
+export function deleteAdjustment(id) {
+  return request(`/api/transfers/${encodeURIComponent(id)}`, { method: "DELETE" });
+}
+
+// --------------------------- Refunds / credits ---------------------------
+
+export function refundCandidates(transactionId) {
+  return request(`/api/transactions/${encodeURIComponent(transactionId)}/refund-candidates`);
+}
+
+export function listRefunds() {
+  return request("/api/refunds");
+}
+
+export function createRefund(transactionId, counterpartId) {
+  return request("/api/refunds", {
+    method: "POST",
+    body: JSON.stringify({ transaction_id: transactionId, counterpart_id: counterpartId }),
+  });
+}
+
+export function deleteRefund(id) {
+  return request(`/api/refunds/${encodeURIComponent(id)}`, { method: "DELETE" });
+}

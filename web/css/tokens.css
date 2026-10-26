@@ -1,72 +1,104 @@
 /* BlitZave — design tokens
-   Dark only. Graphite surfaces with a cold green undertone, one glacial-mint
-   accent, soft off-white text. Everything here is a decision; nothing is a
-   framework default. See DESIGN.md for usage. */
+   "Daylight, Apple-grade": the same calm-light, ally-not-scorekeeper voice as
+   before, finished to the standard of Apple Health / Wallet light mode —
+   depth, confident type, real iconography. A neutral page, true-white cards
+   that float on layered soft shadows (not a hairline wireframe), deep ink,
+   one deep-indigo accent for action, and an un-moralistic status palette
+   (pine = on-track, ochre = heads-up, coral = a real failure only).
+
+   Money figures are now BOLD SANS, tight-tracked, tabular — the serif
+   (--font-display, "New York") is retired from numerals entirely and lives
+   ONLY in the BlitZave wordmark, as an editorial signature mark, not a
+   numeral face. Everything here is a decision; nothing is a framework
+   default. */
 
 :root {
-  color-scheme: dark;
+  color-scheme: light;
 
-  /* ----- Surfaces (darkest to lightest) -----
-     All darks carry a slight cold cast so the mint accent sits in them
-     naturally. Never pure #000. */
-  --bg-page: #0b0e0d;        /* the page itself */
-  --bg-raised: #141a18;      /* cards, sidebar, anything that sits on the page */
-  --bg-well: #1b2320;        /* inputs, hovers, inset areas inside a card */
-  --bg-lift: #222b28;        /* pressed / selected / second-level hover */
+  /* ----- Surfaces (page → card → well → lift) -----
+     Apple-neutral, not porcelain: a true light-grey page, true-white cards.
+     Depth now comes from --shadow-card, not from a tint difference — see
+     the Elevation section below. */
+  --bg-page: #f5f5f7;   /* the page itself — Apple-neutral light grey */
+  --bg-raised: #ffffff; /* cards, the sidebar, anything that sits on the page */
+  --bg-well: #efeff1;   /* inputs, hovers, inset areas inside a card */
+  --bg-lift: #e5e5ea;   /* pressed / selected / second-level hover */
 
   /* ----- Hairlines -----
-     Borders do the work shadows would. Keep them faint. */
-  --line-faint: rgba(236, 244, 240, 0.07);   /* card edges, dividers */
-  --line-strong: rgba(236, 244, 240, 0.14);  /* interactive element edges */
-  --line-accent: rgba(116, 231, 208, 0.45);  /* focused inputs, active edges */
+     Near-invisible now that shadows carry the depth. A border here is a
+     finishing edge, not the thing doing the work. */
+  --line-faint: rgba(0, 0, 0, 0.06);       /* card edges, dividers, table rules */
+  --line-strong: rgba(0, 0, 0, 0.12);      /* interactive element edges, hover */
+  --line-accent: rgba(52, 59, 160, 0.55);  /* focused inputs, active edges */
 
   /* ----- Text tiers ----- */
-  --text-primary: #eaf1ee;   /* numerals, headings, primary copy */
-  --text-secondary: #93a29c; /* supporting copy, labels, table headers */
-  --text-faint: #5c6a64;     /* timestamps, placeholders, de-emphasis */
+  --text-primary: #1d1d1f;   /* numerals, headings, primary copy — Apple ink */
+  --text-secondary: #6e6e73; /* supporting copy, labels, table headers */
+  --text-faint: #8e8e93;     /* timestamps, placeholders, de-emphasis — Apple systemGray; #aeaeb2 was 2.2:1 on white and washed out */
 
-  /* ----- The accent: glacial mint -----
-     One accent, used sparingly: primary actions, the active nav marker,
-     focus rings, the sync pulse. If a screen has mint in more than two
-     places, remove one. */
-  --accent: #74e7d0;
-  --accent-hover: #8ff0dd;             /* lighter, for hover on mint things */
-  --accent-press: #5fd2bb;             /* darker, for active/pressed */
-  --accent-ink: #06201a;               /* text set on a mint fill */
-  --accent-soft: rgba(116, 231, 208, 0.12);  /* tints: chips, highlights */
-  --accent-soft-hover: rgba(116, 231, 208, 0.2);
+  /* ----- The accent: deep indigo -----
+     One accent, for ACTION only: primary buttons, the active nav marker,
+     focus rings, inline links, the sort indicator. Not for money, not for
+     status. If a screen shows indigo in more than ~2 places, remove one. */
+  --accent: #343ba0;
+  --accent-rgb: 52, 59, 160; /* raw channels — for one-off accent shadows below */
+  --accent-hover: #3e46b8;             /* lighter, for hover on indigo fills */
+  --accent-press: #2b3184;             /* darker, for active/pressed */
+  --accent-ink: #ffffff;               /* text set on an indigo fill */
+  --accent-soft: rgba(52, 59, 160, 0.1);       /* tints: chips, highlights, active nav */
+  --accent-soft-hover: rgba(52, 59, 160, 0.16);
 
-  /* ----- Status (reserved) -----
-     Danger is for actual failures only — a request that errored, a sync that
-     could not complete. Never for spending, negative balances, or any
-     ordinary number. Success is for completed actions (connected, saved). */
-  --danger: #f2766b;
-  --danger-soft: rgba(242, 118, 107, 0.12);
-  --success: #86d9a8;
-  --success-soft: rgba(134, 217, 168, 0.12);
+  /* ----- Status — un-moralistic (the Prime Directive, not a style note) -----
+     Money is never colored by whether a number is "good." These three are
+     for STATE and SYSTEM only:
+       success/pine  — a confirmed action or an on-track state
+       warn/ochre    — a neutral heads-up ("worth a look", never "you failed")
+       danger/coral  — an actual failure: a request that errored, a sync that
+                       could not complete. Never spending, never a balance. */
+  --success: #2e7d66;
+  --success-soft: rgba(46, 125, 102, 0.12);
+  --warn: #986714;
+  --warn-soft: rgba(152, 103, 20, 0.12);
+  --danger: #be453b;
+  --danger-soft: rgba(190, 69, 59, 0.1);
 
   /* ----- Type -----
-     One family. Numerals are the hero: large, medium weight, tabular. */
-  --font-ui: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI",
-             sans-serif;
-  --text-xs: 0.781rem;    /* 12.5px — timestamps, fine print */
-  --text-sm: 0.875rem;    /* 14px — table cells, secondary copy */
-  --text-base: 0.9375rem; /* 15px — body */
-  --text-md: 1.0625rem;   /* 17px — card titles, emphasized rows */
-  --text-lg: 1.375rem;    /* 22px — section numerals, modal titles */
-  --text-xl: 1.75rem;     /* 28px — page headings */
-  --text-display: 2.625rem; /* 42px — the one number a page leads with */
+     Two system families, no download: SF Pro for the interface AND for
+     every numeral — money is now bold sans, never serif. The system serif
+     ("New York") is kept for exactly one use in the whole app: the
+     BlitZave wordmark in the sidebar. Don't reach for --font-display
+     anywhere else. */
+  --font-ui: ui-sans-serif, -apple-system, BlinkMacSystemFont, "SF Pro Text",
+             "Segoe UI", sans-serif;
+  --font-display: ui-serif, "New York", "Iowan Old Style", "Palatino Linotype",
+             Palatino, Georgia, serif; /* wordmark only — never numerals */
+
+  --text-xs: 0.75rem;      /* 12px — timestamps, fine print */
+  --text-sm: 0.875rem;     /* 14px — table cells, secondary copy */
+  --text-base: 0.9375rem;  /* 15px — body */
+  --text-md: 1.0625rem;    /* 17px — card titles, emphasized rows */
+  --text-lg: 1.375rem;     /* 22px — section numerals, modal titles */
+  --text-xl: 2.125rem;     /* 34px — page headings (--text-title alias below) */
+  --text-title: 2.125rem;  /* 34px/700 — same value as --text-xl, named for
+                               clarity: this is "the page heading" size. */
+  --text-display: 2.25rem; /* 36px — the figure a card leads with, bold sans */
+  --text-hero: 3.5rem;     /* 56px — the single number a whole page leads with */
 
   --weight-regular: 400;
   --weight-medium: 500;
   --weight-semibold: 600;
+  --weight-bold: 700;
 
-  --leading-tight: 1.2;
+  --leading-tight: 1.1;    /* headings + hero/display figures */
   --leading-body: 1.55;
 
-  /* Numerals: always pair these two. */
-  --numeric: tabular-nums;
-  --tracking-numeral: -0.02em;
+  /* Numerals: tabular + lining so figures line up in columns.
+     --tracking-numeral is the moderate tightening for in-flow numerals
+     (table cells, badges). --tracking-tight is the aggressive SF-style
+     tightening for headings and the big bold money figures. */
+  --numeric: tabular-nums lining-nums;
+  --tracking-numeral: -0.01em;
+  --tracking-tight: -0.02em;
 
   /* ----- Spacing scale (4px base) ----- */
   --space-1: 0.25rem;   /*  4px */
@@ -79,9 +111,9 @@
   --space-8: 4rem;      /* 64px */
 
   /* ----- Radii (tiered — hierarchy, not uniformity) ----- */
-  --radius-card: 16px;    /* cards, panels, toasts */
-  --radius-control: 10px; /* buttons, inputs, selects */
-  --radius-chip: 999px;   /* chips, badges, pills */
+  --radius-card: 20px;    /* cards, panels, toasts */
+  --radius-control: 12px; /* buttons, inputs, selects */
+  --radius-chip: 999px;   /* chips, badges, pills, nav items */
 
   /* ----- Motion -----
      Motion answers an action; nothing animates on page entry. */
@@ -91,15 +123,32 @@
   --t-slow: 250ms;
 
   /* ----- Layout ----- */
-  --sidebar-width: 224px;
-  --content-max: 1040px;
+  --sidebar-width: 240px;
+  --content-max: 1060px;
 
   /* ----- Focus ring ----- */
   --focus-ring: 0 0 0 2px var(--bg-page), 0 0 0 4px var(--line-accent);
 
-  /* ----- Elevation (reserved for things that float ABOVE the page, like a
-     toast — cards never use this; they use a hairline instead) ----- */
-  --shadow-float: 0 16px 32px -12px rgba(2, 6, 5, 0.55);
+  /* ----- Elevation -----
+     Cards now float. This is the whole depth system: a near-invisible
+     border for a crisp edge, plus a layered shadow — a tight near shadow
+     for contact, a soft diffuse far shadow for lift. Apple Health/Wallet
+     physics, not a drop-shadow default. */
+  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.05), 0 10px 30px -10px rgba(0, 0, 0, 0.1);
+  --shadow-card-hover: 0 2px 4px rgba(0, 0, 0, 0.06), 0 18px 40px -12px rgba(0, 0, 0, 0.14);
+  --shadow-float: 0 20px 44px -16px rgba(0, 0, 0, 0.22), 0 2px 10px rgba(0, 0, 0, 0.08);
+  /* A quiet colored lift for the one filled indigo surface on a screen
+     (the primary button) — built from --accent-rgb, not a new hex. */
+  --shadow-accent: 0 1px 2px rgba(var(--accent-rgb), 0.2), 0 6px 16px -6px rgba(var(--accent-rgb), 0.38);
+
+  /* Frosted/translucent surfaces (the sidebar). Paired with a
+     semi-transparent background on the element itself. */
+  --blur-nav: saturate(1.6) blur(20px);
+
+  /* ----- Skeleton sheen -----
+     The highlight that sweeps across a loading placeholder. On light it is
+     near-white, brighter than the --bg-well base it moves over. */
+  --sheen: rgba(255, 255, 255, 0.7);
 
   /* ----- Stacking ----- */
   --z-shell: 1;

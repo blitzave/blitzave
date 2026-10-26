@@ -30,6 +30,13 @@ def test_health(client):
     assert response.json() == {"status": "ok"}
 
 
+def test_ui_files_must_revalidate_so_updates_never_mix_old_and_new_modules(client):
+    for path in ("/", "/js/main.js", "/css/tokens.css"):
+        response = client.get(path)
+        assert response.status_code == 200
+        assert response.headers["cache-control"] == "no-cache"
+
+
 def test_connect_status_starts_false(client):
     response = client.get("/api/connect")
     assert response.status_code == 200

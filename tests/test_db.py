@@ -16,6 +16,7 @@ EXPECTED_TABLES = {
     "transfers",
     "balances",
     "job_runs",
+    "category_rules",
 }
 
 

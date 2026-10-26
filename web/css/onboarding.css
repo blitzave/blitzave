@@ -1,52 +1,80 @@
 /* BlitZave — onboarding flow.
    Full-bleed, centered, no sidebar (base.css's .is-onboarding rules handle
-   that part of the shell). One idea per step; motion only ever answers a
-   step change — nothing here animates on its own except the sync pulse,
-   which is the one moment the user is deliberately asked to wait. */
+   that part of the shell). An Apple-product-unboxing feel: one idea per
+   step, a slim progress rail pinned in place, a 240ms page-turn between
+   steps. Nothing here animates on its own except the sync pulse, which is
+   the one moment the user is deliberately asked to wait. */
 
 .onboarding {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: var(--space-6);
   width: 100%;
-  max-width: 440px;
+  max-width: 560px;
+  /* Auto margins, not align-items, so a panel taller than the window scrolls
+     instead of being clipped at the top. The padding clears the fixed rail
+     above and mirrors below, which keeps the panel optically centered. */
+  margin-block: auto;
+  padding-block: calc(var(--space-6) + var(--space-5));
 }
 
 /* ---------------------------- Progress rail ---------------------------- */
+/* Five short pill segments, pinned to the top of the window so the rail
+   never jumps when a step's panel changes height. The current segment is
+   full indigo; finished ones settle back to a soft indigo. */
 
 .onboarding-progress {
+  position: fixed;
+  top: var(--space-7);
+  left: 50%;
+  transform: translateX(-50%);
   display: flex;
   gap: var(--space-2);
-  width: 100%;
-  max-width: 200px;
+  width: min(280px, calc(100vw - 2 * var(--space-5)));
 }
 
 .onboarding-progress-seg {
+  position: relative;
   flex: 1 1 0;
-  height: 3px;
+  height: 6px;
+  overflow: hidden;
   border-radius: var(--radius-chip);
-  background: var(--line-faint);
-  transition: background var(--t-base) var(--ease-out);
+  background: var(--bg-lift);
 }
 
-.onboarding-progress-seg.is-complete {
+.onboarding-progress-seg::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
   background: var(--accent);
+  opacity: 0.4;
+  transform: scaleX(0);
+  transform-origin: left center;
+  transition: transform var(--t-slow) var(--ease-out),
+    opacity var(--t-fast) var(--ease-out);
 }
 
-.onboarding-progress-seg.is-active {
-  background: var(--accent-hover);
+.onboarding-progress-seg.is-complete::after {
+  transform: scaleX(1);
+}
+
+.onboarding-progress-seg.is-active::after {
+  opacity: 1;
+  transform: scaleX(1);
 }
 
 /* ------------------------------- Panel ------------------------------- */
 
 .onboarding-panel {
   width: 100%;
-  padding: var(--space-7) var(--space-6);
+  padding: var(--space-7);
   opacity: 0;
-  transform: translateY(4px);
-  transition: opacity var(--t-base) var(--ease-out),
-    transform var(--t-base) var(--ease-out);
+  transform: translateY(6px);
+  /* 240ms, not --t-base's 200ms — the one bespoke duration on this screen,
+     for the page-turn between steps. Everything else in the app uses the
+     shared motion tokens; this is the deliberate exception. */
+  transition: opacity 240ms var(--ease-out), transform 240ms var(--ease-out);
 }
 
 .onboarding-panel.is-visible {
@@ -54,28 +82,47 @@
   transform: translateY(0);
 }
 
+/* Step 1 only: the welcome moment drops the card chrome entirely and
+   floats directly on the page — no edge, no shadow, nothing to box in the
+   one glamour moment. Steps 2–5 keep the card (applied via .card on the
+   element itself). */
+.onboarding-panel.is-bare {
+  background: transparent;
+  border-color: transparent;
+  box-shadow: none;
+  padding: var(--space-7) var(--space-5);
+}
+
 .onboarding-step {
   display: flex;
   flex-direction: column;
-  align-items: flex-start;
-  gap: var(--space-4);
+  gap: var(--space-5);
+  width: 100%;
   text-align: left;
 }
 
-.onboarding-step-center {
-  align-items: center;
-  text-align: center;
+.onboarding-head {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
 }
 
 .onboarding-eyebrow {
   font-size: var(--text-xs);
-  color: var(--text-faint);
+  font-weight: var(--weight-medium);
+  color: var(--text-secondary);
 }
 
+/* 28px — the step-title size; it sits between --text-lg (22px) and
+   --text-title (34px) and no token matches it. Weight (700) and tracking
+   (--tracking-tight) already come free from base.css's h1/h2/h3 rule since
+   this lives on an <h2>. */
 .onboarding-title {
-  font-size: var(--text-xl);
+  font-size: 1.75rem;
 }
 
+/* The heading takes programmatic focus on each step so screen readers land
+   on it; it isn't interactive, so it doesn't wear the focus ring. */
 .onboarding-title:focus-visible {
   outline: none;
   box-shadow: none;
@@ -85,20 +132,33 @@
   font-size: var(--text-base);
   color: var(--text-secondary);
   line-height: var(--leading-body);
+  text-wrap: pretty;
+}
+
+.onboarding-body-sm {
+  font-size: var(--text-sm);
 }
 
 .onboarding-hint {
   font-size: var(--text-xs);
-  color: var(--text-faint);
+  color: var(--text-secondary);
 }
 
 .onboarding-dynamic {
   display: flex;
   flex-direction: column;
-  gap: var(--space-4);
+  gap: var(--space-5);
   width: 100%;
 }
 
+.onboarding-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+}
+
+/* A primary action fills the card's width, Apple-setup style; the quiet
+   skip link sits centered beneath it. */
 .onboarding-actions {
   display: flex;
   align-items: center;
@@ -106,37 +166,95 @@
   width: 100%;
 }
 
-.onboarding-actions-center {
-  justify-content: center;
+.onboarding-actions > .btn {
+  flex: 1 1 auto;
 }
 
 .onboarding-cta {
+  min-height: 48px;
   padding: var(--space-3) var(--space-6);
 }
 
 .onboarding-skip {
   align-self: center;
-  margin-top: var(--space-1);
+  min-height: 44px;
+  margin-top: calc(-1 * var(--space-3));
+}
+
+/* A 40px icon tile, the one icon treatment across the flow: a neutral well
+   with an ink glyph (indigo stays reserved for action). Round variant for
+   the trust lock and the confirmed check. */
+.onboarding-tile {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius-control);
+  background: var(--bg-well);
+  color: var(--text-primary);
+}
+
+.onboarding-tile svg {
+  width: 20px;
+  height: 20px;
+  stroke: currentColor;
+  stroke-width: 1.7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  fill: none;
+}
+
+.onboarding-tile-round {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+}
+
+.onboarding-tile-success {
+  background: var(--success-soft);
+  color: var(--success);
+}
+
+.onboarding-tile-success svg {
+  stroke-width: 2.2;
 }
 
 /* -------------------------------- Step 1 -------------------------------- */
+/* The one glamour moment in the whole flow: the serif wordmark, large,
+   with nothing else competing for attention. */
+
+.onboarding-step-center {
+  align-items: center;
+  gap: 0;
+  text-align: center;
+}
 
 .onboarding-brand {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: var(--space-3);
+  gap: var(--space-5);
 }
 
+/* The app-icon mark floats on a soft indigo shadow, built from the accent
+   channels rather than a new color. */
 .onboarding-brand-mark {
-  width: 40px;
-  height: 40px;
+  width: 64px;
+  height: 64px;
+  filter: drop-shadow(0 10px 18px rgba(var(--accent-rgb), 0.28));
 }
 
 .onboarding-brand-name {
-  font-size: var(--text-xl);
-  font-weight: var(--weight-semibold);
-  letter-spacing: -0.01em;
+  font-family: var(--font-display);
+  font-size: clamp(3.25rem, 14vw, 4.5rem); /* up to 72px — deliberately bigger
+                                              than any token; this is the
+                                              single place the serif gets to
+                                              be loud. */
+  font-weight: var(--weight-regular);
+  letter-spacing: -0.015em;
+  line-height: 1;
   color: var(--text-primary);
 }
 
@@ -146,10 +264,23 @@
 }
 
 .onboarding-tagline {
-  max-width: 32ch;
-  font-size: var(--text-md);
+  max-width: 28ch;
+  margin-top: var(--space-5);
+  font-size: 1.3125rem; /* 21px */
+  font-weight: var(--weight-regular);
   color: var(--text-secondary);
-  line-height: var(--leading-body);
+  line-height: 1.5;
+  text-wrap: balance;
+}
+
+.onboarding-actions-center {
+  justify-content: center;
+  margin-top: var(--space-7);
+}
+
+.onboarding-actions-center > .btn {
+  flex: 0 0 auto;
+  min-width: 220px;
 }
 
 /* -------------------------------- Step 2 -------------------------------- */
@@ -173,9 +304,29 @@
 }
 
 .onboarding-token-input {
-  min-height: 92px;
+  min-height: 96px;
   resize: vertical;
   font-size: var(--text-sm);
+  overflow-wrap: anywhere;
+}
+
+/* A quiet trust signal next to the SimpleFIN explanation — a lock, not a
+   wall of copy, doing the reassuring. */
+.onboarding-trust {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+}
+
+.onboarding-trust .onboarding-body {
+  padding-top: 1px;
+}
+
+/* The "already connected" / sync-complete state. */
+.onboarding-confirmed {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
 }
 
 /* -------------------------------- Step 3 -------------------------------- */
@@ -184,105 +335,151 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: var(--space-4);
-  padding: var(--space-4) 0;
+  gap: var(--space-5);
+  padding: var(--space-5) 0;
   width: 100%;
 }
 
+/* A breathing dot with a soft halo. The resting style is the full dot, so
+   with reduced motion (animation collapses to one instant frame) it simply
+   sits there, fully drawn. */
 .onboarding-sync-dot {
-  width: 14px;
-  height: 14px;
+  width: 16px;
+  height: 16px;
   border-radius: 50%;
   background: var(--accent);
+  box-shadow: 0 0 0 8px rgba(var(--accent-rgb), 0.12);
   animation: bz-breathe 1.8s ease-in-out infinite;
 }
 
 @keyframes bz-breathe {
   0%,
   100% {
-    transform: scale(0.8);
-    opacity: 0.5;
+    transform: scale(0.85);
+    opacity: 0.7;
+    box-shadow: 0 0 0 4px rgba(var(--accent-rgb), 0.16);
   }
   50% {
-    transform: scale(1.15);
+    transform: scale(1.1);
     opacity: 1;
+    box-shadow: 0 0 0 12px rgba(var(--accent-rgb), 0.06);
   }
 }
 
 /* -------------------------------- Step 4 -------------------------------- */
+/* A tray holding mini versions of the app's white cards: real elevation and
+   bold balances, set in a well so the cards genuinely lift off it instead
+   of stacking shadows on a white panel. */
 
 .onboarding-accounts {
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
-  max-height: 280px;
+  max-height: min(46vh, 380px);
   overflow-y: auto;
+  padding: var(--space-2);
+  background: var(--bg-well);
+  border-radius: calc(var(--radius-card) - 4px);
+  scrollbar-width: thin;
+}
+
+.onboarding-accounts .skeleton {
+  flex: none;
+  height: 72px;
+  background: var(--bg-lift);
 }
 
 .onboarding-account-card {
+  flex: none;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: var(--space-4);
-  padding: var(--space-3) var(--space-4);
-  background: var(--bg-well);
+  padding: var(--space-4);
+  background: var(--bg-raised);
   border: 1px solid var(--line-faint);
   border-radius: var(--radius-control);
+  box-shadow: var(--shadow-card);
+}
+
+.onboarding-account-id {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+.onboarding-account-text {
+  min-width: 0;
 }
 
 .onboarding-account-name {
-  font-size: var(--text-sm);
-  font-weight: var(--weight-medium);
+  font-size: var(--text-base);
+  font-weight: var(--weight-semibold);
   color: var(--text-primary);
+  overflow-wrap: anywhere;
 }
 
 .onboarding-account-sub {
   margin-top: 2px;
   font-size: var(--text-xs);
-  color: var(--text-faint);
+  color: var(--text-secondary);
 }
 
 .onboarding-account-balance {
+  flex: none;
   font-size: var(--text-md);
-  font-weight: var(--weight-medium);
+  font-weight: var(--weight-bold);
+  letter-spacing: var(--tracking-tight);
   color: var(--text-primary);
 }
 
 /* -------------------------------- Step 5 -------------------------------- */
+/* An Apple "what's new" list: icon, a short title, one line beneath. No
+   boxes — the whitespace does the grouping. */
 
 .onboarding-pointers {
   display: flex;
   flex-direction: column;
-  gap: var(--space-3);
+  gap: var(--space-5);
   width: 100%;
 }
 
 .onboarding-pointer {
   display: flex;
   align-items: flex-start;
-  gap: var(--space-3);
-  padding: var(--space-3) var(--space-4);
-  background: var(--bg-well);
-  border-radius: var(--radius-control);
+  gap: var(--space-4);
 }
 
-.onboarding-pointer-dot {
-  flex: none;
-  width: 6px;
-  height: 6px;
-  margin-top: 7px;
-  border-radius: 50%;
-  background: var(--accent);
+.onboarding-pointers + .onboarding-actions {
+  margin-top: var(--space-2);
 }
 
 .onboarding-pointer-title {
-  font-size: var(--text-sm);
-  font-weight: var(--weight-medium);
+  font-size: var(--text-base);
+  font-weight: var(--weight-semibold);
   color: var(--text-primary);
 }
 
 .onboarding-pointer-body {
   margin-top: 2px;
-  font-size: var(--text-xs);
+  font-size: var(--text-sm);
   color: var(--text-secondary);
+}
+
+/* ------------------------------ Small screens ------------------------------ */
+
+@media (max-width: 480px) {
+  .onboarding-panel {
+    padding: var(--space-6) var(--space-5);
+  }
+
+  .onboarding-panel.is-bare {
+    padding-inline: 0;
+  }
+
+  /* Names matter more than the decorative glyph once the row is this narrow. */
+  .onboarding-account-id .onboarding-tile {
+    display: none;
+  }
 }

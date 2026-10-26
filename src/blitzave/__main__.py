@@ -22,6 +22,18 @@ DEV_DIR = Path(__file__).resolve().parents[2] / "dev"
 WEB_DIR = Path(__file__).resolve().parents[2] / "web"
 
 
+class RevalidatingStaticFiles(StaticFiles):
+    """The UI is plain ES modules with no build step and no hashed filenames,
+    so after an update the browser must re-check every file or it can run a
+    mix of old and new modules. no-cache still allows cached copies; it only
+    forces a revalidation, which on localhost is an instant 304."""
+
+    async def get_response(self, path, scope):
+        response = await super().get_response(path, scope)
+        response.headers["Cache-Control"] = "no-cache"
+        return response
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     conn = db.connect()
@@ -46,11 +58,11 @@ def create_app() -> FastAPI:
     app = FastAPI(title="BlitZave", lifespan=lifespan)
     app.include_router(router)
     if DEV_DIR.is_dir():
-        app.mount("/dev", StaticFiles(directory=DEV_DIR, html=True), name="dev")
+        app.mount("/dev", RevalidatingStaticFiles(directory=DEV_DIR, html=True), name="dev")
     if WEB_DIR.is_dir():
         # Mounted last: API routes and /docs are matched first, everything
         # else falls through to the UI's static files.
-        app.mount("/", StaticFiles(directory=WEB_DIR, html=True), name="web")
+        app.mount("/", RevalidatingStaticFiles(directory=WEB_DIR, html=True), name="web")
     return app
 
 

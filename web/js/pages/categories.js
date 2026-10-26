@@ -1,10 +1,8 @@
 // BlitZave — categories page.
-// Owned by the categories agent. Two sections, tracker first ("calm on
-// top"): "Where it went" (the month's spend breakdown by category) above
-// "Your categories" (create/rename/recategorize/delete).
+// Monthly expense budgets above "Your categories" management.
 //
 // Money rule: every figure on screen is a *_display string straight from
-// the API. Cents are only ever used here for bar-width geometry.
+// the API. Budget inputs remain strings for the API to parse and validate.
 
 import * as api from "../api.js";
 
@@ -15,6 +13,46 @@ const MONTH_NAMES = [
 
 const KIND_ORDER = ["expense", "income", "savings"];
 const KIND_LABELS = { expense: "Expense", income: "Income", savings: "Savings" };
+
+// How many muted-but-distinct data hues the tracker bars rotate through —
+// defined as --cat-hue-0..4 in categories.css, scoped to .categories-page.
+// Ochre/coral are reserved for status and never used here.
+const DATA_HUE_COUNT = 5;
+
+// Real inline SVG, 16-20px, currentColor, round caps — see DESIGN.md's
+// iconography rule. No text glyphs standing in for a chevron, dots, or a
+// plus anymore.
+const ICON_CHEVRON_LEFT = `
+  <svg class="month-nav-icon" viewBox="0 0 24 24" aria-hidden="true">
+    <path d="M15 5l-7 7 7 7" />
+  </svg>
+`;
+
+const ICON_CHEVRON_RIGHT = `
+  <svg class="month-nav-icon" viewBox="0 0 24 24" aria-hidden="true">
+    <path d="M9 5l7 7-7 7" />
+  </svg>
+`;
+
+const ICON_CHEVRON_DOWN = `
+  <svg class="quiet-categories-icon" viewBox="0 0 24 24" aria-hidden="true">
+    <path d="M6 9l6 6 6-6" />
+  </svg>
+`;
+
+const ICON_ELLIPSIS = `
+  <svg class="category-menu-icon" viewBox="0 0 24 24" aria-hidden="true">
+    <circle cx="5" cy="12" r="1.8" fill="currentColor" stroke="none" />
+    <circle cx="12" cy="12" r="1.8" fill="currentColor" stroke="none" />
+    <circle cx="19" cy="12" r="1.8" fill="currentColor" stroke="none" />
+  </svg>
+`;
+
+const ICON_PLUS = `
+  <svg class="category-add-icon" viewBox="0 0 24 24" aria-hidden="true">
+    <path d="M12 5v14M5 12h14" />
+  </svg>
+`;
 
 // ----------------------------------------------------------------------
 // Module state. `root` is the same DOM node across every visit to this
@@ -45,6 +83,13 @@ function freshState() {
     editingKindId: null,
     confirmDeleteId: null,
     kindSaving: null,
+    accounts: [],
+    accountsError: null,
+    activity: {},
+    editingBudgetId: null,
+    budgetDrafts: {},
+    budgetErrors: {},
+    budgetSaving: null,
     pendingNameValue: {},
     rowErrors: {},
     showNewForm: false,
@@ -53,7 +98,7 @@ function freshState() {
 }
 
 function stale(myToken) {
-  return myToken !== token;
+  return myToken !== token || !rootEl.querySelector(".categories-page");
 }
 
 export function render(root) {
@@ -76,11 +121,13 @@ function monthRange(year, month) {
 }
 
 async function mount(myToken) {
+  const seq = ++summarySeq;
   paint(); // initial skeleton
   const { start, end } = monthRange(state.year, state.month);
-  const [categoriesResult, summaryResult] = await Promise.allSettled([
+  const [categoriesResult, summaryResult, accountsResult] = await Promise.allSettled([
     api.listCategories(),
     api.categorySummary(start, end),
+    api.listAccounts(),
   ]);
   if (stale(myToken)) return;
 
@@ -91,15 +138,23 @@ async function mount(myToken) {
     state.categoriesError = categoriesResult.reason?.detail || "Couldn't load your categories.";
   }
 
-  if (summaryResult.status === "fulfilled") {
-    state.summary = summaryResult.value;
-    state.summaryError = null;
+  if (seq === summarySeq) {
+    if (summaryResult.status === "fulfilled") {
+      state.summary = summaryResult.value;
+      state.summaryError = null;
+    } else {
+      state.summaryError = summaryResult.reason?.detail || "Couldn't load this month.";
+    }
+    state.loadingSummary = false;
+  }
+
+  if (accountsResult.status === "fulfilled") {
+    state.accounts = accountsResult.value;
   } else {
-    state.summaryError = summaryResult.reason?.detail || "Couldn't load this month.";
+    state.accountsError = "Account names couldn't load. Account identifiers are shown below.";
   }
 
   state.loadingCategories = false;
-  state.loadingSummary = false;
   paint();
 }
 
@@ -147,15 +202,21 @@ async function loadCategoriesOnly(myToken) {
  * what the server actually has — never a figure we patched together
  * ourselves. */
 async function refreshCategoriesAndSummary() {
+  const myToken = token;
+  const seq = ++summarySeq;
   const { start, end } = monthRange(state.year, state.month);
   const [categories, summary] = await Promise.all([
     api.listCategories(),
     api.categorySummary(start, end),
   ]);
+  if (stale(myToken)) return;
   state.categories = categories;
-  state.summary = summary;
   state.categoriesError = null;
-  state.summaryError = null;
+  if (seq === summarySeq) {
+    state.summary = summary;
+    state.summaryError = null;
+    state.loadingSummary = false;
+  }
 }
 
 function changeMonth(delta) {
@@ -170,10 +231,98 @@ function changeMonth(delta) {
   }
   state.month = month;
   state.year = year;
+  state.activity = {};
+  state.editingBudgetId = null;
   loadSummaryForMonth(token);
 }
 
+async function loadCategoryActivity(id, offset = 0) {
+  const myToken = token;
+  const activity = state.activity[id];
+  if (!activity || activity.loading) return;
+  activity.loading = true;
+  activity.error = null;
+  activity.requestedOffset = offset;
+  paint();
+  const { start, end } = monthRange(state.year, state.month);
+  try {
+    const result = await api.listTransactions({ category_id: id, start, end, limit: 20, offset });
+    if (stale(myToken) || state.activity[id] !== activity) return;
+    activity.rows = result.transactions;
+    activity.total = result.total;
+    activity.offset = offset;
+  } catch (err) {
+    if (stale(myToken) || state.activity[id] !== activity) return;
+    activity.error = errorDetail(err, "Couldn't load these transactions.");
+  }
+  if (stale(myToken) || state.activity[id] !== activity) return;
+  activity.loading = false;
+  paint();
+}
+
+function toggleCategoryActivity(id) {
+  let activity = state.activity[id];
+  if (!activity) {
+    activity = { open: true, rows: null, total: 0, offset: 0, loading: false, error: null };
+    state.activity[id] = activity;
+  } else {
+    activity.open = !activity.open;
+  }
+  if (activity.open && !activity.rows && !activity.loading) {
+    loadCategoryActivity(id);
+  } else {
+    paint();
+  }
+}
+
+async function reloadAccounts() {
+  const myToken = token;
+  try {
+    const accounts = await api.listAccounts();
+    if (stale(myToken)) return;
+    state.accounts = accounts;
+    state.accountsError = null;
+  } catch (err) {
+    if (stale(myToken)) return;
+    state.accountsError = errorDetail(err, "Couldn't load account names.");
+  }
+  paint();
+}
+
 // ------------------------------- Mutations -------------------------------
+
+async function handleBudgetSubmit(form) {
+  const id = Number(form.dataset.id);
+  if (state.budgetSaving !== null) return;
+  const myToken = token;
+  const value = form.querySelector('[data-role="budget-input"]').value.trim();
+  state.budgetDrafts[id] = value;
+  state.budgetErrors[id] = null;
+  state.budgetSaving = id;
+  paint();
+  try {
+    await api.updateCategory(id, { budget_amount: value || null });
+  } catch (err) {
+    if (stale(myToken)) return;
+    state.budgetSaving = null;
+    state.budgetErrors[id] = errorDetail(err, "Couldn't save this budget. Try again.");
+    paint();
+    focusBudgetInput(id);
+    return;
+  }
+  if (stale(myToken)) return;
+  state.budgetSaving = null;
+  state.editingBudgetId = null;
+  delete state.budgetDrafts[id];
+  try {
+    await refreshCategoriesAndSummary();
+  } catch {
+    if (stale(myToken)) return;
+    state.summaryError = "Your budget was saved, but this month couldn't refresh. Try loading it again.";
+  }
+  if (stale(myToken)) return;
+  paint();
+}
 
 async function handleNameSubmit(inputEl) {
   const id = Number(inputEl.dataset.id);
@@ -200,12 +349,10 @@ async function handleNameSubmit(inputEl) {
   } catch (err) {
     if (stale(myToken)) return;
     state.pendingNameValue[id] = value;
-    state.rowErrors[id] = {
-      text:
-        err.status === 409
-          ? `Already have a category named "${value}."`
-          : err.detail || "Couldn't save that. Try again.",
-    };
+    state.rowErrors[id] =
+      err.status === 409
+        ? { text: `Already have a category named "${value}."`, note: true }
+        : { text: err.detail || "Couldn't save that. Try again." };
     paint();
     focusNameInput(id);
     return;
@@ -280,7 +427,7 @@ async function handleDelete(id) {
     state.confirmDeleteId = null;
     state.rowErrors[id] =
       err.status === 409
-        ? { text: "Still in use by some transactions — recategorize them first.", link: true }
+        ? { text: "Still in use by some transactions — recategorize them first.", link: true, note: true }
         : { text: err.detail || "Couldn't delete that. Try again." };
     paint();
     return;
@@ -304,7 +451,7 @@ async function handleCreateCategory(nameInput, kindSelect) {
   const myToken = token;
 
   if (!name) {
-    state.newForm = { name: nameInput.value, kind, error: "Give it a name first.", saving: false };
+    state.newForm = { name: nameInput.value, kind, error: "Give it a name first.", note: true, saving: false };
     paint();
     focusNewCategoryName();
     return;
@@ -324,6 +471,7 @@ async function handleCreateCategory(nameInput, kindSelect) {
         err.status === 409
           ? `Already have a category named "${name}."`
           : err.detail || "Couldn't add that. Try again.",
+      note: err.status === 409,
       saving: false,
     };
     paint();
@@ -353,6 +501,13 @@ function wireEvents(root) {
   root.addEventListener("focusout", onFocusOut);
   root.addEventListener("keydown", onKeydown);
   root.addEventListener("submit", onSubmit);
+  root.addEventListener("input", onInput);
+}
+
+function onInput(e) {
+  if (e.target.matches('[data-role="budget-input"]')) {
+    state.budgetDrafts[Number(e.target.dataset.id)] = e.target.value;
+  }
 }
 
 function onClick(e) {
@@ -373,6 +528,32 @@ function onClick(e) {
       break;
     case "retry-categories":
       loadCategoriesOnly(token);
+      break;
+    case "edit-budget": {
+      if (state.budgetSaving !== null) break;
+      const category = state.summary.categories.find((c) => c.id === id);
+      state.editingBudgetId = id;
+      state.budgetDrafts[id] = category.budget_display ?? "";
+      state.budgetErrors[id] = null;
+      paint();
+      focusBudgetInput(id);
+      break;
+    }
+    case "cancel-budget":
+      if (state.budgetSaving !== null) break;
+      state.editingBudgetId = null;
+      delete state.budgetDrafts[id];
+      state.budgetErrors[id] = null;
+      paint();
+      break;
+    case "toggle-activity":
+      toggleCategoryActivity(id);
+      break;
+    case "activity-page":
+      loadCategoryActivity(id, Number(target.dataset.offset));
+      break;
+    case "retry-accounts":
+      reloadAccounts();
       break;
     case "start-rename":
       state.editingKindId = null;
@@ -435,6 +616,12 @@ function onFocusOut(e) {
 }
 
 function onKeydown(e) {
+  if (e.target.matches('[data-role="budget-input"]') && e.key === "Escape") {
+    if (state.budgetSaving !== null) return;
+    state.editingBudgetId = null;
+    paint();
+    return;
+  }
   const nameInput = e.target.closest('[data-role="name-input"]');
   if (nameInput) {
     if (e.key === "Enter") {
@@ -454,6 +641,12 @@ function onKeydown(e) {
 }
 
 function onSubmit(e) {
+  const budgetForm = e.target.closest('[data-role="budget-form"]');
+  if (budgetForm) {
+    e.preventDefault();
+    handleBudgetSubmit(budgetForm);
+    return;
+  }
   const form = e.target.closest('[data-role="new-category-form"]');
   if (!form) return;
   e.preventDefault();
@@ -480,6 +673,14 @@ function focusNewCategoryName() {
   if (el) el.focus();
 }
 
+function focusBudgetInput(id) {
+  const el = rootEl.querySelector(`[data-role="budget-input"][data-id="${id}"]`);
+  if (el) {
+    el.focus();
+    el.select();
+  }
+}
+
 // -------------------------------- Rendering --------------------------------
 
 function escapeHtml(value) {
@@ -488,24 +689,34 @@ function escapeHtml(value) {
   ));
 }
 
+function errorDetail(err, fallback) {
+  if (typeof err.detail === "string") return err.detail;
+  if (Array.isArray(err.detail)) return err.detail.map((item) => item.msg).join(" ");
+  return fallback;
+}
+
 function paint() {
   rootEl.innerHTML = `
     <div class="categories-page">
+      <header class="categories-intro">
+        <h1 class="categories-intro-title">Categories</h1>
+        <p class="categories-intro-lede">A little context for your spending, with room to adjust.</p>
+      </header>
       ${renderTrackerCard()}
       ${renderManageCard()}
     </div>
   `;
 }
 
-// --- Tracker: "Where it went" ---
+// --- Monthly expense budgets ---
 
 function renderTrackerCard() {
   const monthName = MONTH_NAMES[state.month];
   const navHtml = `
-    <div class="month-nav">
-      <button type="button" class="month-nav-btn" data-action="prev-month" aria-label="Previous month">‹</button>
+    <div class="month-nav" role="group" aria-label="Month">
+      <button type="button" class="month-nav-btn" data-action="prev-month" aria-label="Previous month">${ICON_CHEVRON_LEFT}</button>
       <span class="month-nav-label u-tabular">${monthName} ${state.year}</span>
-      <button type="button" class="month-nav-btn" data-action="next-month" aria-label="Next month">›</button>
+      <button type="button" class="month-nav-btn" data-action="next-month" aria-label="Next month">${ICON_CHEVRON_RIGHT}</button>
     </div>
   `;
 
@@ -527,7 +738,10 @@ function renderTrackerCard() {
   return `
     <section class="card tracker-card">
       <div class="tracker-header">
-        <h2 class="card-title">Where it went in ${monthName}</h2>
+        <div>
+          <h2 class="section-title">Expense budgets</h2>
+          <p class="tracker-lede">Monthly budgets carry forward. Refunds reduce the category's spending.</p>
+        </div>
         ${navHtml}
       </div>
       ${bodyHtml}
@@ -537,15 +751,16 @@ function renderTrackerCard() {
 
 function trackerSkeleton() {
   return `
-    <div class="category-bars">
+    <div class="category-budget-grid" aria-label="Loading expense budgets">
       ${[0, 1, 2, 3]
         .map(
           () => `
-        <div class="category-bar-row">
+        <div class="category-budget-card">
           <div class="category-bar-row-top">
             <span class="skeleton skeleton-text" style="width:40%"></span>
             <span class="skeleton skeleton-text" style="width:15%"></span>
           </div>
+          <div class="skeleton skeleton-text" style="width:55%"></div>
           <div class="skeleton category-bar-track-skeleton"></div>
         </div>
       `
@@ -555,71 +770,153 @@ function trackerSkeleton() {
   `;
 }
 
-// The tracker only ever shows spending (expense-kind categories) plus the
-// uncategorized bucket. Income and savings categories are excluded on
-// purpose: a single paycheck would dwarf every expense bar on the same
-// scale, turning "where it went" into a chart about income. They're still
-// fully visible and editable in "Your categories" below — this is a
-// display-only narrowing for the tracker, not a data restriction.
+// Zero-spend expense categories stay visible so their budgets can be set.
+// Income and savings categories remain editable in management below.
 function renderTrackerBody() {
   const summary = state.summary;
   if (!summary) return "";
 
-  const expenseRows = summary.categories.filter((c) => c.kind === "expense");
-  const active = expenseRows.filter((c) => c.total_cents !== 0);
-  const quiet = expenseRows.filter((c) => c.total_cents === 0);
-
-  const items = active.map((c) => ({
-    name: c.name,
-    cents: Math.abs(c.total_cents),
-    display: c.total_display,
-    isUncategorized: false,
-  }));
-  items.push({
-    name: "Uncategorized",
-    cents: Math.abs(summary.uncategorized_cents),
-    display: summary.uncategorized_display,
-    isUncategorized: true,
-  });
-  items.sort((a, b) => b.cents - a.cents);
-
-  const maxCents = Math.max(1, ...items.map((i) => i.cents));
-  const barsHtml = items.map((item) => renderBarRow(item, maxCents)).join("");
-
-  const quietHtml = quiet.length
-    ? `
-    <details class="quiet-categories">
-      <summary class="quiet-categories-summary">${quiet.length} quiet this month</summary>
-      <ul class="quiet-categories-list">
-        ${quiet
-          .map(
-            (c) => `
-          <li>
-            <span>${escapeHtml(c.name)}</span>
-            <span class="u-tabular">${escapeHtml(c.total_display)}</span>
-          </li>
-        `
-          )
-          .join("")}
-      </ul>
-    </details>
-  `
+  const expenseRows = summary.categories
+    .filter((c) => c.kind === "expense")
+    .sort((a, b) => b.spent_cents - a.spent_cents || a.name.localeCompare(b.name));
+  const cards = expenseRows.length
+    ? `<div class="category-budget-grid">${expenseRows.map(renderBudgetCard).join("")}</div>`
+    : `
+      <div class="empty-state tracker-empty">
+        <p class="empty-state-title">Room for your own categories</p>
+        <p class="empty-state-body">Add an expense category below to give its spending a monthly budget.</p>
+      </div>
+    `;
+  const uncategorized = summary.uncategorized_cents !== 0
+    ? `<div class="category-uncategorized">
+        <div><strong>Uncategorized activity</strong><p>Still available to sort in transactions.</p></div>
+        <span class="u-tabular">${escapeHtml(summary.uncategorized_display)}</span>
+        <a class="link" href="#/transactions">Review</a>
+      </div>`
     : "";
-
-  return `<div class="category-bars">${barsHtml}</div>${quietHtml}`;
+  return `${cards}${uncategorized}`;
 }
 
-function renderBarRow(item, maxCents) {
-  const pct = Math.min(100, Math.round((item.cents / maxCents) * 100));
+function percentGeometry(value) {
+  return Number.isFinite(value) ? Math.max(0, Math.min(100, value)) : 0;
+}
+
+function renderBudgetCard(category) {
+  const id = category.id;
+  const hasBudget = category.budget_cents !== null;
+  const hasPercent = Number.isFinite(category.budget_used_percent);
+  const percent = percentGeometry(category.budget_used_percent);
+  const percentLabel = hasPercent ? `${Math.round(category.budget_used_percent)}%` : "—";
+  const activityOpen = !!state.activity[id]?.open;
+  const remaining = category.remaining_cents !== null
+    ? `<div><dt>${escapeHtml(category.remaining_label)}</dt><dd class="u-tabular">${escapeHtml(category.remaining_magnitude_display)}</dd></div>`
+    : "";
+  const progress = hasPercent
+    ? `<div class="category-budget-progress" aria-label="${escapeHtml(percentLabel)} of monthly budget used">
+        <div class="category-budget-progress-fill" style="width:${percent}%"></div>
+        <span class="category-budget-month-marker" style="left:${percentGeometry(category.month_elapsed_percent)}%" aria-hidden="true"></span>
+      </div>
+      <p class="category-budget-progress-caption">${percentLabel} used · marker shows month elapsed</p>`
+    : "";
   return `
-    <div class="category-bar-row">
-      <div class="category-bar-row-top">
-        <span class="category-bar-name${item.isUncategorized ? " is-muted" : ""}">${escapeHtml(item.name)}</span>
-        <span class="category-bar-amount u-tabular">${escapeHtml(item.display)}</span>
+    <article class="category-budget-card" style="--bar-hue:var(--cat-hue-${id % DATA_HUE_COUNT})">
+      <div class="category-budget-heading">
+        <div class="category-budget-title">
+          <span class="category-dot" style="--dot-hue:var(--bar-hue)" aria-hidden="true"></span>
+          <h3>${escapeHtml(category.name)}</h3>
+        </div>
+        <div class="category-budget-ring" aria-label="${hasPercent ? `${percentLabel} of budget used` : "No budget percentage"}">
+          <svg viewBox="0 0 40 40" aria-hidden="true">
+            <circle class="category-budget-ring-track" cx="20" cy="20" r="16" />
+            <circle class="category-budget-ring-fill" cx="20" cy="20" r="16" pathLength="100" stroke-dasharray="${percent} 100" />
+          </svg>
+          <span class="u-tabular">${percentLabel}</span>
+        </div>
       </div>
-      <div class="category-bar-track">
-        <div class="category-bar-fill" style="width:${pct}%"></div>
+      <dl class="category-budget-values">
+        <div><dt>${category.spent_cents < 0 ? "Net spent" : "Spent"}</dt><dd class="category-budget-spent u-tabular">${escapeHtml(category.spent_display)}</dd></div>
+        <div><dt>Monthly budget</dt><dd class="u-tabular">${hasBudget ? escapeHtml(category.budget_display) : "Not set"}</dd></div>
+        ${remaining}
+      </dl>
+      <div class="category-budget-context">
+        <p class="category-budget-pace">${escapeHtml(category.pace_label)}</p>
+        ${category.projected_display != null ? `<p class="category-budget-projection">At this pace: <strong class="u-tabular">${escapeHtml(category.projected_display)}</strong> this month</p>` : ""}
+        ${progress}
       </div>
+      ${state.editingBudgetId === id ? renderBudgetForm(category) : `
+        <button type="button" class="btn btn-quiet category-budget-edit" data-action="edit-budget" data-id="${id}" ${state.budgetSaving !== null ? "disabled" : ""}>${hasBudget ? "Edit budget" : "Set budget"}<span class="sr-only"> for ${escapeHtml(category.name)}</span></button>
+      `}
+      <button type="button" class="category-activity-toggle${activityOpen ? " is-open" : ""}" data-action="toggle-activity" data-id="${id}" aria-expanded="${activityOpen}" aria-controls="category-activity-${id}">
+        <span>Transactions</span>${ICON_CHEVRON_DOWN}
+      </button>
+      ${activityOpen ? renderCategoryActivity(id) : ""}
+    </article>
+  `;
+}
+
+function renderBudgetForm(category) {
+  const id = category.id;
+  const saving = state.budgetSaving === id;
+  const error = state.budgetErrors[id];
+  return `
+    <form class="category-budget-form" data-role="budget-form" data-id="${id}">
+      <label class="field-label" for="category-budget-${id}">Monthly budget for ${escapeHtml(category.name)}</label>
+      <input class="input" id="category-budget-${id}" data-role="budget-input" data-id="${id}" type="text" inputmode="decimal" value="${escapeHtml(state.budgetDrafts[id] ?? "")}" placeholder="e.g. 600.00" ${saving ? "disabled" : ""} aria-describedby="category-budget-hint-${id}${error ? ` category-budget-error-${id}` : ""}" ${error ? 'aria-invalid="true"' : ""}>
+      <p class="field-hint" id="category-budget-hint-${id}">Applies each month. Leave blank to remove the budget.</p>
+      ${error ? `<p class="field-error" id="category-budget-error-${id}" role="alert">${escapeHtml(error)}</p>` : ""}
+      <div class="category-budget-form-actions">
+        <button type="submit" class="btn btn-primary" ${saving ? "disabled" : ""}>${saving ? "Saving…" : "Save budget"}</button>
+        <button type="button" class="btn btn-quiet" data-action="cancel-budget" data-id="${id}" ${saving ? "disabled" : ""}>Cancel</button>
+      </div>
+    </form>
+  `;
+}
+
+function accountLabel(transaction) {
+  const account = state.accounts.find((item) => item.id === transaction.account_id || item.display_name === transaction.account_display_name);
+  const name = account?.name || transaction.account_display_name || "Account";
+  const lastFour = account?.account_number;
+  return lastFour && !name.includes(lastFour) ? `${name} · •••• ${lastFour}` : name;
+}
+
+function activityDate(value) {
+  const date = new Date(`${value}T00:00:00Z`);
+  return Number.isNaN(date.getTime()) ? value : date.toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
+}
+
+function renderCategoryActivity(id) {
+  const activity = state.activity[id];
+  let content;
+  if (activity.loading) {
+    content = `<p class="category-activity-note" role="status">Loading transactions…</p>`;
+  } else if (activity.error) {
+    content = `<p class="field-error" role="alert">${escapeHtml(activity.error)}</p>
+      <button type="button" class="btn btn-quiet" data-action="activity-page" data-id="${id}" data-offset="${activity.requestedOffset}">Try again</button>`;
+  } else if (!activity.rows?.length) {
+    content = `<p class="category-activity-note">No transactions in ${MONTH_NAMES[state.month]}.</p>`;
+  } else {
+    const rows = activity.rows.map((transaction) => `
+      <li class="category-activity-row">
+        <div class="category-activity-description">
+          <p>${escapeHtml(transaction.merchant_name || transaction.description)}</p>
+          <p class="category-activity-subtext">${escapeHtml(activityDate(transaction.posted_on))} · ${escapeHtml(accountLabel(transaction))}</p>
+        </div>
+        <span class="category-activity-amount u-tabular">${escapeHtml(transaction.amount_display)}<span>${escapeHtml(transaction.currency)}</span></span>
+      </li>
+    `).join("");
+    const end = activity.offset + activity.rows.length;
+    const pagination = activity.total > 20 ? `
+      <div class="category-activity-pagination">
+        <button type="button" class="btn btn-quiet" data-action="activity-page" data-id="${id}" data-offset="${Math.max(0, activity.offset - 20)}" ${activity.offset === 0 ? "disabled" : ""}>Previous</button>
+        <span class="u-tabular">${activity.offset + 1}–${end} of ${activity.total}</span>
+        <button type="button" class="btn btn-quiet" data-action="activity-page" data-id="${id}" data-offset="${end}" ${end >= activity.total ? "disabled" : ""}>Next</button>
+      </div>` : "";
+    content = `<p class="category-activity-note">Bank transactions · full amounts</p><ul>${rows}</ul>${pagination}`;
+  }
+  return `
+    <div class="category-activity" id="category-activity-${id}">
+      ${state.accountsError ? `<p class="category-activity-note">${escapeHtml(state.accountsError)} <button class="link" type="button" data-action="retry-accounts">Try again</button></p>` : ""}
+      ${content}
     </div>
   `;
 }
@@ -648,12 +945,7 @@ function renderManageCard() {
 
   const headerHtml = `
     <div class="manage-header">
-      <h2 class="card-title">Your categories</h2>
-      ${
-        !isEmpty && !state.showNewForm
-          ? `<button type="button" class="btn btn-ghost" data-action="new-category-toggle">New category</button>`
-          : ""
-      }
+      <h2 class="section-title">Your categories</h2>
     </div>
   `;
 
@@ -673,12 +965,27 @@ function renderManageCard() {
     ).join("");
   }
 
+  // A tappable "add" row at the foot of the list, Apple-list-row style —
+  // a small accent-tinted plus affordance, not a header button — rather
+  // than the inline form the empty state already shows.
+  const addRowHtml = !isEmpty && !state.showNewForm ? renderCategoryAddRow() : "";
+
   return `
     <section class="card manage-card">
       ${headerHtml}
       ${formHtml}
       ${listHtml}
+      ${addRowHtml}
     </section>
+  `;
+}
+
+function renderCategoryAddRow() {
+  return `
+    <button type="button" class="category-add-row" data-action="new-category-toggle">
+      <span class="category-add-icon-wrap">${ICON_PLUS}</span>
+      <span>New category</span>
+    </button>
   `;
 }
 
@@ -733,10 +1040,17 @@ function renderCategoryRow(cat) {
         <button type="button" class="btn btn-quiet" data-action="cancel-delete" data-id="${id}">Cancel</button>
       </span>
     `
-    : `<button type="button" class="btn-quiet category-menu-btn" data-action="toggle-delete-confirm" data-id="${id}" aria-label="More actions">⋯</button>`;
+    : `<button type="button" class="category-menu-btn" data-action="toggle-delete-confirm" data-id="${id}" aria-label="More actions for ${escapeHtml(cat.name)}">${ICON_ELLIPSIS}</button>`;
 
+  // Same hue as the category's bar in the tracker; only expense categories
+  // appear there, so income and savings keep the neutral default dot.
+  const dotStyle =
+    cat.kind === "expense" ? ` style="--dot-hue:var(--cat-hue-${id % DATA_HUE_COUNT})"` : "";
+
+  // A name collision or an in-use delete is a "not yet," not a failure —
+  // it gets a quiet note. Coral is only for a request that really errored.
   const errorHtml = rowError
-    ? `<p class="field-error category-row-error">${escapeHtml(rowError.text)}${
+    ? `<p class="${rowError.note ? "category-note" : "field-error"} category-row-error">${escapeHtml(rowError.text)}${
         rowError.link ? ` <a class="link" href="#/transactions">See transactions</a>` : ""
       }</p>`
     : "";
@@ -745,6 +1059,7 @@ function renderCategoryRow(cat) {
     <li class="category-row">
       <div class="category-row-top">
         <div class="category-row-main">
+          <span class="category-dot"${dotStyle} aria-hidden="true"></span>
           ${nameHtml}
           ${kindHtml}
         </div>
@@ -778,7 +1093,7 @@ function renderNewCategoryForm(isEmpty) {
         </button>
         ${!isEmpty ? `<button type="button" class="btn btn-quiet" data-action="new-category-cancel">Cancel</button>` : ""}
       </div>
-      ${f.error ? `<p class="field-error new-category-form-error">${escapeHtml(f.error)}</p>` : ""}
+      ${f.error ? `<p class="${f.note ? "category-note" : "field-error"} new-category-form-error">${escapeHtml(f.error)}</p>` : ""}
     </form>
   `;
 }

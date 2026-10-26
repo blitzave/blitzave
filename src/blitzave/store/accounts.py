@@ -16,7 +16,8 @@ def list_accounts(conn: sqlite3.Connection) -> list[dict]:
         SELECT a.external_id, a.account_type, a.account_number, a.display_name,
                assets.bank_name, assets.asset_type,
                liabilities.issuer_name, liabilities.liability_type,
-               b.balance_cents, b.as_of
+               b.balance_cents, b.as_of,
+               json_extract(a.meta, '$.name')
         FROM accounts a
         LEFT JOIN assets ON assets.account_id = a.id
         LEFT JOIN liabilities ON liabilities.account_id = a.id
@@ -30,6 +31,10 @@ def list_accounts(conn: sqlite3.Connection) -> list[dict]:
             "id": row[0],  # SimpleFIN's own account id — never an internal sequential one
             "account_type": row[1],
             "account_number": row[2],
+            # The human name the bank gave the account ("Platinum Card® (1002)").
+            # display_name is the schema's uniqueness key ("liability-1002"); the
+            # UI leads with `name` and keeps display_name only as a fallback.
+            "name": row[10] or row[3],
             "display_name": row[3],
             "bank_name": row[4],
             "asset_type": row[5],
@@ -52,17 +57,24 @@ def update_account_type(
     """Correct a guessed account_type/asset_type/liability_type, addressed by
     SimpleFIN's own account id (the public identifier — see list_accounts).
     Moves the account between the assets/liabilities extension tables when
-    account_type itself changes, carrying forward the existing bank_name/
-    issuer_name if there is one, or falling back to the name SimpleFIN gave
-    the account (stashed in accounts.meta at ingest)."""
+    account_type itself changes. bank_name and issuer_name are the same
+    institution seen from two tables, so it travels with the account across
+    the move; only an account with neither falls back to the name SimpleFIN
+    gave it (stashed in accounts.meta at ingest)."""
     row = conn.execute(
-        "SELECT id, meta FROM accounts WHERE source = 'simplefin' AND external_id = ?",
+        """
+        SELECT a.id, a.meta, assets.bank_name, liabilities.issuer_name
+        FROM accounts a
+        LEFT JOIN assets ON assets.account_id = a.id
+        LEFT JOIN liabilities ON liabilities.account_id = a.id
+        WHERE a.source = 'simplefin' AND a.external_id = ?
+        """,
         (external_id,),
     ).fetchone()
     if row is None:
         raise AccountNotFoundError(f"no account with id {external_id}")
-    account_id, meta_json = row
-    fallback_name = json.loads(meta_json).get("name", "Unknown")
+    account_id, meta_json, bank_name, issuer_name = row
+    institution = bank_name or issuer_name or json.loads(meta_json).get("name", "Unknown")
 
     try:
         conn.execute(
@@ -70,23 +82,16 @@ def update_account_type(
         )
 
         if account_type == "asset":
-            existing = conn.execute(
-                "SELECT bank_name FROM assets WHERE account_id = ?", (account_id,)
-            ).fetchone()
-            bank_name = existing[0] if existing else fallback_name
             conn.execute(
                 """
                 INSERT INTO assets (account_id, bank_name, asset_type) VALUES (?, ?, ?)
                 ON CONFLICT (account_id) DO UPDATE SET asset_type = excluded.asset_type
                 """,
-                (account_id, bank_name, asset_type),
+                (account_id, institution, asset_type),
             )
             conn.execute("DELETE FROM liabilities WHERE account_id = ?", (account_id,))
         else:
-            existing = conn.execute(
-                "SELECT issuer_name FROM liabilities WHERE account_id = ?", (account_id,)
-            ).fetchone()
-            issuer_name = existing[0] if existing else fallback_name
+            issuer_name = institution
             conn.execute(
                 """
                 INSERT INTO liabilities (account_id, issuer_name, liability_type) VALUES (?, ?, ?)
