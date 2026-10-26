@@ -18,7 +18,10 @@ const ICON_ADJUSTMENT = `
 export function render(root) {
   root.innerHTML = `
     <header class="txns-page-header">
-      <h1 class="txns-page-title">Every transaction, one place</h1>
+      <div>
+        <p class="eyebrow">Ledger</p>
+        <h1 class="txns-page-title">Every transaction, one place</h1>
+      </div>
       <button type="button" class="btn btn-ghost txns-adjustments-toggle" aria-expanded="false" aria-controls="txns-adjustments">${ICON_ADJUSTMENT}<span>Adjustments</span></button>
     </header>
     <section class="card txns-adjustments" id="txns-adjustments" hidden>

@@ -14,9 +14,9 @@
      on each row of "Your categories", so a category reads as the same hue
      in both places. --warn (ochre) / --danger (coral) stay reserved for
      real status and are never reused here. */
-  --cat-hue-0: #4f7cd1; /* blue */
+  --cat-hue-0: #338be6; /* blue */
   --cat-hue-1: #8c6fd4; /* violet */
-  --cat-hue-2: #2f9c92; /* teal */
+  --cat-hue-2: #00948f; /* teal */
   --cat-hue-3: #cc6f94; /* rose */
   --cat-hue-4: #74a35b; /* sage */
 }
@@ -50,6 +50,15 @@
   gap: var(--space-5);
 }
 
+/* The budget grid sits straight on the page under its section header —
+   the budget cards are the cards, so the tracker drops its own chrome. */
+.card.tracker-card {
+  padding: 0;
+  background: transparent;
+  border: none;
+  box-shadow: none;
+}
+
 .tracker-header {
   display: flex;
   flex-wrap: wrap;
@@ -65,9 +74,11 @@
   display: inline-flex;
   align-items: center;
   gap: var(--space-1);
-  padding: var(--space-1);
-  background: var(--bg-well);
+  padding: 3px;
+  background: var(--bg-raised);
+  border: 1px solid var(--line-strong);
   border-radius: var(--radius-chip);
+  box-shadow: var(--shadow-xs);
 }
 
 .month-nav-btn {
@@ -86,9 +97,8 @@
 }
 
 .month-nav-btn:hover {
-  background: var(--bg-raised);
-  color: var(--text-primary);
-  box-shadow: var(--shadow-card);
+  background: var(--bg-lift);
+  color: var(--accent);
 }
 
 .month-nav-btn:active {
@@ -135,7 +145,7 @@
 
 .category-budget-grid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
   align-items: start;
   gap: var(--space-4);
 }
@@ -238,7 +248,7 @@
 
 .category-budget-values .category-budget-spent {
   font-size: var(--text-lg);
-  font-weight: var(--weight-bold);
+  font-weight: var(--weight-semibold);
   letter-spacing: var(--tracking-tight);
 }
 

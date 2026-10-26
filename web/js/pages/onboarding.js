@@ -15,12 +15,13 @@ const TOTAL_STEPS = 5;
 const STEP_TRANSITION_MS = 240; // matches onboarding.css's bespoke page-turn duration
 
 const BRAND_MARK = `
-  <svg class="onboarding-brand-mark" viewBox="0 0 64 64" aria-hidden="true">
-    <rect width="64" height="64" rx="14" fill="var(--accent)" />
-    <path d="M14 40 C22 40 26 28 34 28 C42 28 44 18 50 14" stroke="var(--accent-ink)"
-      stroke-width="5" stroke-linecap="round" fill="none" />
-    <circle cx="50" cy="14" r="4" fill="var(--accent-ink)" />
-  </svg>
+  <span class="onboarding-brand-mark" aria-hidden="true">
+    <svg viewBox="0 0 24 24">
+      <path d="M9.94 15.5A2 2 0 0 0 8.5 14.06l-6.14-1.58a.5.5 0 0 1 0-.96L8.5 9.94A2 2 0 0 0 9.94 8.5l1.58-6.14a.5.5 0 0 1 .96 0l1.58 6.14a2 2 0 0 0 1.44 1.44l6.14 1.58a.5.5 0 0 1 0 .96l-6.14 1.58a2 2 0 0 0-1.44 1.44l-1.58 6.14a.5.5 0 0 1-.96 0z" />
+      <path d="M20 3v4M22 5h-4" />
+      <circle cx="4" cy="20" r="1.5" />
+    </svg>
+  </span>
 `;
 
 // Small inline icons, scoped to onboarding only. The three "mini" icons

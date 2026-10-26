@@ -108,6 +108,7 @@ function renderLoading(root) {
   root.innerHTML = `
     <div class="accounts-page">
       <header class="accounts-intro">
+        <p class="eyebrow">Overview</p>
         <h1 class="accounts-intro-title">Accounts</h1>
         <p class="accounts-intro-lede">Every account you've connected, in one calm place.</p>
       </header>
@@ -183,6 +184,7 @@ function renderAccounts(root, accounts) {
   root.innerHTML = `
     <div class="accounts-page">
       <header class="accounts-intro">
+        <p class="eyebrow">Overview</p>
         <h1 class="accounts-intro-title">Accounts</h1>
         <p class="accounts-intro-lede">Every account you've connected, in one calm place.</p>
       </header>

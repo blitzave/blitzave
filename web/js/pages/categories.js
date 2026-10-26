@@ -699,6 +699,7 @@ function paint() {
   rootEl.innerHTML = `
     <div class="categories-page">
       <header class="categories-intro">
+        <p class="eyebrow">Budgets</p>
         <h1 class="categories-intro-title">Categories</h1>
         <p class="categories-intro-lede">A little context for your spending, with room to adjust.</p>
       </header>

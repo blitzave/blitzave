@@ -4,11 +4,11 @@
    every page's CSS shares one global cascade.
 
    The signature moment of the whole app lives here: liability (credit
-   card) accounts render as Apple-Wallet-style dark cards
-   (.account-card--wallet) — a graphite face, white tabular balance, a
-   faint diagonal sheen. Asset accounts (checking/savings) stay plain
-   white cards with the same bold-ink balance treatment, so the
-   wallet/cash contrast reads at a glance across the grid. */
+   card) accounts render as wallet-style card faces
+   (.account-card--wallet) — a clarity-blue face, white tabular balance, a
+   faint teal sheen. Asset accounts (checking/savings) stay plain light
+   cards with the same balance treatment, so the card/cash contrast reads
+   at a glance across the grid. */
 
 /* ============================ Accounts list ============================ */
 
@@ -18,7 +18,7 @@
 }
 
 .accounts-intro {
-  margin-bottom: var(--space-7);
+  margin-bottom: var(--space-6);
 }
 
 .accounts-intro-title {
@@ -161,8 +161,8 @@
   color: var(--text-primary);
 }
 
-/* The bottom group — the card's one-number moment. Bold sans, tight
-   tracking, tabular, large: the point of the whole signature screen. */
+/* The bottom group — the card's one-number moment. Semibold, tabular,
+   large: the point of the whole signature screen. */
 .account-card-bottom {
   display: flex;
   flex-direction: column;
@@ -171,7 +171,7 @@
 
 .account-card-balance {
   font-size: var(--text-display);
-  font-weight: var(--weight-bold);
+  font-weight: var(--weight-semibold);
   font-variant-numeric: var(--numeric);
   letter-spacing: var(--tracking-tight);
   line-height: var(--leading-tight);
@@ -216,51 +216,53 @@
 }
 
 /* --------------------------- Wallet face (liability) --------------------------- */
-/* The one allowed non-token decorative surface in the whole app: an
-   Apple-Wallet-style graphite card face. These two hexes are deliberately
-   NOT tokens — no other surface in the product should ever reuse them. The
-   ink values below are scoped to the face for the same reason: they exist
-   only to read on graphite. */
+/* The one allowed non-token decorative surface in the whole app: a
+   wallet-style card face in the accent's blue family. These two hexes are
+   deliberately NOT tokens — no other surface in the product should ever
+   reuse them. The ink values below are scoped to the face for the same
+   reason: they exist only to read on the blue. */
 
-/* A faint diagonal sheen layered over the graphite gradient so the face
+/* A faint diagonal sheen layered over the blue gradient so the face
    reads as a physical card catching light, not a flat color fill. Both are
    background-image layers on the card itself (not a ::before) so they clip
    to the card's own border-radius automatically — no overflow:hidden
    needed, which matters because the correction popover must float fully
    outside the card's bounds, not get clipped by it. */
 .account-card--wallet {
-  --wallet-face-start: #1d1f24;
-  --wallet-face-end: #2e3138;
-  --wallet-ink: var(--bg-raised);
-  --wallet-ink-soft: rgba(255, 255, 255, 0.78);
-  --wallet-ink-faint: rgba(255, 255, 255, 0.64);
+  --wallet-face-start: #0c5fae;
+  --wallet-face-end: #3a93e6;
+  --wallet-ink: #ffffff;
+  --wallet-ink-soft: rgba(255, 255, 255, 0.82);
+  --wallet-ink-faint: rgba(255, 255, 255, 0.7);
 
-  background: linear-gradient(
+  background: radial-gradient(
+      120% 90% at 100% 100%,
+      rgba(45, 212, 191, 0.32) 0%,
+      rgba(45, 212, 191, 0) 60%
+    ),
+    linear-gradient(
       135deg,
-      rgba(255, 255, 255, 0.07) 0%,
-      rgba(255, 255, 255, 0) 38%,
-      rgba(255, 255, 255, 0) 62%,
-      rgba(255, 255, 255, 0.04) 100%
+      rgba(255, 255, 255, 0.12) 0%,
+      rgba(255, 255, 255, 0) 40%
     ),
     linear-gradient(135deg, var(--wallet-face-start), var(--wallet-face-end));
-  border-color: rgba(255, 255, 255, 0.07);
-  /* A top-edge highlight (the card's bevel catching light) over a deeper,
-     graphite-tinted drop shadow — a dark object casts a darker shadow than
-     the white cards' neutral one. */
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.09),
-    0 1px 2px rgba(0, 0, 0, 0.14),
-    0 14px 32px -12px rgba(29, 31, 36, 0.55);
+  border-color: rgba(255, 255, 255, 0.14);
+  /* A top-edge highlight (the card's bevel catching light) over a
+     blue-tinted drop shadow. */
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.18),
+    0 1px 2px rgba(12, 95, 174, 0.2),
+    0 14px 30px -14px rgba(12, 95, 174, 0.5);
 }
 
 .account-card--wallet:hover {
-  border-color: rgba(255, 255, 255, 0.12);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.11),
-    0 2px 4px rgba(0, 0, 0, 0.16),
-    0 24px 44px -14px rgba(29, 31, 36, 0.6);
+  border-color: rgba(255, 255, 255, 0.22);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.2),
+    0 2px 4px rgba(12, 95, 174, 0.22),
+    0 22px 40px -16px rgba(12, 95, 174, 0.55);
 }
 
 .account-card--wallet:focus-visible {
-  box-shadow: var(--focus-ring), 0 14px 32px -12px rgba(29, 31, 36, 0.55);
+  box-shadow: var(--focus-ring), 0 14px 30px -14px rgba(12, 95, 174, 0.5);
 }
 
 .account-card--wallet .account-card-issuer {
@@ -281,12 +283,12 @@
 }
 
 .account-card--wallet .account-card-menu-btn:hover {
-  background: rgba(255, 255, 255, 0.14);
+  background: rgba(255, 255, 255, 0.18);
   color: var(--wallet-ink);
 }
 
-/* The standard focus ring's light gap would read as a pale halo on a dark
-   face; a plain white ring is the legible version there. */
+/* The standard focus ring's light gap would read as a pale halo on a
+   colored face; a plain white ring is the legible version there. */
 .account-card--wallet .account-card-menu-btn:focus-visible {
   box-shadow: 0 0 0 2px var(--wallet-ink);
 }
@@ -354,7 +356,7 @@
 
 .account-detail-name {
   font-size: var(--text-title);
-  font-weight: var(--weight-bold);
+  font-weight: var(--weight-semibold);
   letter-spacing: var(--tracking-tight);
   line-height: var(--leading-tight);
   color: var(--text-primary);
