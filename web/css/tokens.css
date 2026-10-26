@@ -1,0 +1,154 @@
+/* BlitZave — design tokens
+   "Clarity blue": the design language of the first hosted draft
+   (blitzave.com), brought home to the local app. A cool, blue-tinted
+   daylight page; near-white cards with a soft border and a small shadow;
+   Manrope everywhere; one clear blue for action; and two soft ambient
+   glows (blue top-left, teal right) behind the whole shell.
+
+   Status stays un-moralistic (the Prime Directive, not a style note):
+   emerald = on-track/confirmed, amber = a neutral heads-up, red = a real
+   failure only — never the color of a number the user didn't like.
+
+   Token NAMES are unchanged from the earlier skin so page CSS keeps
+   working; only the values moved. */
+
+/* Manrope (SIL OFL, see /fonts/OFL.txt), vendored so the app makes no
+   outbound font request — it has to work with Wi-Fi off. */
+@font-face {
+  font-family: "Manrope";
+  font-style: normal;
+  font-display: swap;
+  font-weight: 200 800;
+  src: url("/fonts/manrope-latin-wght-normal.woff2") format("woff2-variations"),
+    url("/fonts/manrope-latin-wght-normal.woff2") format("woff2");
+}
+
+:root {
+  color-scheme: light;
+
+  /* ----- Surfaces (page → card → well → lift) ----- */
+  --bg-page: #f7faff;   /* the page — cool daylight, faintly blue */
+  --bg-raised: #fcfdff; /* cards, menus, anything that sits on the page */
+  --bg-well: #eef3fa;   /* inputs, hovers, inset areas inside a card */
+  --bg-lift: #e2ecf9;   /* pressed / selected / second-level hover */
+
+  /* ----- Hairlines ----- */
+  --line-faint: rgba(212, 223, 235, 0.7);  /* card edges, dividers, table rules */
+  --line-strong: #d4dfeb;                  /* control edges, hover */
+  --line-accent: rgba(77, 137, 204, 0.6);  /* focused inputs, active edges */
+
+  /* ----- Text tiers ----- */
+  --text-primary: #10161f;   /* numerals, headings, primary copy */
+  --text-secondary: #677283; /* supporting copy, labels, table headers */
+  --text-faint: #8792a3;     /* timestamps, placeholders, de-emphasis */
+
+  /* ----- The accent: clarity blue -----
+     One accent, for ACTION only: primary buttons, the active nav item,
+     focus rings, inline links, the sort indicator. Not for money, not for
+     status. */
+  --accent: #1072cb;
+  --accent-rgb: 16, 114, 203; /* raw channels — for one-off accent tints */
+  --accent-hover: #1a7fdb;
+  --accent-press: #0d5fa9;
+  --accent-ink: #f4f9ff;               /* text set on a blue fill */
+  --accent-soft: rgba(16, 114, 203, 0.1);       /* chips, active nav, highlights */
+  --accent-soft-hover: rgba(16, 114, 203, 0.16);
+
+  /* ----- Status — un-moralistic -----
+     For STATE and SYSTEM only:
+       success/emerald — a confirmed action or an on-track state
+       warn/amber      — a neutral heads-up ("worth a look")
+       danger/red      — an actual failure: an errored request, a failed
+                         sync. Never spending, never a balance. */
+  --success: #0b8a5a;
+  --success-soft: rgba(16, 185, 129, 0.12);
+  --warn: #a66a0f;
+  --warn-soft: rgba(245, 158, 11, 0.14);
+  --danger: #d4202c;
+  --danger-soft: rgba(238, 15, 29, 0.08);
+
+  /* ----- Type -----
+     Manrope for everything: interface, headings, and every numeral. */
+  --font-ui: "Manrope", ui-sans-serif, -apple-system, BlinkMacSystemFont,
+             "Segoe UI", sans-serif;
+  --font-display: var(--font-ui); /* kept for old references; no serif anymore */
+
+  --text-xs: 0.75rem;      /* 12px — timestamps, fine print, eyebrows */
+  --text-sm: 0.875rem;     /* 14px — table cells, secondary copy, controls */
+  --text-base: 0.9375rem;  /* 15px — body */
+  --text-md: 1rem;         /* 16px — card titles, emphasized rows */
+  --text-lg: 1.125rem;     /* 18px — top-bar title, modal titles */
+  --text-xl: 1.5rem;       /* 24px — section headings */
+  --text-title: 1.5rem;    /* 24px/600 — a page's main heading */
+  --text-display: 1.75rem; /* 28px — the figure a card leads with */
+  --text-hero: 2.5rem;     /* 40px — the single number a whole page leads with */
+
+  --weight-regular: 400;
+  --weight-medium: 500;
+  --weight-semibold: 600;
+  --weight-bold: 700;
+
+  --leading-tight: 1.2;
+  --leading-body: 1.55;
+
+  /* Numerals: tabular + lining so figures line up in columns. */
+  --numeric: tabular-nums lining-nums;
+  --tracking-numeral: 0;
+  --tracking-tight: -0.01em;
+  --tracking-eyebrow: 0.3em; /* the spaced-out uppercase kicker above a heading */
+
+  /* ----- Spacing scale (4px base) ----- */
+  --space-1: 0.25rem;   /*  4px */
+  --space-2: 0.5rem;    /*  8px */
+  --space-3: 0.75rem;   /* 12px */
+  --space-4: 1rem;      /* 16px */
+  --space-5: 1.5rem;    /* 24px */
+  --space-6: 2rem;      /* 32px */
+  --space-7: 3rem;      /* 48px */
+  --space-8: 4rem;      /* 64px */
+
+  /* ----- Radii ----- */
+  --radius-card: 20px;    /* cards, panels, toasts */
+  --radius-control: 14px; /* buttons, inputs, selects */
+  --radius-chip: 999px;   /* chips, badges, pills */
+  --radius-nav: 20px;     /* sidebar nav items */
+
+  /* ----- Motion ----- */
+  --ease-out: cubic-bezier(0.25, 0.46, 0.45, 0.94);
+  --t-fast: 150ms;
+  --t-base: 200ms;
+  --t-slow: 250ms;
+
+  /* ----- Layout ----- */
+  --sidebar-width: 288px;
+  --content-max: 1080px;
+
+  /* ----- Focus ring ----- */
+  --focus-ring: 0 0 0 2px var(--bg-page), 0 0 0 4px var(--line-accent);
+
+  /* ----- Elevation -----
+     Small and soft: the border does the edge, the shadow just seats the
+     card on the page. */
+  --shadow-card: 0 1px 3px rgba(15, 23, 42, 0.08), 0 1px 2px -1px rgba(15, 23, 42, 0.08);
+  --shadow-card-hover: 0 2px 6px rgba(15, 23, 42, 0.06), 0 14px 32px -14px rgba(16, 114, 203, 0.22);
+  --shadow-float: 0 18px 40px -16px rgba(15, 23, 42, 0.22), 0 2px 8px rgba(15, 23, 42, 0.06);
+  --shadow-accent: 0 1px 2px rgba(var(--accent-rgb), 0.25);
+  --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.05);
+
+  /* Frosted surfaces (sidebar, top bar). */
+  --blur-nav: blur(8px);
+  --bg-frost: rgba(247, 250, 255, 0.8);
+
+  /* Ambient glows behind the shell. */
+  --glow-blue: rgba(74, 128, 255, 0.22);
+  --glow-teal: rgba(45, 212, 191, 0.2);
+
+  /* ----- Skeleton sheen ----- */
+  --sheen: rgba(255, 255, 255, 0.75);
+
+  /* ----- Stacking ----- */
+  --z-glow: 0;
+  --z-shell: 1;
+  --z-topbar: 20;
+  --z-toast: 100;
+}

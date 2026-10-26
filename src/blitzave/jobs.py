@@ -1,7 +1,8 @@
 from datetime import date, timedelta
 
+from blitzave.refine.categorize import is_match, match_key
 from blitzave.sources import simplefin
-from blitzave.store import db, ingest, users
+from blitzave.store import categories, db, ingest, transactions, users
 
 SYNC_JOB = "ingest"
 WATERMARK_OVERLAP_DAYS = 7  # banks post late; re-fetching the overlap is safe, upserts are idempotent
@@ -41,10 +42,35 @@ def _sync_since(conn, today: date) -> date:
     return date.fromisoformat(watermark) - timedelta(days=WATERMARK_OVERLAP_DAYS)
 
 
+def _categorize(conn, user_id: int) -> int:
+    """Give each uncategorized activity row a rule's category: the rule with
+    exactly the row's key if there is one, otherwise the oldest rule that
+    matches (rules come oldest first). No match: it stays uncategorized."""
+    rules = categories.list_rules(conn, user_id)
+    assignments = {}
+    for row in transactions.activity_descriptions(conn):
+        if row["categories_set_by"] is not None:
+            continue  # already decided — by the user, or by an earlier run
+        key = match_key(row["description"])
+        chosen = None
+        for rule in rules:
+            if rule["match_key"] == key:
+                chosen = rule
+                break
+        if chosen is None:
+            for rule in rules:
+                if is_match(key, rule["match_key"]):
+                    chosen = rule
+                    break
+        if chosen is not None:
+            assignments[row["id"]] = chosen["category_id"]
+    return categories.apply_rules(conn, assignments)
+
+
 def sync() -> dict:
-    """Run the one pipeline step that exists so far: ingest. match_transfers,
-    categorize, detect, and snapshot_backup join PIPELINE as their own tasks
-    get built (see AGENTS.md "Refinement: the sync pipeline")."""
+    """Run the pipeline steps that exist so far: ingest, then categorize.
+    match_transfers, detect, and snapshot_backup join as their own tasks get
+    built (see AGENTS.md "Refinement: the sync pipeline")."""
     if not simplefin.is_connected():
         raise SyncError("not connected to SimpleFIN yet — POST /api/connect first")
 
@@ -77,12 +103,16 @@ def sync() -> dict:
                 continue
             ingest.upsert_balance(conn, account_id, balance_row)
 
+        # match_transfers belongs here, before categorize, once it's built.
+        categorized = _categorize(conn, user_id)
+
         ingest.set_watermark(conn, SYNC_JOB, today.isoformat())
 
         return {
             "accounts": len(fetched.accounts),
             "transactions": len(fetched.transactions),
             "balances": len(fetched.balances),
+            "categorized": categorized,
             "since": since.isoformat(),
         }
     finally:

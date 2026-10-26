@@ -1,0 +1,1099 @@
+/* BlitZave — transactions page + shared transactions-table component.
+   Owned by the transactions agent. Builds on tokens.css / base.css —
+   see DESIGN.md before adding anything not covered here. */
+
+/* ============================== Page shell ============================== */
+
+.txns-page-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin-bottom: var(--space-5);
+}
+
+.txns-page-title {
+  font-size: var(--text-title);
+}
+
+.txns-adjustments-toggle {
+  flex: none;
+}
+
+.txns-adjustments-toggle.is-active {
+  background: var(--accent-soft);
+  border-color: transparent;
+  color: var(--accent);
+}
+
+.txns-adjustments-icon {
+  width: 16px;
+  height: 16px;
+  stroke: currentColor;
+  stroke-width: 1.75;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  fill: none;
+}
+
+/* =============================== Filter bar =============================== */
+
+.txns-filterbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+  margin-bottom: var(--space-4);
+}
+
+.txn-filter-search {
+  position: relative;
+  flex: 1 1 200px;
+  min-width: 180px;
+}
+
+/* The reset in base.css forces svg { display: block }; absolute
+   positioning takes this out of flow so that's fine as-is. */
+.txn-filter-search .txn-search-icon {
+  position: absolute;
+  top: 50%;
+  left: var(--space-3);
+  transform: translateY(-50%);
+  width: 16px;
+  height: 16px;
+  color: var(--text-faint);
+  stroke: currentColor;
+  stroke-width: 1.7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  fill: none;
+  pointer-events: none;
+}
+
+.txn-filter-search .txn-search {
+  padding-left: 40px; /* clears the 16px magnifier at left: 12px */
+}
+
+.txn-filter-dates {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex: 0 0 auto;
+}
+
+.txn-filter-dates .input {
+  width: 132px;
+}
+
+.txn-date-sep {
+  color: var(--text-faint);
+}
+
+/* Selects share the leftover width so the whole bar fits one row at the
+   content width and only wraps (evenly, not orphaning one control) when the
+   viewport genuinely can't hold it. */
+.txns-filterbar .select {
+  width: auto;
+  min-width: 0;
+  flex: 1 1 136px;
+  max-width: 176px;
+  padding-right: var(--space-6); /* the kit's 48px is roomier than a compact select needs */
+  text-overflow: ellipsis;
+}
+
+.txn-clear-filters {
+  font-size: var(--text-sm);
+  white-space: nowrap;
+}
+
+.txn-clear-filters.is-hidden {
+  display: none;
+}
+
+/* ============================= Table container ============================= */
+
+/* overflow-y stays hidden so the card's rounded corners clip the rows; x scrolls
+   rather than clips if a narrow viewport can't hold the table. */
+.txns-table-wrap {
+  padding: 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+
+.txns-table-wrap .empty-state {
+  background: transparent;
+}
+
+.txns-skeleton {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-5);
+}
+
+.txns-skeleton-row {
+  height: 20px;
+}
+
+.txns-table th:first-child,
+.txns-table td:first-child {
+  width: 128px;
+}
+
+.txns-table th:last-child,
+.txns-table td:last-child {
+  width: 120px;
+}
+
+.txns-table th:nth-child(3) {
+  width: 280px;
+}
+
+/* The editor row spans the table; it is a surface, not a data row, so it
+   never takes the row-hover fill. Its cell padding is what lets the well
+   read as an inset panel floating inside the white card instead of a strip
+   flush to the card's edges. */
+.table tbody tr.txn-editor-row:hover {
+  background: transparent;
+}
+
+.txns-table tr.txn-editor-row td {
+  padding: 0 var(--space-3) var(--space-3);
+}
+
+/* Sort headers: 600-weight secondary at rest; the active header turns ink
+   and grows a real inline SVG chevron (see transactions-table.js) instead
+   of base.css's generic border-corner trick — that trick is retired for
+   this table only, every other `.table` in the app still gets it. */
+.txns-table th.is-sorted {
+  color: var(--text-primary);
+}
+
+.txns-table th.is-sorted::after {
+  content: none;
+}
+
+.txn-sort-icon {
+  display: inline-block; /* override base.css's svg { display: block } reset
+                             so the icon sits inline next to the header label */
+  width: 13px;
+  height: 13px;
+  margin-left: var(--space-1);
+  vertical-align: -2px;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  fill: none;
+  transition: transform var(--t-fast) var(--ease-out);
+}
+
+.txn-sort-icon.is-asc {
+  transform: rotate(180deg);
+}
+
+.txn-row {
+  cursor: pointer;
+}
+
+/* box-shadow doesn't paint around a <tr>'s four sides reliably (only the top
+   and bottom edges showed), so the ring is an inset outline here instead. */
+.txn-row:focus-visible {
+  outline: 2px solid var(--line-accent);
+  outline-offset: -2px;
+  box-shadow: none;
+}
+
+/* An open row stays white and the editor well sits under it — keeping the
+   row the same grey as the well made the two merge into one slab. */
+.table tbody tr.txn-row.is-expanded,
+.table tbody tr.txn-row.is-expanded:hover {
+  background: var(--bg-raised);
+}
+
+.txn-row.is-expanded .txn-desc {
+  color: var(--accent);
+}
+
+.txns-table td.txn-date-cell {
+  color: var(--text-secondary);
+}
+
+.txn-desc-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+/* The monogram avatar: a 36px circle, tinted by a hash of the merchant/
+   description's first letter. The six tints are mixes of the existing
+   accent / pine / ochre / secondary-ink tokens, each pulled toward grey so
+   none reads as a loud hue — no new colors are introduced. It is identity
+   color only (like a contacts-app avatar), never status, so it carries no
+   judgment about the transaction. */
+.txn-avatar {
+  --avatar-ink: var(--text-secondary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--avatar-ink) 13%, var(--bg-raised));
+  color: var(--avatar-ink);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+  transition: transform var(--t-fast) var(--ease-out);
+}
+
+.txn-row:hover .txn-avatar {
+  transform: scale(1.05);
+}
+
+.txn-avatar-0 {
+  --avatar-ink: var(--accent); /* indigo */
+}
+.txn-avatar-1 {
+  --avatar-ink: color-mix(in srgb, var(--accent) 55%, var(--text-secondary)); /* slate violet */
+}
+.txn-avatar-2 {
+  --avatar-ink: color-mix(in srgb, var(--accent) 40%, var(--success)); /* teal */
+}
+.txn-avatar-3 {
+  --avatar-ink: color-mix(in srgb, var(--success) 65%, var(--text-secondary)); /* sage */
+}
+.txn-avatar-4 {
+  --avatar-ink: color-mix(in srgb, var(--warn) 65%, var(--text-secondary)); /* sand */
+}
+.txn-avatar-5 {
+  --avatar-ink: var(--text-secondary); /* neutral */
+}
+
+.txn-desc-text {
+  min-width: 0;
+}
+
+.txn-desc {
+  font-size: var(--text-base);
+  font-weight: var(--weight-semibold);
+  color: var(--text-primary);
+}
+
+.txn-merchant,
+.txn-account {
+  margin-top: var(--space-1);
+  font-size: var(--text-xs);
+  color: var(--text-secondary);
+}
+
+/* Category and tag chips share one wrapping row; the two wrappers exist only
+   so the component can refresh each independently after a save. */
+.txn-chip-cell {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+}
+
+.txn-cat-cell,
+.txn-tag-cell {
+  display: contents;
+}
+
+.txn-chip-cell .chip {
+  color: var(--text-primary);
+}
+
+/* The row-hover fill is the same grey as a chip; flip the chip to white so it
+   doesn't dissolve while the row is hovered. Kind tags keep their own tint. */
+.txn-row:hover .txn-chip-cell .chip:not(.txn-tag-chip):not(.txn-kind-chip) {
+  background: var(--bg-raised);
+}
+
+/* An open row is already white, so the hover flip above would erase the chip. */
+.txn-row.is-expanded .txn-chip-cell .chip:not(.txn-tag-chip):not(.txn-kind-chip) {
+  background: var(--bg-well);
+}
+
+/* Tags read as a lighter, outlined sibling of the category chip. */
+.txn-chip-cell .txn-tag-chip {
+  background: transparent;
+  border-color: var(--line-strong);
+  color: var(--text-secondary);
+}
+
+.txn-uncategorized {
+  font-size: var(--text-xs);
+  color: var(--text-secondary);
+}
+
+/* Kind tags — a transaction linked to its other side says so plainly, with an
+   icon, so it's never mistaken for spending. Both tints are STATE, never
+   judgment: a transfer is neutral graphite, a refund the calm pine of money
+   that came back. Indigo stays reserved for actions. */
+.txn-kind-chip {
+  gap: 5px;
+  border-color: transparent;
+  font-weight: var(--weight-semibold);
+  white-space: nowrap;
+}
+
+.txn-kind-icon {
+  flex: none;
+  width: 13px;
+  height: 13px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.txn-chip-cell .txn-kind-chip.txn-kind-transfer,
+.txn-adjustment-candidate .txn-kind-chip.txn-kind-transfer {
+  background: color-mix(in srgb, var(--text-primary) 8%, var(--bg-raised));
+  color: var(--text-primary);
+}
+
+.txn-chip-cell .txn-kind-chip.txn-kind-refund,
+.txn-adjustment-candidate .txn-kind-chip.txn-kind-refund {
+  background: var(--success-soft);
+  color: var(--success);
+}
+
+/* ------------------------- Refund pair tile + its legs ------------------------- */
+
+.txn-group-row {
+  cursor: pointer;
+}
+
+.txn-group-row:focus-visible {
+  outline: 2px solid var(--line-accent);
+  outline-offset: -2px;
+  box-shadow: none;
+}
+
+.table tbody tr.txn-group-row.is-open,
+.table tbody tr.txn-group-row.is-open:hover {
+  background: var(--bg-raised);
+}
+
+.txn-avatar-refund {
+  --avatar-ink: var(--success);
+}
+
+.txn-avatar-refund .txn-kind-icon {
+  width: 18px;
+  height: 18px;
+}
+
+.txns-table td.txn-amount-group {
+  font-weight: var(--weight-semibold);
+  white-space: nowrap;
+}
+
+/* A full refund nets to zero: nothing to count, so it reads quiet. */
+.txns-table td.txn-amount-zero {
+  color: var(--text-secondary);
+}
+
+.txns-table td.txn-amount-group.txn-amount-debit {
+  color: var(--text-primary);
+}
+
+.txns-table td.txn-amount-group.txn-amount-credit {
+  color: var(--success);
+}
+
+.txn-net-figure {
+  vertical-align: middle;
+}
+
+.txn-group-chevron {
+  display: inline-block; /* base.css makes every svg a block, which wrapped it under the figure */
+  width: 16px;
+  height: 16px;
+  margin-left: var(--space-2);
+  vertical-align: middle;
+  fill: none;
+  stroke: var(--text-secondary);
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  transition: transform var(--t-base) var(--ease-out);
+}
+
+.txn-group-row.is-open .txn-group-chevron {
+  transform: rotate(180deg);
+}
+
+/* The two real transactions under an open tile: inset, on a faint well,
+   with a pine rail tying them to the tile above. */
+.table tbody tr.txn-leg-row {
+  background: color-mix(in srgb, var(--bg-well) 55%, var(--bg-raised));
+}
+
+.table tbody tr.txn-leg-row:hover {
+  background: var(--bg-well);
+}
+
+.txns-table tr.txn-leg-row td:first-child {
+  box-shadow: inset 3px 0 0 color-mix(in srgb, var(--success) 45%, transparent);
+}
+
+.txns-table tr.txn-leg-row .txn-desc-cell {
+  padding-left: calc(var(--space-4) + 18px);
+}
+
+.txn-leg-row .txn-avatar {
+  width: 30px;
+  height: 30px;
+  font-size: var(--text-xs);
+}
+
+/* Specificity note: base.css's `.table td` rule sets color at (0,1,1) —
+   a bare class here would lose to it, so these are scoped through
+   `.txns-table td` to win cleanly regardless of stylesheet order. Weight
+   matches base.css's default `.is-numeric` semibold rather than softening
+   it, so the figure carries real weight against the row. */
+.txns-table td.txn-amount-credit {
+  color: var(--success);
+  font-weight: var(--weight-semibold);
+}
+
+.txns-table td.txn-amount-debit {
+  color: var(--text-primary);
+  font-weight: var(--weight-semibold);
+}
+
+/* =============================== Pagination =============================== */
+
+.txns-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin-top: var(--space-4);
+}
+
+.txns-page-count {
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+}
+
+.txns-page-btns {
+  display: flex;
+  gap: var(--space-2);
+}
+
+.txns-page-btn {
+  padding: var(--space-2);
+  min-width: 44px;
+}
+
+.txns-page-icon {
+  width: 18px;
+  height: 18px;
+  stroke: currentColor;
+  stroke-width: 1.75;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  fill: none;
+}
+
+/* ============================ Shared small icons ============================ */
+/* The close (×) and plus (+) glyphs used across the notice dismiss, the
+   split-remove button, and the add-split/add-tag affordances — one sizing
+   rule each, reused everywhere that icon appears. */
+
+.txn-close-icon {
+  width: 14px;
+  height: 14px;
+  stroke: currentColor;
+  stroke-width: 1.9;
+  stroke-linecap: round;
+  fill: none;
+}
+
+.txn-plus-icon {
+  width: 15px;
+  height: 15px;
+  stroke: currentColor;
+  stroke-width: 1.9;
+  stroke-linecap: round;
+  fill: none;
+}
+
+/* ============================= Editor panel ============================= */
+
+.txn-editor-wrap {
+  max-height: 0;
+  overflow: hidden;
+  background: var(--bg-well);
+  /* 16px: one step down from --radius-card (20px) so the well reads as
+     nested inside the card, not a sibling surface of its own. */
+  border-radius: 16px;
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.04);
+  transition: max-height var(--t-slow) var(--ease-out);
+}
+
+/* Category | Tags side by side, Transfer and the bank reminder full width
+   underneath. Hairlines come from the sections' own borders. */
+.txn-editor {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  padding: var(--space-5) 0;
+}
+
+.txn-editor-section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: 0 var(--space-5);
+}
+
+.txn-tag-section {
+  border-left: 1px solid var(--line-faint);
+}
+
+.txn-adjustment-section {
+  grid-column: 1 / -1;
+  margin: var(--space-5) var(--space-5) 0;
+  padding: var(--space-5) 0 0;
+  border-top: 1px solid var(--line-faint);
+}
+
+/* Controls inside the well go white so they stand off the grey inset
+   instead of dissolving into it (the kit's well-grey inputs are for the page). */
+.txn-editor .input,
+.txn-editor .select {
+  background: var(--bg-raised);
+  border-color: var(--line-faint);
+}
+
+.txn-editor .input:hover,
+.txn-editor .select:hover {
+  border-color: var(--line-strong);
+}
+
+.txn-editor .btn-primary:disabled {
+  box-shadow: none;
+}
+
+.txn-editor .btn-ghost {
+  background: var(--bg-raised);
+}
+
+.txn-editor .btn-ghost:hover:not(:disabled) {
+  background: var(--bg-lift);
+}
+
+.txn-section-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.txn-section-title {
+  font-size: var(--text-base);
+  font-weight: var(--weight-semibold);
+  letter-spacing: var(--tracking-numeral);
+  color: var(--text-primary);
+}
+
+.txn-set-by {
+  font-size: var(--text-xs);
+}
+
+.txn-cat-empty {
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+}
+
+.txn-split-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.txn-split-category {
+  flex: 1 1 auto;
+}
+
+.txn-split-percent {
+  flex: 0 0 64px;
+  width: 64px;
+  text-align: right;
+}
+
+.txn-split-percent-sign {
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+}
+
+.txn-remove-split {
+  flex: 0 0 auto;
+  padding: var(--space-2);
+  color: var(--text-faint);
+}
+
+.txn-remove-split:hover {
+  color: var(--danger);
+}
+
+.txn-add-split {
+  align-self: flex-start;
+}
+
+.txn-split-hint {
+  font-size: var(--text-xs);
+  color: var(--success);
+}
+
+/* Not-yet-100% is a neutral nudge (ink), never an alarm color. */
+.txn-split-hint.is-off {
+  color: var(--text-primary);
+}
+
+.txn-save-categories,
+.txn-save-tags {
+  align-self: flex-start;
+  margin-top: var(--space-1);
+}
+
+.txn-tag-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+/* Toggle chips: white on the well (the kit's well-grey chip would vanish into
+   it), a touch larger than a read-only chip since they are tap targets. */
+.txn-tag-toggle {
+  padding: var(--space-2) var(--space-3);
+  background: var(--bg-raised);
+  border-color: var(--line-faint);
+  font-size: var(--text-sm);
+  cursor: pointer;
+}
+
+.txn-tag-toggle:hover {
+  border-color: var(--line-strong);
+}
+
+/* Selected: the accent tint is layered over white (not the well) so it stays
+   a clean light indigo instead of going grey-lavender. */
+.txn-tag-toggle.chip-accent {
+  background: linear-gradient(var(--accent-soft), var(--accent-soft)), var(--bg-raised);
+  border-color: var(--line-accent);
+  color: var(--accent);
+  font-weight: var(--weight-semibold);
+}
+
+.txn-add-tag-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-top: var(--space-1);
+}
+
+.txn-new-tag-input {
+  flex: 0 1 200px;
+}
+
+.txn-editor-reminder {
+  grid-column: 1 / -1;
+  margin-top: var(--space-4);
+  padding: 0 var(--space-5);
+  font-size: var(--text-xs);
+  color: var(--text-secondary);
+}
+
+/* ============================ Notice (above table) ============================ */
+
+/* display:flex below would otherwise override the hidden attribute. */
+.txns-notice[hidden] {
+  display: none;
+}
+
+/* A white, floating confirmation with a pine check — the tinted-fill version
+   went murky over the grey page. */
+.txns-notice {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin-bottom: var(--space-4);
+  padding: var(--space-2) var(--space-2) var(--space-2) var(--space-4);
+  border: 1px solid var(--line-faint);
+  border-radius: var(--radius-control);
+  background: var(--bg-raised);
+  box-shadow: var(--shadow-card);
+}
+
+.txns-notice-icon {
+  flex: none;
+  width: 20px;
+  height: 20px;
+  stroke: var(--success);
+  stroke-width: 1.75;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  fill: none;
+}
+
+.txns-notice-text {
+  flex: 1 1 auto;
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+  color: var(--text-primary);
+}
+
+.txns-notice-dismiss {
+  flex: 0 0 auto;
+  padding: var(--space-2);
+}
+
+/* ===================== Editor: apply-category scope choice ===================== */
+
+.txn-scope {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: var(--space-1) 0 0;
+  padding: 0;
+  border: 0;
+}
+
+.txn-scope-option {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--text-sm);
+  color: var(--text-primary);
+  cursor: pointer;
+}
+
+.txn-scope-option input {
+  accent-color: var(--accent);
+  margin: 0;
+}
+
+.txn-scope-hint {
+  font-size: var(--text-xs);
+  color: var(--text-secondary);
+}
+
+/* ============================ Editor: transfer ============================ */
+
+.txn-adjustment-hint {
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+}
+
+.txn-adjustment-start {
+  align-self: flex-start;
+}
+
+/* Scrolls inside the editor so a long match list never pushes the actions
+   out of reach; contain keeps the page from scrolling along at the ends. */
+.txn-adjustment-candidates {
+  display: flex;
+  flex-direction: column;
+  max-height: 18rem;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  border: 1px solid var(--line-faint);
+  border-radius: var(--radius-control);
+  background: var(--bg-raised);
+}
+
+.txn-adjustment-candidate .txn-kind-chip {
+  flex: none;
+}
+
+.txn-adjustment-start .txn-kind-icon {
+  width: 15px;
+  height: 15px;
+}
+
+.txn-adjustment-candidate {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  width: 100%;
+  padding: var(--space-3) var(--space-4);
+  border: 0;
+  border-bottom: 1px solid var(--line-faint);
+  background: transparent;
+  text-align: left;
+  font-size: var(--text-sm);
+  color: var(--text-primary);
+  cursor: pointer;
+  transition: background var(--t-fast) var(--ease-out);
+}
+
+.txn-adjustment-candidate:last-child {
+  border-bottom: 0;
+}
+
+.txn-adjustment-candidate:hover {
+  background: var(--bg-well);
+}
+
+.txn-adjustment-candidate:focus-visible {
+  outline: none;
+  box-shadow: inset var(--focus-ring);
+}
+
+.txn-adjustment-candidate.is-selected {
+  background: var(--accent-soft);
+}
+
+.txn-adjustment-cand-date {
+  flex: 0 0 104px;
+  color: var(--text-secondary);
+}
+
+.txn-adjustment-cand-main {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.txn-adjustment-cand-account {
+  font-weight: var(--weight-medium);
+}
+
+.txn-adjustment-cand-desc {
+  font-size: var(--text-xs);
+  color: var(--text-secondary);
+}
+
+.txn-adjustment-cand-amount {
+  flex: 0 0 auto;
+  font-weight: var(--weight-semibold);
+}
+
+.txn-adjustment-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  margin-top: var(--space-1);
+}
+
+/* ========================== Transfers panel (page) ========================== */
+
+.txns-adjustments {
+  margin-bottom: var(--space-5);
+}
+
+.txns-adjustments-title {
+  margin-bottom: var(--space-3);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+  color: var(--text-secondary);
+}
+
+.adjustments-group + .adjustments-group {
+  margin-top: var(--space-5);
+  padding-top: var(--space-5);
+  border-top: 1px solid var(--line-faint);
+}
+
+.adjustments-group-title {
+  margin-bottom: var(--space-3);
+  font-size: var(--text-base);
+  font-weight: var(--weight-semibold);
+  color: var(--text-primary);
+}
+
+.txns-adjustments .empty-state {
+  background: transparent;
+}
+
+.adjustments-skeleton {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.adjustments-skeleton-row {
+  height: 20px;
+}
+
+.adjustments-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.adjustment-item {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3) var(--space-5);
+  padding: var(--space-3) 0;
+  border-bottom: 1px solid var(--line-faint);
+}
+
+.adjustment-item:last-child {
+  border-bottom: 0;
+}
+
+.adjustment-item .field-error {
+  flex: 1 0 100%;
+}
+
+.adjustment-legs {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex: 1 1 360px;
+  min-width: 0;
+}
+
+.adjustment-leg {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+.adjustment-leg-label {
+  font-size: var(--text-xs);
+  color: var(--text-secondary);
+}
+
+.adjustment-leg-account {
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+  color: var(--text-primary);
+}
+
+.adjustment-leg-desc {
+  font-size: var(--text-xs);
+  color: var(--text-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.adjustment-arrow {
+  flex: none;
+  width: 18px;
+  height: 18px;
+  stroke: var(--text-faint);
+  stroke-width: 1.75;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  fill: none;
+}
+
+.adjustment-meta {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: var(--space-1);
+}
+
+.adjustment-amount {
+  font-size: var(--text-base);
+  font-weight: var(--weight-semibold);
+  color: var(--text-primary);
+}
+
+.adjustment-date {
+  font-size: var(--text-xs);
+  color: var(--text-faint);
+}
+
+.adjustment-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.adjustment-unlink-prompt {
+  font-size: var(--text-xs);
+  color: var(--text-secondary);
+}
+
+/* ============================ Narrow viewports ============================ */
+/* Desktop-first app; this just keeps a phone-width window from scrolling
+   sideways. The category column folds away and the editor stacks. */
+
+/* With the 240px sidebar still showing, the four-column table needs ~610px
+   and would clip its Amount column below ~930px of window width, so the
+   category column folds away and the cells tighten. */
+@media (max-width: 940px) {
+  .txns-table th:nth-child(3),
+  .txns-table td:nth-child(3) {
+    display: none;
+  }
+
+  .txns-table th:first-child,
+  .txns-table td:first-child {
+    width: 72px;
+  }
+
+  .txns-table td.txn-date-cell {
+    font-size: var(--text-xs);
+  }
+
+  .txns-table th:last-child,
+  .txns-table td:last-child {
+    width: auto;
+  }
+
+  .txns-table th,
+  .txns-table td {
+    padding-left: var(--space-3);
+    padding-right: var(--space-3);
+  }
+
+  .txn-desc {
+    overflow-wrap: anywhere;
+  }
+
+  /* The editor's two columns get too tight to read a category name here. */
+  .txn-editor {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .txn-tag-section {
+    margin-top: var(--space-5);
+    padding-top: var(--space-5);
+    border-left: 0;
+    border-top: 1px solid var(--line-faint);
+  }
+}
+
+@media (max-width: 760px) {
+  .txns-page-title {
+    font-size: var(--text-lg);
+  }
+
+  .txn-desc-row {
+    gap: var(--space-2);
+  }
+
+  .txn-avatar {
+    width: 28px;
+    height: 28px;
+    font-size: var(--text-xs);
+  }
+
+  .txn-filter-dates {
+    flex: 1 1 100%;
+  }
+
+  .txn-filter-dates .input {
+    flex: 1 1 0;
+    width: auto;
+    min-width: 0;
+  }
+}

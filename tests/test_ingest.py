@@ -85,6 +85,50 @@ def test_upsert_account_is_idempotent_and_never_overwrites(conn, user_id):
     assert account_number == "1234"
 
 
+def test_resync_repairs_a_stale_issuer_but_keeps_the_users_type(conn, user_id):
+    # An early parser stored the card's own name as its issuer.
+    stale = AccountRow(
+        external_id="ACT-2",
+        account_type="liability",
+        account_number="1002",
+        issuer_name="Platinum Card® (1002)",
+        liability_type="credit_card",
+    )
+    account_id = ingest.upsert_account(conn, user_id, stale)
+
+    fresh = AccountRow(
+        external_id="ACT-2",
+        account_type="liability",
+        account_number="1002",
+        issuer_name="American Express",
+        liability_type="loan",  # a different guess must not override the stored type
+    )
+    ingest.upsert_account(conn, user_id, fresh)
+
+    row = conn.execute(
+        "SELECT issuer_name, liability_type FROM liabilities WHERE account_id = ?",
+        (account_id,),
+    ).fetchone()
+    assert row == ("American Express", "credit_card")
+
+
+def test_resync_never_replaces_an_institution_with_the_unknown_placeholder(conn, user_id):
+    account_id = ingest.upsert_account(conn, user_id, CHECKING_ROW)
+    no_org = AccountRow(
+        external_id="ACT-1",
+        account_type="asset",
+        account_number="1234",
+        bank_name="Unknown",
+        asset_type="checking",
+    )
+    ingest.upsert_account(conn, user_id, no_org)
+
+    bank_name = conn.execute(
+        "SELECT bank_name FROM assets WHERE account_id = ?", (account_id,)
+    ).fetchone()[0]
+    assert bank_name == "Chase"
+
+
 def test_upsert_transaction_inserts_new_row(conn, user_id):
     account_id = ingest.upsert_account(conn, user_id, CHECKING_ROW)
     row = TxRow(

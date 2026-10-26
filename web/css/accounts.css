@@ -1,0 +1,402 @@
+/* BlitZave — accounts overview + account detail.
+   Owned by the accounts agent. Built on tokens.css / base.css — see
+   DESIGN.md. All classes are namespaced (.accounts-* / .account-*) since
+   every page's CSS shares one global cascade.
+
+   The signature moment of the whole app lives here: liability (credit
+   card) accounts render as wallet-style card faces
+   (.account-card--wallet) — a clarity-blue face, white tabular balance, a
+   faint teal sheen. Asset accounts (checking/savings) stay plain light
+   cards with the same balance treatment, so the card/cash contrast reads
+   at a glance across the grid. */
+
+/* ============================ Accounts list ============================ */
+
+.accounts-page {
+  display: flex;
+  flex-direction: column;
+}
+
+.accounts-intro {
+  margin-bottom: var(--space-6);
+}
+
+.accounts-intro-title {
+  font-size: var(--text-title);
+}
+
+.accounts-intro-lede {
+  margin-top: var(--space-2);
+  color: var(--text-secondary);
+  font-size: var(--text-base);
+}
+
+.accounts-group + .accounts-group {
+  margin-top: var(--space-7);
+}
+
+.accounts-group-title {
+  margin-bottom: var(--space-4);
+  font-size: var(--text-md);
+  font-weight: var(--weight-semibold);
+  color: var(--text-primary);
+}
+
+/* Fixed-width tracks (not 1fr): a card face is a physical object with its
+   own proportions, so a wider window adds columns and empty margin rather
+   than stretching the card or leaving a gutter wider than the gap. */
+.accounts-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(340px, 380px));
+  justify-content: start;
+  gap: var(--space-6);
+}
+
+/* ------------------------------ Account card ----------------------------- */
+/* Shared anatomy for both faces: a head group (identity + menu) pinned to
+   the top, a bottom group (balance + as-of) pinned to the bottom. The
+   aspect ratio is a real card's (ISO/IEC 7810 ID-1, ~1.586) — the empty
+   middle it creates is what makes the face read as a card and not just a
+   stack of text. min-height keeps long names from overflowing it. */
+
+.account-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: var(--space-5);
+  aspect-ratio: 1.586;
+  min-height: 208px;
+  padding: var(--space-5) var(--space-5) var(--space-5) var(--space-5);
+}
+
+/* A card with its correction menu open outranks its neighbours. Without
+   this a later sibling (and any hovered card, which gets a transform and so
+   its own stacking context) paints over the menu where they overlap. */
+.account-card:has(.account-edit-popover:not([hidden])) {
+  z-index: 10;
+}
+
+/* The global :focus-visible rule squares every focused element to the
+   12px control radius and replaces the box-shadow — a card must keep its
+   own radius and its depth while it shows the ring. */
+.account-card:focus-visible {
+  border-radius: var(--radius-card);
+  box-shadow: var(--focus-ring), var(--shadow-card);
+}
+
+.account-card-head {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.account-card-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.account-card-issuer {
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semibold);
+  color: var(--text-secondary);
+}
+
+.account-card-name {
+  font-size: var(--text-md);
+  font-weight: var(--weight-semibold);
+  letter-spacing: var(--tracking-numeral);
+  color: var(--text-primary);
+}
+
+.account-card-institution {
+  margin-top: var(--space-1);
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+}
+
+.account-card-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex: none;
+  margin-left: auto;
+}
+
+.account-card-menu {
+  position: relative;
+  margin-left: auto;
+}
+
+/* 32px hit area around an 18px glyph; the negative margin pulls the glyph
+   itself back onto the card's content edge so it lines up with the text. */
+.account-card-menu-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  margin: -6px -6px 0 0;
+  flex: none;
+  border-radius: var(--radius-chip);
+  color: var(--text-secondary);
+  transition: background var(--t-fast) var(--ease-out),
+    color var(--t-fast) var(--ease-out);
+}
+
+.account-card-menu-btn:focus-visible {
+  border-radius: var(--radius-chip);
+}
+
+.account-card-menu-icon {
+  width: 18px;
+  height: 18px;
+  flex: none;
+}
+
+.account-card-menu-btn:hover {
+  background: var(--bg-well);
+  color: var(--text-primary);
+}
+
+/* The bottom group — the card's one-number moment. Semibold, tabular,
+   large: the point of the whole signature screen. */
+.account-card-bottom {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.account-card-balance {
+  font-size: var(--text-display);
+  font-weight: var(--weight-semibold);
+  font-variant-numeric: var(--numeric);
+  letter-spacing: var(--tracking-tight);
+  line-height: var(--leading-tight);
+  color: var(--text-primary);
+}
+
+.account-card-asof {
+  font-size: var(--text-xs);
+  color: var(--text-secondary);
+}
+
+/* The inline "correct type" mini-form. A floating overlay, so it gets the
+   float shadow — cards only get --shadow-card, this isn't a card. It always
+   floats on the light surface regardless of the wallet/white card under it,
+   and resets the card's pointer cursor so it reads as its own thing. */
+.account-edit-popover {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  position: absolute;
+  top: calc(100% + var(--space-3));
+  right: calc(-1 * var(--space-2));
+  z-index: 5;
+  width: 248px;
+  padding: var(--space-4);
+  background: var(--bg-raised);
+  border: 1px solid var(--line-faint);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-float);
+  color: var(--text-primary);
+  cursor: default;
+}
+
+.account-edit-popover[hidden] {
+  display: none;
+}
+
+.account-edit-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-2);
+}
+
+/* --------------------------- Wallet face (liability) --------------------------- */
+/* The one allowed non-token decorative surface in the whole app: a
+   wallet-style card face in the accent's blue family. These two hexes are
+   deliberately NOT tokens — no other surface in the product should ever
+   reuse them. The ink values below are scoped to the face for the same
+   reason: they exist only to read on the blue. */
+
+/* A faint diagonal sheen layered over the blue gradient so the face
+   reads as a physical card catching light, not a flat color fill. Both are
+   background-image layers on the card itself (not a ::before) so they clip
+   to the card's own border-radius automatically — no overflow:hidden
+   needed, which matters because the correction popover must float fully
+   outside the card's bounds, not get clipped by it. */
+.account-card--wallet {
+  --wallet-face-start: #0c5fae;
+  --wallet-face-end: #3a93e6;
+  --wallet-ink: #ffffff;
+  --wallet-ink-soft: rgba(255, 255, 255, 0.82);
+  --wallet-ink-faint: rgba(255, 255, 255, 0.7);
+
+  background: radial-gradient(
+      120% 90% at 100% 100%,
+      rgba(45, 212, 191, 0.32) 0%,
+      rgba(45, 212, 191, 0) 60%
+    ),
+    linear-gradient(
+      135deg,
+      rgba(255, 255, 255, 0.12) 0%,
+      rgba(255, 255, 255, 0) 40%
+    ),
+    linear-gradient(135deg, var(--wallet-face-start), var(--wallet-face-end));
+  border-color: rgba(255, 255, 255, 0.14);
+  /* A top-edge highlight (the card's bevel catching light) over a
+     blue-tinted drop shadow. */
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.18),
+    0 1px 2px rgba(12, 95, 174, 0.2),
+    0 14px 30px -14px rgba(12, 95, 174, 0.5);
+}
+
+.account-card--wallet:hover {
+  border-color: rgba(255, 255, 255, 0.22);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.2),
+    0 2px 4px rgba(12, 95, 174, 0.22),
+    0 22px 40px -16px rgba(12, 95, 174, 0.55);
+}
+
+.account-card--wallet:focus-visible {
+  box-shadow: var(--focus-ring), 0 14px 30px -14px rgba(12, 95, 174, 0.5);
+}
+
+.account-card--wallet .account-card-issuer {
+  color: var(--wallet-ink-soft);
+}
+
+.account-card--wallet .account-card-name,
+.account-card--wallet .account-card-balance {
+  color: var(--wallet-ink);
+}
+
+.account-card--wallet .account-card-asof {
+  color: var(--wallet-ink-faint);
+}
+
+.account-card--wallet .account-card-menu-btn {
+  color: var(--wallet-ink-soft);
+}
+
+.account-card--wallet .account-card-menu-btn:hover {
+  background: rgba(255, 255, 255, 0.18);
+  color: var(--wallet-ink);
+}
+
+/* The standard focus ring's light gap would read as a pale halo on a
+   colored face; a plain white ring is the legible version there. */
+.account-card--wallet .account-card-menu-btn:focus-visible {
+  box-shadow: 0 0 0 2px var(--wallet-ink);
+}
+
+/* ============================ Account detail ============================ */
+
+.account-detail-page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+/* The inline link style underlines; a back affordance with a chevron
+   doesn't need it — the icon already says "link". */
+.account-detail-back {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  align-self: flex-start;
+  margin-bottom: var(--space-5);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+  text-decoration: none;
+  transition: gap var(--t-fast) var(--ease-out);
+}
+
+.account-detail-back:hover {
+  gap: var(--space-2);
+}
+
+.account-detail-back-icon {
+  width: 16px;
+  height: 16px;
+  flex: none;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 1.75;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* Inside an empty/error state the message is centered, so the back link
+   joins it instead of hugging the left edge. */
+.empty-state .account-detail-back {
+  align-self: center;
+  margin-top: var(--space-3);
+  margin-bottom: 0;
+}
+
+.accounts-state-action {
+  margin-top: var(--space-3);
+}
+
+.account-detail-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-4);
+}
+
+.account-detail-header .badge {
+  flex: none;
+  margin-top: var(--space-2);
+}
+
+.account-detail-name {
+  font-size: var(--text-title);
+  font-weight: var(--weight-semibold);
+  letter-spacing: var(--tracking-tight);
+  line-height: var(--leading-tight);
+  color: var(--text-primary);
+}
+
+.account-detail-institution {
+  margin-top: var(--space-2);
+  font-size: var(--text-base);
+  color: var(--text-secondary);
+}
+
+.account-detail-balance {
+  margin-top: var(--space-5);
+}
+
+.account-detail-asof {
+  margin-top: var(--space-1);
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+}
+
+.account-detail-transactions {
+  margin-top: var(--space-7);
+}
+
+/* ============================ Narrow screens ============================ */
+/* Desktop-first, but nothing should overflow sideways on a phone: the
+   fixed-width tracks collapse to a single full-width column. */
+
+@media (max-width: 760px) {
+  .accounts-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .account-detail-header {
+    flex-direction: column;
+    gap: var(--space-3);
+  }
+
+  .account-detail-balance {
+    font-size: var(--text-display);
+  }
+}

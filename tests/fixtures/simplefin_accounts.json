@@ -1,5 +1,5 @@
 {
-  "_fixture_note": "Synthetic, hand-written to match SimpleFIN's documented protocol shape (https://www.simplefin.org/protocol.html). Not a captured real demo-bank response — no demo credentials were available when this was written. See AGENTS.md task 4 for the real thing when available.",
+  "_fixture_note": "Mixed. The 3 credit card accounts (Amex Platinum, Amex Gold [transactions trimmed from 10 to 3], Capital One Venture X) are captured verbatim from SimpleFIN's own public demo/test bridge (beta-bridge.simplefin.org), via the developer's own demo connection on 2026-10-25 -- real protocol shape, not hand-written. The Chase checking account and the Fidelity 401k account are hand-added (not captured) to keep test coverage for the asset/checking path and the investment-skip path, since the real capture happened to be all credit cards.",
   "errors": [],
   "accounts": [
     {
@@ -38,29 +38,136 @@
       ]
     },
     {
-      "org": { "domain": "americanexpress.com", "sfin-url": "https://example.org/sfin", "name": "American Express" },
-      "id": "ACT-amex-9f8e7d6c",
-      "name": "Platinum Rewards Card",
+      "available-balance": "0.00",
+      "balance": "-867.23",
+      "balance-date": 1792960984,
       "currency": "USD",
-      "balance": "-312.45",
-      "available-balance": "4687.55",
-      "balance-date": 1759276800,
+      "holdings": [],
+      "id": "ACT-6a7c0c03-a7f8-4ca4-aa2d-06b7f44ec3a1",
+      "name": "Platinum Card® (1002)",
+      "org": {
+        "domain": "www.americanexpress.com",
+        "id": "www.americanexpress.com",
+        "name": "American Express",
+        "sfin-url": "https://beta-bridge.simplefin.org/simplefin",
+        "url": "https://www.americanexpress.com"
+      },
       "transactions": [
         {
-          "id": "TXN-amex-0001",
-          "posted": 1759190400,
-          "amount": "-89.99",
-          "description": "DELTA AIR LINES",
-          "payee": "Delta Air Lines",
-          "pending": false
+          "amount": "-14.02",
+          "description": "Walmart+ Member 10/28009666546 AR",
+          "id": "TRN-0981051b-e32e-48d0-a444-aecfeb0e099d",
+          "mcc": null,
+          "memo": "",
+          "payee": "Walmart",
+          "posted": 1792497600,
+          "transacted_at": 1792497600
         },
         {
-          "id": "TXN-amex-0002",
-          "posted": 1759104000,
-          "amount": "25.00",
-          "description": "STATEMENT CREDIT",
-          "payee": "American Express",
-          "pending": false
+          "amount": "14.02",
+          "description": "Platinum Walmart+ Credit",
+          "id": "TRN-9bf55edc-dfed-4509-bbf5-6ab68a24f652",
+          "mcc": null,
+          "memo": "",
+          "payee": "Walmart",
+          "posted": 1792584000,
+          "transacted_at": 1792497600
+        }
+      ]
+    },
+    {
+      "available-balance": "0.00",
+      "balance": "-3302.99",
+      "balance-date": 1792960984,
+      "currency": "USD",
+      "holdings": [],
+      "id": "ACT-e8ae7e1e-05a2-4955-b472-74381d28f9b2",
+      "name": "American Express Gold Card (1007)",
+      "org": {
+        "domain": "www.americanexpress.com",
+        "id": "www.americanexpress.com",
+        "name": "American Express",
+        "sfin-url": "https://beta-bridge.simplefin.org/simplefin",
+        "url": "https://www.americanexpress.com"
+      },
+      "transactions": [
+        {
+          "amount": "-15.09",
+          "description": "AplPay TST* LA LA LASOUTHLAKE TX",
+          "id": "TRN-5f4e4d99-3c73-42ce-82c3-9ea952520270",
+          "mcc": null,
+          "memo": "",
+          "payee": "Aplpay",
+          "posted": 1792756800,
+          "transacted_at": 1792756800
+        },
+        {
+          "amount": "-6.15",
+          "description": "SAM'S CLUB 4795 4795GRAPEVINE TX",
+          "id": "TRN-5b675fbe-8997-4af6-8ce7-1d33a6bf7d8b",
+          "mcc": null,
+          "memo": "",
+          "payee": "Sam's Club",
+          "posted": 1792584000,
+          "transacted_at": 1792584000
+        },
+        {
+          "amount": "-121.01",
+          "description": "H-E-B #819 EULESS TX",
+          "id": "TRN-80100615-54b8-43ff-9675-2873d12e7a1f",
+          "mcc": null,
+          "memo": "",
+          "payee": "H-E-B",
+          "posted": 1792497600,
+          "transacted_at": 1792411200
+        }
+      ]
+    },
+    {
+      "available-balance": "0.00",
+      "balance": "-8387.88",
+      "balance-date": 1792960983,
+      "currency": "USD",
+      "holdings": [],
+      "id": "ACT-a5ec3a62-0c88-4149-88b2-505a923c64fc",
+      "name": "Venture X (1863)",
+      "org": {
+        "domain": "www.capitalone.com",
+        "id": "www.capitalone.com",
+        "name": "Capital One",
+        "sfin-url": "https://beta-bridge.simplefin.org/simplefin",
+        "url": "https://www.capitalone.com"
+      },
+      "transactions": [
+        {
+          "amount": "-185.06",
+          "description": "COSTCO WHSE #0669",
+          "id": "TRN-458ebd8b-9989-4d64-bd7e-86b3e064ed57",
+          "mcc": null,
+          "memo": "",
+          "payee": "Costco",
+          "posted": 1792756800,
+          "transacted_at": 1792756800
+        },
+        {
+          "amount": "89.79",
+          "description": "COSTCO WHSE #0669",
+          "id": "TRN-a0ff986e-9eff-4e82-b109-7f5410f2eb14",
+          "mcc": null,
+          "memo": "",
+          "payee": "Costco",
+          "posted": 1792756800,
+          "transacted_at": 1792756800
+        },
+        {
+          "amount": "-395.00",
+          "description": "CAPITAL ONE MEMBER FEE",
+          "id": "TRN-c182bdf5-1afe-42ae-a338-61a9a4a051bd",
+          "mcc": null,
+          "memo": "",
+          "payee": "Capital One Fee",
+          "posted": 1792411200,
+          "transacted_at": 1792411200
         }
       ]
     },

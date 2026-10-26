@@ -37,7 +37,7 @@ def test_fetch_uses_basic_auth_and_strips_credentials_from_the_request_url(monke
     assert "demo_pass" not in captured["url"]
     assert captured["auth"] == ("demo_user", "demo_pass")
     assert "start-date" in captured["params"]
-    assert len(fetched.accounts) == 2
+    assert len(fetched.accounts) == 4  # 5 in the fixture, minus the skipped 401k account
 
 
 def test_fetch_raises_access_revoked_on_403(monkeypatch):
