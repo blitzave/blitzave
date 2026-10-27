@@ -1,15 +1,23 @@
 [project]
 name = "blitzave"
 version = "0.1.0"
-description = "Self-hosted personal finance engine: syncs SimpleFIN, stores it in SQLite, serves a local API."
+description = "A calm, open-source personal finance app that runs on your own laptop."
 readme = "README.md"
+license = "Apache-2.0"
+license-files = ["LICENSE", "NOTICE"]
 requires-python = ">=3.12"
+keywords = ["personal-finance", "budgeting", "self-hosted", "local-first", "simplefin"]
 dependencies = [
     "fastapi>=0.162.0",
     "httpx>=0.28.1",
     "keyring>=25.7.0",
     "uvicorn[standard]>=0.54.0",
 ]
+
+[project.urls]
+Homepage = "https://blitzave.github.io/engine/"
+Repository = "https://github.com/blitzave/engine"
+Issues = "https://github.com/blitzave/engine/issues"
 
 [project.scripts]
 blitzave = "blitzave.__main__:main"

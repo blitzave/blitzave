@@ -156,7 +156,9 @@ The shared transactions table lives in `js/components/transactions-table.js`:
 export function renderTransactionsTable(root, { accountId = null } = {}) {}
 ```
 
-Self-fetching: sort controls, filters, pagination, per-row metadata editing.
+Self-fetching: one calendar month at a time (a month stepper plus a "Sync
+*Month Year*" button), sort controls, filters, pagination, per-row metadata
+editing.
 When `accountId` is passed, it scopes to that account and hides the account
 filter — the accounts page's detail view is expected to call this instead of
 building its own table.
@@ -167,9 +169,9 @@ building its own table.
 
 **Query params:** a route may carry `?key=value` after the path; the router
 merges them into `params` (path params win). The transactions page uses this
-to open pre-filtered: `#/transactions?category=ID&start=YYYY-MM-DD&end=YYYY-MM-DD`
-(passed to the table as `initialFilters`). Link to that instead of listing
-transactions inside another page.
+to open pre-filtered: `#/transactions?category=ID&month=YYYY-MM` (passed to
+the table as `initialFilters`). Link to that instead of listing transactions
+inside another page.
 
 **Nav-link highlighting** is automatic: any element with `data-nav-link` and an
 `href="#/section"` gets `.is-active` toggled by the router based on the current
