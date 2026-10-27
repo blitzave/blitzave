@@ -165,6 +165,12 @@ building its own table.
 `#/accounts` (also the default, `#/` → `/accounts`), `#/accounts/:id`,
 `#/transactions`, `#/categories`.
 
+**Query params:** a route may carry `?key=value` after the path; the router
+merges them into `params` (path params win). The transactions page uses this
+to open pre-filtered: `#/transactions?category=ID&start=YYYY-MM-DD&end=YYYY-MM-DD`
+(passed to the table as `initialFilters`). Link to that instead of listing
+transactions inside another page.
+
 **Nav-link highlighting** is automatic: any element with `data-nav-link` and an
 `href="#/section"` gets `.is-active` toggled by the router based on the current
 path (prefix match, so `#/accounts/ACT-1` still lights up the `#/accounts`

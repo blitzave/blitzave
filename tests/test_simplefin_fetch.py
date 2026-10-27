@@ -1,5 +1,5 @@
 import json
-from datetime import date
+from datetime import date, datetime
 from pathlib import Path
 
 import httpx
@@ -54,3 +54,18 @@ def test_fetch_raises_subscription_required_on_402(monkeypatch):
 
     with pytest.raises(simplefin.SubscriptionRequiredError):
         simplefin.fetch(date(2026, 1, 1))
+
+
+def test_fetch_sends_end_date_only_when_until_is_given(monkeypatch):
+    simplefin.store_access_url("https://u:p@bridge.simplefin.org/simplefin")
+    captured = []
+    monkeypatch.setattr(
+        httpx, "get", lambda url, *, params=None, auth=None: captured.append(params) or httpx.Response(200, json=FIXTURE)
+    )
+
+    simplefin.fetch(date(2026, 10, 1))
+    simplefin.fetch(date(2026, 10, 1), date(2026, 11, 1))
+
+    assert "end-date" not in captured[0]
+    assert captured[1]["start-date"] == int(datetime(2026, 10, 1).timestamp())  # local midnight
+    assert captured[1]["end-date"] == int(datetime(2026, 11, 1).timestamp())

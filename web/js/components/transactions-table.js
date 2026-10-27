@@ -1,7 +1,9 @@
 // BlitZave — shared transactions table component.
 //
 // Self-fetching: owns its own filters, sorting, pagination, and per-row
-// metadata editing. transactions.js (the full #/transactions page) and
+// metadata editing. It shows one calendar month at a time ("‹ October 2026 ›"),
+// with a "Sync October 2026" button that re-fetches that month from the bank.
+// transactions.js (the full #/transactions page) and
 // account-detail.js (the accounts agent's per-account view) both mount this
 // the same way:
 //
@@ -62,6 +64,28 @@ const ICON_CHEVRON_RIGHT = `
   </svg>
 `;
 
+// The month stepper reuses the categories page's .month-nav look.
+const ICON_MONTH_PREV = `
+  <svg class="month-nav-icon" viewBox="0 0 24 24" aria-hidden="true">
+    <path d="M15 5l-7 7 7 7" />
+  </svg>
+`;
+
+const ICON_MONTH_NEXT = `
+  <svg class="month-nav-icon" viewBox="0 0 24 24" aria-hidden="true">
+    <path d="M9 5l7 7-7 7" />
+  </svg>
+`;
+
+const ICON_SYNC = `
+  <svg class="txns-month-sync-icon" viewBox="0 0 24 24" aria-hidden="true">
+    <path d="M20 11a8 8 0 0 0-14.3-4.9L4 8" />
+    <path d="M4 4v4h4" />
+    <path d="M4 13a8 8 0 0 0 14.3 4.9L20 16" />
+    <path d="M20 20v-4h-4" />
+  </svg>
+`;
+
 // Money moved between two of your accounts.
 const ICON_TRANSFER = `
   <svg class="txn-kind-icon" viewBox="0 0 24 24" aria-hidden="true">
@@ -92,14 +116,19 @@ const KIND_CHIPS = {
 
 /**
  * @param {HTMLElement} root
- * @param {{accountId?: string|null, onAdjustmentsChanged?: () => void}} [options]
+ * `initialFilters` pre-sets the month and filter bar, e.g. when another page
+ * links in with "this category, this month": { categoryId, month: "YYYY-MM" }.
+ * No month: the current one.
+ *
+ * @param {{accountId?: string|null, onAdjustmentsChanged?: () => void,
+ *   initialFilters?: {categoryId?: string, month?: string}}} [options]
  */
-export function renderTransactionsTable(root, { accountId = null, onAdjustmentsChanged = null } = {}) {
+export function renderTransactionsTable(root, { accountId = null, onAdjustmentsChanged = null, initialFilters = {} } = {}) {
   const state = {
     q: "",
-    start: "",
-    end: "",
-    categoryId: "",
+    // A linked-in future month falls back to this one; there's nothing to show yet.
+    month: initialFilters.month && initialFilters.month <= currentMonth() ? initialFilters.month : currentMonth(),
+    categoryId: initialFilters.categoryId || "",
     tagId: "",
     accountId: accountId || "",
     sort: "date",
@@ -120,6 +149,7 @@ export function renderTransactionsTable(root, { accountId = null, onAdjustmentsC
 
   let loadSeq = 0;
   let searchDebounce = null;
+  let syncingMonth = null; // "YYYY-MM" while a month sync is in flight; one at a time
 
   const els = {};
 
@@ -132,6 +162,7 @@ export function renderTransactionsTable(root, { accountId = null, onAdjustmentsC
 
   function mountShell() {
     root.innerHTML = `
+      <div class="txns-monthbar"></div>
       <div class="txns-filterbar"></div>
       <div class="txns-notice" role="status" hidden>
         ${ICON_CHECK}
@@ -141,6 +172,7 @@ export function renderTransactionsTable(root, { accountId = null, onAdjustmentsC
       <div class="card txns-table-wrap"></div>
       <div class="txns-pagination"></div>
     `;
+    els.monthBar = root.querySelector(".txns-monthbar");
     els.filterBar = root.querySelector(".txns-filterbar");
     els.notice = root.querySelector(".txns-notice");
     els.tableWrap = root.querySelector(".txns-table-wrap");
@@ -169,8 +201,58 @@ export function renderTransactionsTable(root, { accountId = null, onAdjustmentsC
       renderFullError(err);
       return;
     }
+    renderMonthBar();
     renderFilterBar();
     await loadPage();
+  }
+
+  // -------------------------------- month bar --------------------------------
+
+  function renderMonthBar() {
+    const label = monthLabel(state.month);
+    const isCurrent = state.month >= currentMonth();
+    const syncingThis = syncingMonth === state.month;
+    els.monthBar.innerHTML = `
+      <div class="month-nav" role="group" aria-label="Month">
+        <button type="button" class="month-nav-btn txn-month-prev" aria-label="Previous month">${ICON_MONTH_PREV}</button>
+        <span class="month-nav-label u-tabular">${esc(label)}</span>
+        <button type="button" class="month-nav-btn txn-month-next" aria-label="Next month" ${isCurrent ? "disabled" : ""}>${ICON_MONTH_NEXT}</button>
+      </div>
+      <button type="button" class="btn btn-ghost txns-month-sync${syncingThis ? " is-syncing" : ""}" ${syncingMonth ? "disabled" : ""}>
+        ${ICON_SYNC}<span>${syncingThis ? `Syncing ${esc(label)}…` : `Sync ${esc(label)}`}</span>
+      </button>
+    `;
+    els.monthBar.querySelector(".txn-month-prev").addEventListener("click", () => changeMonth(-1));
+    els.monthBar.querySelector(".txn-month-next").addEventListener("click", () => changeMonth(1));
+    els.monthBar.querySelector(".txns-month-sync").addEventListener("click", syncViewedMonth);
+  }
+
+  function changeMonth(delta) {
+    const next = shiftMonth(state.month, delta);
+    if (next > currentMonth()) return;
+    state.month = next;
+    state.offset = 0;
+    renderMonthBar();
+    renderFilterBar(); // the search placeholder names the month
+    loadPage();
+  }
+
+  async function syncViewedMonth() {
+    if (syncingMonth) return;
+    const month = state.month;
+    syncingMonth = month;
+    renderMonthBar();
+    try {
+      await api.syncMonth(month);
+      showNotice(`${monthLabel(month)} is up to date with your bank.`);
+      if (state.month === month) await loadPage({ keepNotice: true });
+    } catch (err) {
+      const why = typeof err.detail === "string" ? err.detail : "";
+      showNotice(`Couldn't sync ${monthLabel(month)} just now. What's already here is unchanged. ${why}`.trim(), { ok: false });
+    } finally {
+      syncingMonth = null;
+      renderMonthBar();
+    }
   }
 
   function renderFullError(err) {
@@ -192,8 +274,6 @@ export function renderTransactionsTable(root, { accountId = null, onAdjustmentsC
   function filtersActive() {
     return Boolean(
       state.q ||
-        state.start ||
-        state.end ||
         state.categoryId ||
         state.tagId ||
         (!accountId && state.accountId)
@@ -235,13 +315,8 @@ export function renderTransactionsTable(root, { accountId = null, onAdjustmentsC
     els.filterBar.innerHTML = `
       <div class="txn-filter-search">
         ${ICON_SEARCH}
-        <input type="text" class="input txn-search" placeholder="Search transactions"
-          aria-label="Search transactions" value="${esc(state.q)}" />
-      </div>
-      <div class="txn-filter-dates">
-        <input type="date" class="input txn-start-date" aria-label="From date" value="${esc(state.start)}" />
-        <span class="txn-date-sep">–</span>
-        <input type="date" class="input txn-end-date" aria-label="To date" value="${esc(state.end)}" />
+        <input type="text" class="input txn-search" placeholder="Search ${esc(monthLabel(state.month))}"
+          aria-label="Search ${esc(monthLabel(state.month))}" value="${esc(state.q)}" />
       </div>
       <select class="select txn-category-filter" aria-label="Filter by category">
         <option value="">All categories</option>
@@ -274,22 +349,6 @@ export function renderTransactionsTable(root, { accountId = null, onAdjustmentsC
       }, 300);
     });
 
-    const start = els.filterBar.querySelector(".txn-start-date");
-    start.addEventListener("change", () => {
-      state.start = start.value;
-      state.offset = 0;
-      refreshClearLink();
-      loadPage();
-    });
-
-    const end = els.filterBar.querySelector(".txn-end-date");
-    end.addEventListener("change", () => {
-      state.end = end.value;
-      state.offset = 0;
-      refreshClearLink();
-      loadPage();
-    });
-
     const catFilter = els.filterBar.querySelector(".txn-category-filter");
     catFilter.addEventListener("change", () => {
       state.categoryId = catFilter.value;
@@ -319,10 +378,9 @@ export function renderTransactionsTable(root, { accountId = null, onAdjustmentsC
     els.filterBar.querySelector(".txn-clear-filters").addEventListener("click", resetFilters);
   }
 
+  // The month is navigation, not a filter: clearing filters keeps it.
   function resetFilters() {
     state.q = "";
-    state.start = "";
-    state.end = "";
     state.categoryId = "";
     state.tagId = "";
     if (!accountId) state.accountId = "";
@@ -334,10 +392,11 @@ export function renderTransactionsTable(root, { accountId = null, onAdjustmentsC
   // --------------------------------- fetch ---------------------------------
 
   function buildParams() {
+    const { start, end } = monthRange(state.month);
     return {
       account_id: accountId || state.accountId,
-      start: state.start,
-      end: state.end,
+      start,
+      end,
       q: state.q,
       category_id: state.categoryId,
       tag_id: state.tagId,
@@ -353,8 +412,10 @@ export function renderTransactionsTable(root, { accountId = null, onAdjustmentsC
 
   // A calm one-line confirmation above the table. It survives the reload that
   // usually follows the action it confirms, and clears on the next one.
-  function showNotice(text) {
+  // `ok: false` drops the check mark, for a "couldn't" message.
+  function showNotice(text, { ok = true } = {}) {
     els.notice.querySelector(".txns-notice-text").textContent = text;
+    els.notice.querySelector(".txns-notice-icon").style.display = ok ? "" : "none";
     els.notice.hidden = false;
   }
 
@@ -407,11 +468,11 @@ export function renderTransactionsTable(root, { accountId = null, onAdjustmentsC
     const anyFilter = filtersActive();
     return `
       <div class="empty-state">
-        <p class="empty-state-title">${anyFilter ? "No transactions match" : "Nothing here yet"}</p>
+        <p class="empty-state-title">${anyFilter ? "No transactions match" : `Nothing in ${esc(monthLabel(state.month))}`}</p>
         <p class="empty-state-body">${
           anyFilter
             ? "Try widening your filters."
-            : "Sync your accounts and transactions will land here."
+            : "If you expected something here, sync this month to check with your bank."
         }</p>
       </div>
     `;
@@ -1386,6 +1447,34 @@ function esc(value) {
 // Calendar distance for "closest date first" — date math, not money math.
 function daysApart(isoA, isoB) {
   return Math.abs(Date.parse(isoA) - Date.parse(isoB));
+}
+
+// Months travel as "YYYY-MM" strings, which compare correctly as text.
+function pad2(n) {
+  return String(n).padStart(2, "0");
+}
+
+function currentMonth() {
+  const now = new Date();
+  return `${now.getFullYear()}-${pad2(now.getMonth() + 1)}`;
+}
+
+function shiftMonth(month, delta) {
+  const [y, m] = month.split("-").map(Number);
+  const d = new Date(y, m - 1 + delta, 1);
+  return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}`;
+}
+
+// Inclusive first and last day, matching the API's start/end filters.
+function monthRange(month) {
+  const [y, m] = month.split("-").map(Number);
+  const lastDay = new Date(y, m, 0).getDate();
+  return { start: `${month}-01`, end: `${month}-${pad2(lastDay)}` };
+}
+
+function monthLabel(month) {
+  const [y, m] = month.split("-").map(Number);
+  return new Date(y, m - 1, 1).toLocaleDateString(undefined, { month: "long", year: "numeric" });
 }
 
 function formatDate(isoDate) {

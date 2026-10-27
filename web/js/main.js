@@ -137,7 +137,7 @@ function shellMarkup() {
 
 function refreshTopbar() {
   if (!topbarTitleEl) return;
-  const path = window.location.hash.slice(1) || "/accounts";
+  const path = window.location.hash.slice(1).split("?")[0] || "/accounts";
   const copy = TOPBAR_COPY.find((c) => path.startsWith(c.prefix)) || TOPBAR_COPY[1];
   topbarTitleEl.textContent = copy.title;
   topbarSubtitleEl.textContent = copy.subtitle;

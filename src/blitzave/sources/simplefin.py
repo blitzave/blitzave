@@ -220,18 +220,26 @@ def parse_fetched(payload: dict) -> Fetched:
     return Fetched(accounts=account_rows, transactions=tx_rows, balances=balance_rows)
 
 
-def fetch(since: date) -> Fetched:
+def _local_midnight(day: date) -> int:
+    return int(datetime(day.year, day.month, day.day).timestamp())
+
+
+def fetch(since: date, until: date | None = None) -> Fetched:
+    """Posted transactions from local midnight on `since` up to, but not
+    including, local midnight on `until` (no `until`: up to now)."""
     access_url = load_access_url()
     if access_url is None:
         raise NotConnectedError("not connected to SimpleFIN yet")
 
     base_url, username, password = _split_credentials(access_url)
-    start_date = int(datetime(since.year, since.month, since.day).timestamp())
+    params = {"start-date": _local_midnight(since)}
+    if until is not None:
+        params["end-date"] = _local_midnight(until)
 
     try:
         response = httpx.get(
             f"{base_url}/accounts",
-            params={"start-date": start_date},
+            params=params,
             auth=(username, password),
         )
     except httpx.HTTPError as e:

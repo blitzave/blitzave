@@ -1,8 +1,9 @@
 // BlitZave — hash router.
 //
 // Tiny by design: a route table, a matcher that supports one kind of
-// dynamic segment (:id), and a render call into whatever root element
-// main.js hands it. No history API — hash routing is enough for a
+// dynamic segment (:id), an optional ?query (merged into params, e.g.
+// #/transactions?category=5 → { category: "5" }), and a render call into
+// whatever root element main.js hands it. No history API — hash routing is enough for a
 // single-page localhost app and needs no server-side route handling.
 
 const routes = [
@@ -19,8 +20,14 @@ let rootEl = null;
 let renderToken = 0;
 
 function currentPath() {
-  const raw = window.location.hash.slice(1) || "/";
+  const raw = (window.location.hash.slice(1) || "/").split("?")[0] || "/";
   return raw.startsWith("/") ? raw : `/${raw}`;
+}
+
+function currentQuery() {
+  const raw = window.location.hash.slice(1);
+  const i = raw.indexOf("?");
+  return i === -1 ? {} : Object.fromEntries(new URLSearchParams(raw.slice(i + 1)));
 }
 
 function normalize(path) {
@@ -77,7 +84,7 @@ async function renderCurrentRoute() {
     const mod = await matched.route.load();
     if (token !== renderToken) return; // a newer navigation started while this one loaded
     rootEl.innerHTML = "";
-    mod.render(rootEl, matched.params);
+    mod.render(rootEl, { ...currentQuery(), ...matched.params });
   } catch (err) {
     if (token !== renderToken) return;
     console.error("BlitZave: page failed to load", err);

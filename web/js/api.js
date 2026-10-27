@@ -82,6 +82,14 @@ export function sync() {
   return request("/api/sync", { method: "POST" });
 }
 
+// month: "YYYY-MM". Re-fetches that calendar month from the bank.
+export function syncMonth(month) {
+  return request("/api/sync/month", {
+    method: "POST",
+    body: JSON.stringify({ month }),
+  });
+}
+
 // ------------------------------ Accounts ------------------------------
 
 export function listAccounts() {

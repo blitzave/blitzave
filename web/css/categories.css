@@ -43,20 +43,10 @@
 
 /* ============================= Tracker card ============================= */
 
-.tracker-card,
-.manage-card {
+.categories-section {
   display: flex;
   flex-direction: column;
-  gap: var(--space-5);
-}
-
-/* The budget grid sits straight on the page under its section header —
-   the budget cards are the cards, so the tracker drops its own chrome. */
-.card.tracker-card {
-  padding: 0;
-  background: transparent;
-  border: none;
-  box-shadow: none;
+  gap: var(--space-4);
 }
 
 .tracker-header {
@@ -111,10 +101,6 @@
   border-radius: 50%;
 }
 
-.category-kind-badge:focus-visible {
-  border-radius: var(--radius-chip);
-}
-
 .month-nav-icon {
   width: 16px;
   height: 16px;
@@ -134,8 +120,9 @@
   color: var(--text-primary);
 }
 
-/* Monthly expense cards keep the current light surfaces and data hues.
-   Budget use stays the category's color, including above-budget months. */
+/* Monthly expense list: one compact row per category, data hues on the
+   dot and the meter. Budget use stays the category's color, including
+   above-budget months — never a status color. */
 .tracker-lede {
   margin-top: var(--space-2);
   color: var(--text-secondary);
@@ -143,83 +130,258 @@
   max-width: 48ch;
 }
 
-.category-budget-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-  align-items: start;
-  gap: var(--space-4);
-}
+/* ---------------------------- Budget list ---------------------------- */
 
-.category-budget-card {
+.budget-list {
   display: flex;
   flex-direction: column;
-  gap: var(--space-4);
-  min-width: 0;
-  padding: var(--space-5);
-  background: var(--bg-raised);
-  border: 1px solid var(--line-faint);
-  border-radius: var(--radius-card);
-  box-shadow: var(--shadow-card);
+  gap: var(--space-5);
+  padding: var(--space-4) var(--space-5);
 }
 
-.category-budget-heading,
-.category-budget-title,
-.category-bar-row-top {
+.budget-group + .budget-group {
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--line-faint);
+}
+
+.budget-group-label {
   display: flex;
   align-items: center;
-  gap: var(--space-3);
-}
-
-.category-budget-heading,
-.category-bar-row-top {
-  justify-content: space-between;
-}
-
-.category-budget-title {
-  min-width: 0;
-}
-
-.category-budget-title h3 {
-  font-size: var(--text-md);
-  line-height: var(--leading-body);
-  overflow-wrap: anywhere;
-}
-
-.category-budget-ring {
-  position: relative;
-  flex: none;
-  width: var(--space-8);
-  height: var(--space-8);
-  display: grid;
-  place-items: center;
+  gap: var(--space-2);
+  margin-bottom: var(--space-1);
   font-size: var(--text-xs);
   font-weight: var(--weight-semibold);
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
   color: var(--text-secondary);
 }
 
-.category-budget-ring svg {
-  position: absolute;
-  inset: 0;
-  width: 100%;
+.budget-group-label > span {
+  padding: 0 var(--space-2);
+  background: var(--bg-lift);
+  border-radius: var(--radius-chip);
+  letter-spacing: 0;
+  color: var(--text-primary);
+}
+
+.budget-row + .budget-row {
+  border-top: 1px solid var(--line-faint);
+}
+
+/* name · meter · % · spent of budget · chevron, on one line. */
+.budget-row-head {
+  display: grid;
+  grid-template-columns: minmax(9rem, 1.1fr) minmax(6rem, 2fr) 3rem minmax(9rem, auto) 16px;
+  align-items: center;
+  gap: var(--space-4);
+  min-height: 56px;
+  padding: var(--space-2) var(--space-2);
+  margin: 0 calc(var(--space-2) * -1);
+  width: calc(100% + var(--space-4));
+  border-radius: var(--radius-control);
+  text-align: left;
+  transition: background var(--t-fast) var(--ease-out);
+}
+
+.budget-row-head:hover {
+  background: rgba(var(--accent-rgb), 0.04);
+}
+
+.budget-row-name {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-width: 0;
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+  color: var(--text-primary);
+}
+
+.budget-row-name > span:last-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.budget-row-meter {
+  position: relative;
+  height: 6px;
+  background: var(--bg-well);
+  border-radius: var(--radius-chip);
+}
+
+/* No budget, nothing to measure against — leave the space quiet. */
+.budget-row-meter.is-empty {
+  background: transparent;
+}
+
+.budget-row-meter-fill {
+  display: block;
   height: 100%;
+  background: var(--bar-hue);
+  border-radius: inherit;
+}
+
+/* How much of the month has passed — a quiet tick, not a finish line. */
+.budget-row-marker {
+  position: absolute;
+  top: -4px;
+  width: 2px;
+  height: 14px;
+  background: var(--text-secondary);
+  border-radius: var(--radius-chip);
+  transform: translateX(-50%);
+}
+
+.budget-row-percent {
+  font-size: var(--text-xs);
+  font-weight: var(--weight-medium);
+  color: var(--text-secondary);
+  text-align: right;
+}
+
+.budget-row-figure {
+  display: flex;
+  align-items: baseline;
+  justify-content: flex-end;
+  gap: var(--space-2);
+  white-space: nowrap;
+}
+
+.budget-row-spent {
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+  color: var(--text-primary);
+}
+
+.budget-row-of {
+  font-size: var(--text-xs);
+  color: var(--text-secondary);
+}
+
+.budget-row-head .quiet-categories-icon {
+  color: var(--text-faint);
+}
+
+.budget-row.is-open .budget-row-head .quiet-categories-icon {
+  transform: rotate(180deg);
+}
+
+.budget-row-panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-2) 0 var(--space-4) calc(var(--space-3) + 8px);
+}
+
+.budget-row-panel-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: var(--space-5);
+}
+
+/* The folded "no spending yet" line. */
+.budget-idle-toggle {
+  display: grid;
+  grid-template-columns: 1fr auto 16px;
+  align-items: center;
+  gap: var(--space-3);
+  width: 100%;
+  min-height: 44px;
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+  color: var(--text-secondary);
+  text-align: left;
+}
+
+.budget-idle-toggle:hover {
+  color: var(--accent);
+}
+
+.budget-idle-names {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--text-xs);
+  font-weight: var(--weight-regular);
+  color: var(--text-faint);
+}
+
+.budget-idle-count {
+  padding: 0 var(--space-2);
+  background: var(--bg-lift);
+  border-radius: var(--radius-chip);
+  font-size: var(--text-xs);
+  color: var(--text-primary);
+}
+
+.budget-idle-toggle.is-open .quiet-categories-icon {
+  transform: rotate(180deg);
+}
+
+.budget-row-skeleton {
+  display: grid;
+  grid-template-columns: 1fr 2fr 1fr;
+  align-items: center;
+  gap: var(--space-4);
+  min-height: 56px;
+}
+
+.budget-row-skeleton > span {
+  justify-self: start;
+}
+
+/* Income / savings rows have no meter or figures — just a type label. */
+.budget-row-plain .budget-row-head {
+  grid-template-columns: minmax(0, 1fr) auto 16px;
+}
+
+.budget-row-kind {
+  font-size: var(--text-xs);
+  color: var(--text-secondary);
+}
+
+/* The panel's action line: budget + transactions on the left, the quiet
+   rename / type / delete tools pushed right. */
+.budget-row-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.budget-row-actions-spacer {
+  flex: 1 1 auto;
+}
+
+.budget-row-link .budget-link-icon {
+  width: 14px;
+  height: 14px;
   fill: none;
-  stroke-width: 3;
-  transform: rotate(-90deg);
-}
-
-.category-budget-ring-track {
-  stroke: var(--bg-well);
-}
-
-.category-budget-ring-fill {
-  stroke: var(--bar-hue);
+  stroke: currentColor;
+  stroke-width: 1.75;
   stroke-linecap: round;
+  stroke-linejoin: round;
+  transition: transform var(--t-fast) var(--ease-out);
 }
 
-.category-budget-ring > span {
-  max-width: 6ch;
-  font-size: clamp(0.625rem, 1vw, var(--text-xs));
-  text-align: center;
+.budget-row-link:hover .budget-link-icon {
+  transform: translateX(2px);
+}
+
+.budget-row-tools {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0;
+}
+
+.budget-row-tools .btn-quiet {
+  font-size: var(--text-xs);
+}
+
+.budget-group-add {
+  padding-top: var(--space-3);
 }
 
 .category-budget-values {
@@ -246,23 +408,15 @@
   overflow-wrap: anywhere;
 }
 
-.category-budget-values .category-budget-spent {
-  font-size: var(--text-lg);
-  font-weight: var(--weight-semibold);
-  letter-spacing: var(--tracking-tight);
-}
-
 .category-budget-context {
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
-  min-height: var(--space-8);
 }
 
 .category-budget-pace,
 .category-budget-projection,
-.category-budget-progress-caption,
-.category-activity-note {
+.category-budget-progress-caption {
   color: var(--text-secondary);
   font-size: var(--text-sm);
 }
@@ -272,37 +426,8 @@
   font-weight: var(--weight-semibold);
 }
 
-.category-budget-progress {
-  position: relative;
-  height: var(--space-2);
-  margin-top: var(--space-1);
-  background: var(--bg-well);
-  border-radius: var(--radius-chip);
-}
-
-.category-budget-progress-fill {
-  height: 100%;
-  background: var(--bar-hue);
-  border-radius: inherit;
-}
-
-.category-budget-month-marker {
-  position: absolute;
-  top: calc(var(--space-1) * -1);
-  width: 2px;
-  height: var(--space-4);
-  background: var(--text-secondary);
-  transform: translateX(-50%);
-  border-radius: var(--radius-chip);
-}
-
 .category-budget-progress-caption {
   font-size: var(--text-xs);
-}
-
-.category-budget-edit {
-  align-self: flex-start;
-  margin-left: calc(var(--space-3) * -1);
 }
 
 .category-budget-form {
@@ -325,23 +450,6 @@
   gap: var(--space-2);
 }
 
-.category-activity-toggle {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-3);
-  min-height: 44px;
-  padding: var(--space-2) 0;
-  border-top: 1px solid var(--line-faint);
-  font-size: var(--text-sm);
-  font-weight: var(--weight-medium);
-  text-align: left;
-}
-
-.category-activity-toggle:hover {
-  color: var(--accent);
-}
-
 .quiet-categories-icon {
   width: var(--space-4);
   height: var(--space-4);
@@ -351,64 +459,6 @@
   stroke-linecap: round;
   stroke-linejoin: round;
   transition: transform var(--t-fast) var(--ease-out);
-}
-
-.category-activity-toggle.is-open .quiet-categories-icon {
-  transform: rotate(180deg);
-}
-
-.category-activity {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-3);
-}
-
-.category-activity-row {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: var(--space-3);
-  padding: var(--space-3) 0;
-  border-bottom: 1px solid var(--line-faint);
-  font-size: var(--text-sm);
-}
-
-.category-activity-description {
-  min-width: 0;
-  overflow-wrap: anywhere;
-}
-
-.category-activity-description > p:first-child {
-  font-weight: var(--weight-medium);
-}
-
-.category-activity-subtext {
-  margin-top: var(--space-1);
-  color: var(--text-secondary);
-  font-size: var(--text-xs);
-}
-
-.category-activity-amount {
-  flex: none;
-  font-weight: var(--weight-semibold);
-  text-align: right;
-}
-
-.category-activity-amount > span {
-  display: block;
-  font-size: var(--text-xs);
-  font-weight: var(--weight-regular);
-  color: var(--text-secondary);
-}
-
-.category-activity-pagination {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  flex-wrap: wrap;
-  gap: var(--space-2);
-  font-size: var(--text-xs);
-  color: var(--text-secondary);
 }
 
 .category-uncategorized {
@@ -439,38 +489,49 @@
   border-radius: var(--radius-chip);
 }
 
-.tracker-empty {
-  padding: var(--space-6) var(--space-4);
-}
-
 @media (max-width: 760px) {
-  .category-budget-grid {
+  .budget-list {
+    padding: var(--space-3) var(--space-4);
+  }
+
+  /* Phone: name + figure on top, the meter full-width underneath. */
+  .budget-row-head {
+    grid-template-columns: minmax(0, 1fr) auto 16px;
+    grid-template-areas:
+      "name figure chevron"
+      "meter meter meter";
+    row-gap: var(--space-2);
+    padding-top: var(--space-3);
+    padding-bottom: var(--space-3);
+  }
+
+  .budget-row-name { grid-area: name; }
+  .budget-row-figure { grid-area: figure; }
+  .budget-row-meter { grid-area: meter; }
+  .budget-row-head .quiet-categories-icon { grid-area: chevron; }
+
+  .budget-row-percent {
+    display: none;
+  }
+
+  .budget-row-of {
+    display: none;
+  }
+
+  .budget-row-panel {
+    padding-left: 0;
+  }
+
+  .budget-row-panel-grid {
     grid-template-columns: minmax(0, 1fr);
+    gap: var(--space-3);
   }
 }
 
-/* ============================= Manage card ============================= */
-
-.manage-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-3);
-}
+/* ====================== Manage tools + new category ====================== */
 
 .manage-empty-state {
   padding: var(--space-6) var(--space-2);
-}
-
-.category-list-skeleton {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
-}
-
-.category-row-skeleton {
-  height: 44px;
-  width: 100%;
 }
 
 /* --- New category form ---
@@ -521,52 +582,6 @@
   flex-basis: 100%;
 }
 
-/* --- Category groups & rows --- */
-
-.category-group {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-1);
-}
-
-.category-group-title {
-  font-size: var(--text-sm);
-  font-weight: var(--weight-semibold);
-  color: var(--text-secondary);
-}
-
-.category-list {
-  display: flex;
-  flex-direction: column;
-}
-
-.category-row {
-  display: flex;
-  flex-direction: column;
-  border-bottom: 1px solid var(--line-faint);
-}
-
-.category-list .category-row:last-child {
-  border-bottom: none;
-}
-
-.category-row-top {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-2) var(--space-3);
-  min-height: 52px;
-}
-
-.category-row-main {
-  display: flex;
-  flex: 1 1 auto;
-  align-items: center;
-  gap: var(--space-2);
-  min-width: 0;
-}
-
 /* The same hue the category's bar wears in the tracker; income and
    savings aren't in the tracker, so they get a neutral dot. */
 .category-dot {
@@ -577,78 +592,14 @@
   background: var(--dot-hue, var(--bg-lift));
 }
 
-.category-name {
-  min-width: 0;
-  min-height: 44px;
-  padding: 0 var(--space-2);
-  margin-left: calc(var(--space-1) * -1);
-  border-radius: var(--radius-control);
-  font-size: var(--text-base);
-  font-weight: var(--weight-medium);
-  color: var(--text-primary);
-  text-align: left;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  transition: background var(--t-fast) var(--ease-out);
-}
-
-.category-name:hover {
-  background: var(--bg-well);
-}
-
 .category-name-input {
   max-width: 240px;
-}
-
-/* A badge that's also a button: the pill stays small, the tap target
-   reaches 44px through the pseudo-element. */
-.category-kind-badge {
-  position: relative;
-  flex: none;
-  transition: background var(--t-fast) var(--ease-out);
-}
-
-.category-kind-badge::after {
-  content: "";
-  position: absolute;
-  inset: -12px -6px;
-}
-
-.category-kind-badge:hover {
-  background: var(--bg-lift);
 }
 
 .category-kind-select {
   width: auto;
   max-width: 150px;
   font-size: var(--text-sm);
-}
-
-.category-row-actions {
-  flex: none;
-}
-
-.category-menu-btn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 44px;
-  height: 44px;
-  border-radius: var(--radius-control);
-  color: var(--text-secondary);
-  transition: background var(--t-fast) var(--ease-out),
-    color var(--t-fast) var(--ease-out);
-}
-
-.category-menu-btn:hover {
-  background: var(--bg-well);
-  color: var(--text-primary);
-}
-
-.category-menu-icon {
-  width: 18px;
-  height: 18px;
 }
 
 .category-confirm {
@@ -665,7 +616,7 @@
 }
 
 .category-row-error {
-  margin: 0 0 var(--space-3);
+  margin: 0;
 }
 
 /* A calm "not yet" (name taken, category still in use): secondary text
@@ -689,13 +640,6 @@
   border-radius: 50%;
   background: var(--warn);
   transform: translateY(-1px);
-}
-
-/* In a list row the marker sits under the category's hue dot (10px wide)
-   and the text starts under the name: 2 + 6 + 10 + the 4px gap = 22px. */
-.category-row > .category-note::before {
-  margin-left: 2px;
-  margin-right: 10px;
 }
 
 /* --- Add-category row: an Apple-list "+ New" affordance, not a header

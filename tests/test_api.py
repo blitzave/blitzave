@@ -91,6 +91,25 @@ def test_post_sync_after_connecting_ingests_the_fixture(client, monkeypatch):
     assert body["balances"] == 4
 
 
+@pytest.mark.parametrize("month", ["2026-13", "2026-1", "26-10", "2026-W01", "0000-01", "2999-01"])
+def test_post_sync_month_rejects_a_bad_or_future_month(client, month):
+    response = client.post("/api/sync/month", json={"month": month})
+    assert response.status_code == 422
+
+
+def test_post_sync_month_without_connecting_returns_400(client):
+    response = client.post("/api/sync/month", json={"month": "2026-01"})
+    assert response.status_code == 400
+
+
+def test_post_sync_month_after_connecting_ingests_the_fixture(client, monkeypatch):
+    _connect_and_sync(client, monkeypatch)
+
+    response = client.post("/api/sync/month", json={"month": "2026-01"})
+    assert response.status_code == 200
+    assert response.json()["month"] == "2026-01"
+
+
 def _connect_and_sync(client, monkeypatch):
     monkeypatch.setattr(
         httpx,

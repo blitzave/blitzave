@@ -1,3 +1,4 @@
+import re
 from datetime import date
 from typing import Literal
 
@@ -27,6 +28,19 @@ router = APIRouter(prefix="/api")
 
 class ConnectRequest(BaseModel):
     setup_token: str
+
+
+class SyncMonthRequest(BaseModel):
+    month: str  # "YYYY-MM"
+
+    @field_validator("month")
+    @classmethod
+    def _past_or_current_month(cls, value: str) -> str:
+        if not re.fullmatch(r"\d{4}-(0[1-9]|1[0-2])", value):
+            raise ValueError("month must look like 2026-10")
+        if date.fromisoformat(f"{value}-01") > date.today().replace(day=1):
+            raise ValueError("month must not be in the future")
+        return value
 
 
 class AccountTypeCorrection(BaseModel):
@@ -175,6 +189,15 @@ def connect(request: ConnectRequest) -> dict[str, bool]:
 def sync() -> dict:
     try:
         return jobs.sync()
+    except jobs.SyncError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+
+
+@router.post("/sync/month")
+def sync_month(body: SyncMonthRequest) -> dict:
+    year, month = (int(part) for part in body.month.split("-"))
+    try:
+        return jobs.sync_month(year, month)
     except jobs.SyncError as e:
         raise HTTPException(status_code=400, detail=str(e)) from e
 

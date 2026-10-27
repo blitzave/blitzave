@@ -36,6 +36,60 @@
   fill: none;
 }
 
+/* =============================== Month bar =============================== */
+
+/* "‹ October 2026 ›" on the left, "Sync October 2026" on the right. The
+   stepper itself is the categories page's .month-nav (categories.css). */
+.txns-monthbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin-bottom: var(--space-4);
+}
+
+/* Only this page disables "next" (at the current month). */
+.txns-monthbar .month-nav-btn:disabled {
+  color: var(--text-faint);
+  background: none;
+  cursor: default;
+  transform: none;
+}
+
+.txns-month-sync {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.txns-month-sync-icon {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  stroke: currentColor;
+  stroke-width: 1.75;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  fill: none;
+}
+
+.txns-month-sync.is-syncing .txns-month-sync-icon {
+  animation: txns-sync-spin 1s linear infinite;
+}
+
+@keyframes txns-sync-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .txns-month-sync.is-syncing .txns-month-sync-icon {
+    animation: none;
+  }
+}
+
 /* =============================== Filter bar =============================== */
 
 .txns-filterbar {
@@ -72,21 +126,6 @@
 
 .txn-filter-search .txn-search {
   padding-left: 40px; /* clears the 16px magnifier at left: 12px */
-}
-
-.txn-filter-dates {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  flex: 0 0 auto;
-}
-
-.txn-filter-dates .input {
-  width: 132px;
-}
-
-.txn-date-sep {
-  color: var(--text-faint);
 }
 
 /* Selects share the leftover width so the whole bar fits one row at the
@@ -1085,15 +1124,5 @@
     width: 28px;
     height: 28px;
     font-size: var(--text-xs);
-  }
-
-  .txn-filter-dates {
-    flex: 1 1 100%;
-  }
-
-  .txn-filter-dates .input {
-    flex: 1 1 0;
-    width: auto;
-    min-width: 0;
   }
 }

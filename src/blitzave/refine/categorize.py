@@ -94,7 +94,8 @@ def is_match(key_a: str, key_b: str) -> bool:
     - Otherwise the first words must agree — the first word is the merchant.
     - Every word of the shorter key must appear in the longer one, each used
       once, allowing a typo in long words.
-    - And the longer key may have at most MAX_EXTRA_WORDS words left over.
+    - And the longer key may have at most MAX_EXTRA_WORDS words left over —
+      none at all when the shorter key is a single word.
 
     An empty key has nothing to compare, so it never matches."""
     if not key_a or not key_b:
@@ -120,4 +121,7 @@ def is_match(key_a: str, key_b: str) -> bool:
         else:
             return False  # this word isn't in the longer key
 
-    return len(longer) - len(used) <= MAX_EXTRA_WORDS
+    # A one-word name is too broad to absorb extra words: "uber" must not take
+    # "uber eats", nor "home" take "home depot". So it allows none.
+    max_extra = 0 if len(shorter) == 1 else MAX_EXTRA_WORDS
+    return len(longer) - len(used) <= max_extra
