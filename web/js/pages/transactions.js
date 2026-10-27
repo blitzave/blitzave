@@ -15,7 +15,11 @@ const ICON_ADJUSTMENT = `
   </svg>
 `;
 
-export function render(root) {
+// Other pages can link in pre-filtered, e.g. the categories page's
+// "October transactions": #/transactions?category=5&month=2026-10
+const MONTH_RE = /^\d{4}-(0[1-9]|1[0-2])$/;
+
+export function render(root, params = {}) {
   root.innerHTML = `
     <header class="txns-page-header">
       <div>
@@ -36,6 +40,10 @@ export function render(root) {
   const toggle = root.querySelector(".txns-adjustments-toggle");
 
   const table = renderTransactionsTable(root.querySelector(".txns-table-mount"), {
+    initialFilters: {
+      categoryId: params.category || "",
+      month: MONTH_RE.test(params.month || "") ? params.month : "",
+    },
     onAdjustmentsChanged: () => {
       if (panel) panel.reload();
     },

@@ -2,6 +2,7 @@ from datetime import date, timedelta
 
 from blitzave.refine.categorize import is_match, match_key
 from blitzave.sources import simplefin
+from blitzave.sources.base import Fetched
 from blitzave.store import categories, db, ingest, transactions, users
 
 SYNC_JOB = "ingest"
@@ -67,53 +68,77 @@ def _categorize(conn, user_id: int) -> int:
     return categories.apply_rules(conn, assignments)
 
 
+def _fetch(since: date, until: date | None = None) -> Fetched:
+    if not simplefin.is_connected():
+        raise SyncError("not connected to SimpleFIN yet — POST /api/connect first")
+    try:
+        return simplefin.fetch(since, until)
+    except simplefin.SimpleFinError as e:
+        raise SyncError(str(e)) from e
+
+
+def _ingest(conn, user_id: int, fetched: Fetched) -> dict:
+    """Upsert what SimpleFIN returned, then categorize. Idempotent, so
+    fetching an overlapping range again never duplicates anything."""
+    account_ids_by_external_id = {}
+    for account_row in fetched.accounts:
+        account_ids_by_external_id[account_row.external_id] = ingest.upsert_account(
+            conn, user_id, account_row
+        )
+
+    for tx_row in fetched.transactions:
+        account_id = account_ids_by_external_id.get(tx_row.account_external_id)
+        if account_id is None:
+            continue  # the account itself didn't parse into a row; skip its transactions too
+        ingest.upsert_transaction(conn, user_id, account_id, tx_row)
+
+    for balance_row in fetched.balances:
+        account_id = account_ids_by_external_id.get(balance_row.account_external_id)
+        if account_id is None:
+            continue
+        ingest.upsert_balance(conn, account_id, balance_row)
+
+    # match_transfers belongs here, before categorize, once it's built.
+    categorized = _categorize(conn, user_id)
+
+    return {
+        "accounts": len(fetched.accounts),
+        "transactions": len(fetched.transactions),
+        "balances": len(fetched.balances),
+        "categorized": categorized,
+    }
+
+
 def sync() -> dict:
     """Run the pipeline steps that exist so far: ingest, then categorize.
     match_transfers, detect, and snapshot_backup join as their own tasks get
     built (see AGENTS.md "Refinement: the sync pipeline")."""
-    if not simplefin.is_connected():
-        raise SyncError("not connected to SimpleFIN yet — POST /api/connect first")
-
     conn = db.connect()
     try:
         user_id = users.get_or_create_user(conn)
         today = date.today()
         since = _sync_since(conn, today)
-
-        try:
-            fetched = simplefin.fetch(since)
-        except simplefin.SimpleFinError as e:
-            raise SyncError(str(e)) from e
-
-        account_ids_by_external_id = {}
-        for account_row in fetched.accounts:
-            account_ids_by_external_id[account_row.external_id] = ingest.upsert_account(
-                conn, user_id, account_row
-            )
-
-        for tx_row in fetched.transactions:
-            account_id = account_ids_by_external_id.get(tx_row.account_external_id)
-            if account_id is None:
-                continue  # the account itself didn't parse into a row; skip its transactions too
-            ingest.upsert_transaction(conn, user_id, account_id, tx_row)
-
-        for balance_row in fetched.balances:
-            account_id = account_ids_by_external_id.get(balance_row.account_external_id)
-            if account_id is None:
-                continue
-            ingest.upsert_balance(conn, account_id, balance_row)
-
-        # match_transfers belongs here, before categorize, once it's built.
-        categorized = _categorize(conn, user_id)
-
+        fetched = _fetch(since)
+        result = _ingest(conn, user_id, fetched)
         ingest.set_watermark(conn, SYNC_JOB, today.isoformat())
+        return {**result, "since": since.isoformat()}
+    finally:
+        conn.close()
 
-        return {
-            "accounts": len(fetched.accounts),
-            "transactions": len(fetched.transactions),
-            "balances": len(fetched.balances),
-            "categorized": categorized,
-            "since": since.isoformat(),
-        }
+
+def sync_month(year: int, month: int) -> dict:
+    """Re-fetch one calendar month: the "Sync October 2026" button. Safe to
+    repeat, since ingest is idempotent. Leaves the watermark alone: it marks
+    how far the recent sync has reached, and an old month says nothing about
+    that."""
+    first_day = date(year, month, 1)
+    next_first_day = date(year + 1, 1, 1) if month == 12 else date(year, month + 1, 1)
+
+    fetched = _fetch(first_day, next_first_day)
+    conn = db.connect()
+    try:
+        user_id = users.get_or_create_user(conn)
+        result = _ingest(conn, user_id, fetched)
+        return {**result, "month": f"{year:04d}-{month:02d}"}
     finally:
         conn.close()

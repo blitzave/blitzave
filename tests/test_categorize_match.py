@@ -67,9 +67,7 @@ SAME = [
     ("STARBUCKS #123", "   STAR BUCKS #163"),
     ("STARBUCKS #123", "AplPay STARBUCKS #555"),
     ("STARBUCKS #123", "STARBUCK #123"),
-    ("STARBUCKS #123", "STARBUCKS STORE 04412"),
     ("AIRBNB * HM4K2PQ7", "AIRBNB * HMXZ93ND"),
-    ("AIRBNB * HM4K2PQ7", "AIRBNB * HM4K2PQ7 REFUND"),
     ("DISNEY PLUS 888-905-7888", "DISNEYPLUS 8889057888"),
     ("WALMART.COM 8009256278 AR", "WALMART.COM 8009256278"),
     ("SQ *BLUE BOTTLE COFFEE", "BLUE BOTTLE COFFE 0042"),
@@ -91,6 +89,12 @@ DIFF = [
     ("WHOLEFDS MKT 10234", "WHOLE FOODS PARKING"),
     ("CAPITAL ONE AUTOPAY", "CAPITAL ONE MOBILE PMT"),
     ("LA LA LASOUTHLAKE TX", "LA LA GRAPEVINE TX"),
+    # One-word names must match exactly, so "starbucks store" is a different
+    # key until the user applies a category to it separately. (Was a SAME pair
+    # before single-word keys stopped allowing extra words.)
+    ("STARBUCKS #123", "STARBUCKS STORE 04412"),
+    # Same rule: "airbnb" is one word, so "airbnb refund" is a separate key.
+    ("AIRBNB * HM4K2PQ7", "AIRBNB * HM4K2PQ7 REFUND"),
 ]
 
 
@@ -113,6 +117,25 @@ def test_reference_codes_are_ignored():
 def test_more_than_two_extra_words_is_a_different_business():
     assert not _same("TRADER JOES", "TRADER JOES COFFEE ROASTERS CO")  # three extra
     assert _same("TRADER JOES", "TRADER JOES COFFEE ROASTERS")  # two extra is fine
+
+
+@pytest.mark.parametrize(
+    ("one_word", "longer"),
+    [("uber", "uber eats"), ("costco", "costco gas"), ("home", "home depot"), ("starbucks", "starbucks store")],
+)
+def test_a_single_word_name_allows_no_extra_words(one_word, longer):
+    assert not is_match(one_word, longer)
+    assert not is_match(longer, one_word)
+
+
+def test_a_single_word_still_matches_its_typo_and_its_spaced_spelling():
+    assert is_match("starbucks", "starbuck")
+    assert is_match("disneyplus", "disney plus")
+
+
+def test_two_word_names_still_allow_two_extra_words():
+    assert is_match("trader joes", "trader joes coffee roasters")
+    assert not is_match("trader joes", "trader joes coffee roasters co")
 
 
 def test_a_one_letter_typo_in_a_long_word_matches():
