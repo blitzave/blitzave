@@ -42,8 +42,9 @@ accurate. In practice:
 - **No invented numbers.** Every figure a user sees comes from deterministic
   code over their own data.
 - **Local-first.** The server binds to `127.0.0.1` only. The only network call
-  is the user's own bank sync. No telemetry, no analytics, no remote fonts or
-  CDNs in the UI.
+  on by default is the user's own bank sync. The one optional call, a daily
+  update check, stays off until the user turns it on and sends nothing about
+  them. No telemetry, no analytics, no remote fonts or CDNs in the UI.
 - **Secrets live in the OS keychain**, never in the database, logs, exports,
   issues, or screenshots.
 
@@ -128,7 +129,8 @@ use synthetic or scrubbed data only.
 - [ ] The change is small and focused, and the PR says *why*.
 - [ ] Engine changes have tests; `uv run pytest` and `uv run ruff check .` pass.
 - [ ] Any user-facing copy passes the ally-not-scorekeeper test.
-- [ ] No new network calls, telemetry, or remote assets.
+- [ ] No new network calls, telemetry, or remote assets. An optional call must
+  be off by default, explained in plain words, and send the minimum.
 - [ ] No real financial data anywhere in the diff.
 - [ ] New dependencies are justified in the PR description. Fewer moving parts wins.
 
