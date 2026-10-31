@@ -52,6 +52,16 @@ const ICON_LOCK = `
   </svg>
 `;
 
+const ICON_CLOSE = `
+  <svg viewBox="0 0 24 24" aria-hidden="true">
+    <path d="M6 6l12 12M18 6L6 18" />
+  </svg>
+`;
+
+// Shown before anyone turns update checks on, here and in onboarding step 5.
+const UPDATE_DISCLOSURE =
+  "BlitZave can ask GitHub once a day whether a newer version exists. It sends nothing about you or your money.";
+
 const NAV_ITEMS = [
   { label: "Accounts", path: "/accounts", icon: ICON_ACCOUNTS },
   { label: "Transactions", path: "/transactions", icon: ICON_TRANSACTIONS },
@@ -85,6 +95,9 @@ let syncHintEl = null;
 let toastStackEl = null;
 let topbarTitleEl = null;
 let topbarSubtitleEl = null;
+let updatesEl = null;
+let updateNoteEl = null;
+let updateStatus = null;
 
 function shellMarkup() {
   return `
@@ -112,6 +125,7 @@ function shellMarkup() {
         <div class="sidebar-footer">
           <p class="sidebar-footer-note">${ICON_LOCK}<span>Runs on this laptop. Bank access is read-only.</span></p>
           <p class="sidebar-footer-meta">Open source · self-hosted</p>
+          <div class="sidebar-updates" id="sidebar-updates" hidden></div>
         </div>
       </aside>
       <div class="main-col">
@@ -128,6 +142,11 @@ function shellMarkup() {
             </button>
           </div>
         </header>
+        <div class="update-note" id="update-note" role="status" hidden>
+          <p>BlitZave <span data-update-version></span> is ready. Stop it, run
+            <code>uv tool upgrade blitzave</code>, and start it again.</p>
+          <button type="button" class="update-note-dismiss" data-update-dismiss aria-label="Dismiss">${ICON_CLOSE}</button>
+        </div>
         <main class="content" id="app-content"></main>
       </div>
     </div>
@@ -198,6 +217,91 @@ async function handleSync() {
   }
 }
 
+// ------------------------------- Updates -------------------------------
+// The engine checks GitHub only if the user opted in, at most once a day.
+// This page just reads what it stored (GET /api/updates never goes online).
+
+function escapeHtml(value) {
+  const div = document.createElement("div");
+  div.textContent = value == null ? "" : String(value);
+  return div.innerHTML;
+}
+
+function renderUpdateFooter(asking = false) {
+  const version = `Version ${escapeHtml(updateStatus.installed_version)}`;
+  if (asking) {
+    updatesEl.innerHTML = `
+      <p class="sidebar-footer-meta">${UPDATE_DISCLOSURE}</p>
+      <div class="sidebar-updates-actions">
+        <button type="button" class="btn btn-ghost" data-update="on">Yes, check</button>
+        <button type="button" class="btn btn-quiet" data-update="cancel">Not now</button>
+      </div>
+    `;
+  } else if (updateStatus.enabled === true) {
+    updatesEl.innerHTML = `
+      <p class="sidebar-footer-meta">${version} · Checks for updates daily ·
+        <button type="button" class="link-button" data-update="off">Turn off</button></p>
+    `;
+  } else {
+    updatesEl.innerHTML = `
+      <p class="sidebar-footer-meta">${version} ·
+        <button type="button" class="link-button" data-update="ask">Check for updates</button></p>
+    `;
+  }
+  updatesEl.hidden = false;
+}
+
+function renderUpdateNote() {
+  const version = updateStatus.available_version;
+  if (!version || localStorage.getItem("bz.updateDismissed") === version) {
+    updateNoteEl.hidden = true;
+    return;
+  }
+  updateNoteEl.querySelector("[data-update-version]").textContent = version;
+  updateNoteEl.hidden = false;
+}
+
+async function loadUpdates() {
+  try {
+    updateStatus = await api.updateStatus();
+  } catch (err) {
+    // Nothing here is urgent; the rest of the page reports an unreachable server.
+    console.warn("BlitZave: couldn't read update status", err);
+    return;
+  }
+  renderUpdateFooter();
+  renderUpdateNote();
+}
+
+async function setUpdateCheck(enabled) {
+  try {
+    updateStatus = await api.setUpdateCheck(enabled);
+  } catch (err) {
+    showToast(err.detail || "Couldn't save that just now. Try again in a moment.", "danger");
+    return;
+  }
+  renderUpdateFooter();
+  renderUpdateNote();
+  showToast(
+    enabled
+      ? "Update checks are on. The first one runs the next time BlitZave starts."
+      : "Update checks are off. BlitZave won't ask GitHub."
+  );
+}
+
+function handleUpdateFooterClick(event) {
+  const action = event.target.closest("[data-update]")?.dataset.update;
+  if (action === "ask") renderUpdateFooter(true);
+  if (action === "cancel") renderUpdateFooter();
+  if (action === "on") setUpdateCheck(true);
+  if (action === "off") setUpdateCheck(false);
+}
+
+function dismissUpdateNote() {
+  localStorage.setItem("bz.updateDismissed", updateStatus.available_version);
+  updateNoteEl.hidden = true;
+}
+
 function wireShell() {
   shellEl = document.getElementById("app-shell");
   contentEl = document.getElementById("app-content");
@@ -206,8 +310,12 @@ function wireShell() {
   toastStackEl = document.getElementById("toast-stack");
   topbarTitleEl = document.getElementById("topbar-title");
   topbarSubtitleEl = document.getElementById("topbar-subtitle");
+  updatesEl = document.getElementById("sidebar-updates");
+  updateNoteEl = document.getElementById("update-note");
 
   syncBtn.addEventListener("click", handleSync);
+  updatesEl.addEventListener("click", handleUpdateFooterClick);
+  updateNoteEl.querySelector("[data-update-dismiss]").addEventListener("click", dismissUpdateNote);
   window.addEventListener("hashchange", refreshTopbar);
   refreshSyncHint();
   refreshTopbar();
@@ -219,6 +327,7 @@ function wireShell() {
 function refreshShell() {
   if (shellEl) shellEl.classList.remove("is-onboarding");
   refreshSyncHint();
+  loadUpdates(); // picks up the choice made in onboarding step 5
   navigate("/accounts");
 }
 
@@ -242,6 +351,7 @@ async function boot() {
   }
 
   startRouter(contentEl);
+  loadUpdates();
 }
 
 window.__bz = { refreshShell };

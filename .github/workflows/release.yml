@@ -1,0 +1,47 @@
+name: Release
+
+# Bumping `version` in pyproject.toml is how a release happens. After CI
+# passes on a push to main, this publishes a GitHub Release tagged
+# v<version> if there isn't one yet, and friends with update checks on see
+# "BlitZave <version> is ready". A merge that leaves the version alone
+# releases nothing. Never publish releases by hand: a tag that doesn't match
+# pyproject.toml would show that line forever.
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    name: Publish a release for a new version
+    # Only a green CI run on a push to main, never a pull request's run.
+    if: github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+      - name: Publish v<version> unless it's already released
+        env:
+          GH_TOKEN: ${{ github.token }}
+          HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          version=$(python3 -c 'import tomllib; print(tomllib.load(open("pyproject.toml", "rb"))["project"]["version"])')
+          # The app's update check only understands plain X.Y.Z.
+          if ! [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "pyproject.toml version '$version' must look like 1.2.3"
+            exit 1
+          fi
+          if gh release view "v$version" > /dev/null 2>&1; then
+            echo "v$version is already released; nothing to do."
+            exit 0
+          fi
+          gh release create "v$version" --target "$HEAD_SHA" --title "BlitZave $version" --generate-notes

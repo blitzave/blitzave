@@ -480,6 +480,31 @@
   color: var(--text-secondary);
 }
 
+/* Step 5's one question: the opt-in update check. A quiet well, not a
+   card, so it reads as a choice and not as a fourth pointer. */
+.onboarding-updates {
+  width: 100%;
+  margin-top: var(--space-5);
+  padding: var(--space-4);
+  background: var(--bg-well);
+  border-radius: var(--radius-control);
+}
+
+.onboarding-updates + .onboarding-actions {
+  margin-top: var(--space-2);
+}
+
+.onboarding-updates-choices {
+  display: flex;
+  gap: var(--space-2);
+  margin-top: var(--space-3);
+}
+
+.onboarding-updates-done {
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+}
+
 /* ------------------------------ Small screens ------------------------------ */
 
 @media (max-width: 480px) {

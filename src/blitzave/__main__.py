@@ -1,6 +1,8 @@
 import logging
+import webbrowser
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
+from datetime import date
 from pathlib import Path
 
 import uvicorn
@@ -17,9 +19,14 @@ logger = logging.getLogger(__name__)
 # ("Exception: engine/dev/"). Mounted same-origin so it needs no CORS.
 DEV_DIR = Path(__file__).resolve().parents[2] / "dev"
 
-# engine/web/ — the vibecoded UI, served same-origin at / so the localhost
-# API never needs CORS. See AGENTS.md ("The vibecoded zone: engine/web/").
-WEB_DIR = Path(__file__).resolve().parents[2] / "web"
+# blitzave/web/ — the vibecoded UI, served same-origin at / so the localhost
+# API never needs CORS. See AGENTS.md ("The vibecoded zone"). It lives inside
+# the package so `uv tool install` ships it; dev/ above is left out on purpose.
+WEB_DIR = Path(__file__).resolve().parent / "web"
+
+HOST = "127.0.0.1"
+PORT = 8742
+URL = f"http://{HOST}:{PORT}"
 
 
 class RevalidatingStaticFiles(StaticFiles):
@@ -51,6 +58,13 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     except jobs.SyncError as e:
         logger.info("startup sync skipped: %s", e)
 
+    # Opt-in and at most once a day (see jobs.check_for_update). Offline or
+    # no release yet just means there's nothing new to show.
+    try:
+        jobs.check_for_update(date.today())
+    except jobs.UpdateCheckError as e:
+        logger.info("update check skipped: %s", e)
+
     yield
 
 
@@ -69,8 +83,23 @@ def create_app() -> FastAPI:
 app = create_app()
 
 
+class BrowserOpeningServer(uvicorn.Server):
+    """Opens the UI in a browser tab once the server is listening. uvicorn
+    runs the lifespan (and so the startup sync) before it binds the socket,
+    so opening from the lifespan could beat the server to it. A failed start
+    exits inside startup(), so a tab only opens on a server that's up."""
+
+    async def startup(self, sockets=None):
+        await super().startup(sockets)
+        webbrowser.open(URL)
+
+
 def main() -> None:
-    uvicorn.run(app, host="127.0.0.1", port=8742)
+    server = BrowserOpeningServer(uvicorn.Config(app, host=HOST, port=PORT))
+    try:
+        server.run()
+    except KeyboardInterrupt:
+        pass  # Ctrl+C: uvicorn has already shut down; this hides the traceback.
 
 
 if __name__ == "__main__":

@@ -10,6 +10,7 @@ permissions:
 
 jobs:
   test:
+    name: Lint and test
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -20,3 +21,60 @@ jobs:
         run: uv run ruff check .
       - name: Test
         run: uv run pytest -q
+      - name: Shipped migrations are never edited
+        # Anything on main has run on someone's real data, so a PR may only
+        # add migrations (AGENTS.md: "Never edit a migration that has run on
+        # real data").
+        if: github.event_name == 'pull_request'
+        run: |
+          git fetch --no-tags --depth=1 origin "$GITHUB_BASE_REF"
+          # On its own line so a git failure fails the step instead of passing.
+          diff=$(git diff --name-status "origin/$GITHUB_BASE_REF" -- src/blitzave/store/migrations)
+          changed=$(echo "$diff" | grep -v '^A' || true)
+          if [ -n "$changed" ]; then
+            echo "These migrations are already on $GITHUB_BASE_REF and must stay as they are:"
+            echo "$changed"
+            exit 1
+          fi
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: UI modules parse
+        # The UI has no build step, so one syntax error would blank the app.
+        # Read through stdin as a module: `node --check file.js` passes a
+        # broken ES module without a word (Node 22).
+        run: |
+          failed=0
+          for f in $(find src/blitzave/web -name '*.js'); do
+            node --input-type=module --check < "$f" || { echo "$f doesn't parse"; failed=1; }
+          done
+          exit $failed
+
+  install:
+    name: Install and start like a friend
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - name: Install the way the README does
+        run: uv tool install .
+      - name: Start it and check the API, the page and its JavaScript
+        env:
+          BLITZAVE_HOME: ${{ runner.temp }}/blitzave-home
+          PYTHON_KEYRING_BACKEND: keyring.backends.null.Keyring # no keychain on CI
+          BROWSER: "true" # a no-op command instead of opening a browser tab
+        run: |
+          "$(uv tool dir --bin)/blitzave" > "$RUNNER_TEMP/blitzave.log" 2>&1 &
+          server=$!
+          for _ in $(seq 1 60); do
+            curl -sf http://127.0.0.1:8742/api/health > /dev/null && break
+            sleep 1
+          done
+          curl -sf http://127.0.0.1:8742/api/health
+          curl -sf http://127.0.0.1:8742/ | grep -q 'src="/js/main.js"'
+          curl -sf -o /dev/null http://127.0.0.1:8742/js/main.js
+          kill "$server"
+      - name: Server log
+        if: failure()
+        run: |
+          cat "$RUNNER_TEMP/blitzave.log" || echo "No server log; it never started."

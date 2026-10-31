@@ -90,6 +90,21 @@ export function syncMonth(month) {
   });
 }
 
+// ------------------------------- Updates -------------------------------
+
+// { enabled: true|false|null, installed_version, available_version|null }.
+// Reads what the engine stored; this call never reaches the internet.
+export function updateStatus() {
+  return request("/api/updates");
+}
+
+export function setUpdateCheck(enabled) {
+  return request("/api/updates", {
+    method: "PUT",
+    body: JSON.stringify({ enabled }),
+  });
+}
+
 // ------------------------------ Accounts ------------------------------
 
 export function listAccounts() {

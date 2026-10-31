@@ -42,8 +42,9 @@ accurate. In practice:
 - **No invented numbers.** Every figure a user sees comes from deterministic
   code over their own data.
 - **Local-first.** The server binds to `127.0.0.1` only. The only network call
-  is the user's own bank sync. No telemetry, no analytics, no remote fonts or
-  CDNs in the UI.
+  on by default is the user's own bank sync. The one optional call, a daily
+  update check, stays off until the user turns it on and sends nothing about
+  them. No telemetry, no analytics, no remote fonts or CDNs in the UI.
 - **Secrets live in the OS keychain**, never in the database, logs, exports,
   issues, or screenshots.
 
@@ -62,8 +63,8 @@ src/blitzave/
 ├── store/        # SQLite access and numbered migrations
 ├── refine/       # pure analysis: categorize, budgets, (soon) behavior detectors
 ├── api/          # FastAPI routes and money parsing/formatting — the contract
-└── jobs.py       # the sync pipeline
-web/              # the UI: plain HTML/CSS/JS modules, served at /
+├── jobs.py       # the sync pipeline
+└── web/          # the UI: plain HTML/CSS/JS modules, served at /
 tests/            # pytest; synthetic fixtures only
 ```
 
@@ -71,8 +72,10 @@ There are two zones, and the API is the wall between them:
 
 | Zone | Where | How we build it |
 |---|---|---|
-| **Engine** | `src/blitzave/` | Small, reviewed steps. Tested. You can explain every line. |
-| **UI** | `web/` | Moves faster, but may only talk to `/api/*` over HTTP. It never imports engine code and never does money math. It shows the API's `*_display` strings. |
+| **Engine** | `src/blitzave/`, except `web/` | Small, reviewed steps. Tested. You can explain every line. |
+| **UI** | `src/blitzave/web/` | Moves faster, but may only talk to `/api/*` over HTTP. It never imports engine code and never does money math. It shows the API's `*_display` strings. |
+
+The UI sits inside the package so `uv tool install` ships it.
 
 Never add CORS middleware. The server has no auth, so permissive CORS would let
 any website the user visits read their financial data. Same-origin serving is
@@ -126,9 +129,24 @@ use synthetic or scrubbed data only.
 - [ ] The change is small and focused, and the PR says *why*.
 - [ ] Engine changes have tests; `uv run pytest` and `uv run ruff check .` pass.
 - [ ] Any user-facing copy passes the ally-not-scorekeeper test.
-- [ ] No new network calls, telemetry, or remote assets.
+- [ ] No new network calls, telemetry, or remote assets. An optional call must
+  be off by default, explained in plain words, and send the minimum.
 - [ ] No real financial data anywhere in the diff.
 - [ ] New dependencies are justified in the PR description. Fewer moving parts wins.
+
+## Releasing (maintainers)
+
+Installs track `main`, but the in-app "new version" line only appears for a
+published GitHub Release, and releases come from `pyproject.toml`:
+
+1. Bump `version` in `pyproject.toml` (plain `X.Y.Z`) and run `uv lock`. CI's
+   `uv sync --locked` fails without it.
+2. Merge to `main`. Once CI passes there, `.github/workflows/release.yml`
+   publishes `vX.Y.Z` with notes generated from the merged PRs.
+
+A merge that doesn't change the version releases nothing. Don't publish
+releases by hand: a tag ahead of `pyproject.toml` would keep showing the line
+even after everyone updates.
 
 ## Contributor License Agreement
 

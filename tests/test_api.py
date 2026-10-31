@@ -1,11 +1,15 @@
 import json
+import socket
+import webbrowser
 from pathlib import Path
 
 import httpx
 import pytest
+import uvicorn
 from fastapi.testclient import TestClient
 
-from blitzave.__main__ import create_app
+import blitzave
+from blitzave.__main__ import URL, WEB_DIR, BrowserOpeningServer, create_app
 
 VALID_TOKEN = "aHR0cHM6Ly9icmlkZ2Uuc2ltcGxlZmluLm9yZy9jbGFpbS9hYmM="  # base64 claim url
 FIXTURE = json.loads(
@@ -35,6 +39,30 @@ def test_ui_files_must_revalidate_so_updates_never_mix_old_and_new_modules(clien
         response = client.get(path)
         assert response.status_code == 200
         assert response.headers["cache-control"] == "no-cache"
+
+
+def test_ui_lives_inside_the_package_so_uv_tool_install_ships_it():
+    # Outside the package, a source checkout still works but an installed
+    # copy starts with no UI at all, because create_app() skips a missing dir.
+    assert WEB_DIR.parent == Path(blitzave.__file__).resolve().parent
+    assert (WEB_DIR / "index.html").is_file()
+
+
+def test_browser_tab_opens_only_once_the_server_accepts_connections(monkeypatch):
+    server = BrowserOpeningServer(
+        uvicorn.Config(create_app(), host="127.0.0.1", port=0, log_config=None)
+    )
+    opened = []
+
+    def fake_open(url):
+        port = server.servers[0].sockets[0].getsockname()[1]
+        socket.create_connection(("127.0.0.1", port), timeout=1).close()
+        opened.append(url)
+        server.should_exit = True  # stop right after startup
+
+    monkeypatch.setattr(webbrowser, "open", fake_open)
+    server.run()
+    assert opened == [URL]
 
 
 def test_connect_status_starts_false(client):

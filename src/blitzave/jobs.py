@@ -1,7 +1,8 @@
 from datetime import date, timedelta
+from importlib import metadata
 
 from blitzave.refine.categorize import is_match, match_key
-from blitzave.sources import simplefin
+from blitzave.sources import github, simplefin
 from blitzave.sources.base import Fetched
 from blitzave.store import categories, db, ingest, transactions, users
 
@@ -16,6 +17,10 @@ class ConnectError(Exception):
 
 class SyncError(Exception):
     """Syncing failed for a reason the user can fix (not connected, revoked access, ...)."""
+
+
+class UpdateCheckError(Exception):
+    """The opt-in update check couldn't get an answer from GitHub."""
 
 
 def simplefin_connected() -> bool:
@@ -142,3 +147,56 @@ def sync_month(year: int, month: int) -> dict:
         return {**result, "month": f"{year:04d}-{month:02d}"}
     finally:
         conn.close()
+
+
+def check_for_update(today: date) -> None:
+    """The opt-in update check: at most once a day, ask GitHub for the latest
+    release and remember it. Off until the user says yes, so a fresh install
+    never touches the network for this. The day is recorded before asking,
+    so even a failed attempt counts as that day's one request."""
+    conn = db.connect()
+    try:
+        user_id = users.get_or_create_user(conn)
+        meta = users.get_meta(conn, user_id)
+        if meta.get("update_check") is not True:
+            return
+        if meta.get("update_checked_on") == today.isoformat():
+            return
+        users.update_meta(conn, user_id, {"update_checked_on": today.isoformat()})
+        try:
+            latest = github.fetch_latest_version()
+        except github.UpdateCheckError as e:
+            raise UpdateCheckError(str(e)) from e
+        users.update_meta(conn, user_id, {"latest_version": latest})
+    finally:
+        conn.close()
+
+
+def set_update_check(enabled: bool) -> None:
+    conn = db.connect()
+    try:
+        user_id = users.get_or_create_user(conn)
+        users.update_meta(conn, user_id, {"update_check": enabled})
+    finally:
+        conn.close()
+
+
+def update_status() -> dict:
+    """What the UI needs: whether the user has answered (None until then),
+    the running version, and a newer release if one is known. A newer
+    release only counts while checks are on."""
+    conn = db.connect()
+    try:
+        meta = users.get_meta(conn, users.get_or_create_user(conn))
+    finally:
+        conn.close()
+
+    enabled = meta.get("update_check")
+    installed = metadata.version("blitzave")
+    latest = meta.get("latest_version")
+    newer = enabled is True and latest is not None and github.is_newer(latest, installed)
+    return {
+        "enabled": enabled,
+        "installed_version": installed,
+        "available_version": latest if newer else None,
+    }
