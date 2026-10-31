@@ -56,7 +56,7 @@ def test_fetch_asks_for_the_latest_release_and_sends_nothing_else(monkeypatch):
 
     monkeypatch.setattr(httpx, "get", fake_get)
     assert github.fetch_latest_version() == "0.2.0"
-    assert seen["url"] == "https://api.github.com/repos/blitzave/engine/releases/latest"
+    assert seen["url"] == "https://api.github.com/repos/blitzave/blitzave/releases/latest"
 
 
 def test_fetch_raises_when_there_is_no_release_yet(monkeypatch):

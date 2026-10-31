@@ -15,9 +15,9 @@ dependencies = [
 ]
 
 [project.urls]
-Homepage = "https://blitzave.github.io/engine/"
-Repository = "https://github.com/blitzave/engine"
-Issues = "https://github.com/blitzave/engine/issues"
+Homepage = "https://blitzave.github.io/blitzave/"
+Repository = "https://github.com/blitzave/blitzave"
+Issues = "https://github.com/blitzave/blitzave/issues"
 
 [project.scripts]
 blitzave = "blitzave.__main__:main"

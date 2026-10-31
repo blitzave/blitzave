@@ -6,7 +6,7 @@ import httpx
 # asks GitHub one question, "what's the latest release?", and sends nothing
 # else: no version, no ID, nothing about the user's money. The comparison
 # happens on the laptop. See CLAUDE.md ("Nothing leaves the machine by default").
-LATEST_RELEASE_URL = "https://api.github.com/repos/blitzave/engine/releases/latest"
+LATEST_RELEASE_URL = "https://api.github.com/repos/blitzave/blitzave/releases/latest"
 
 _VERSION = re.compile(r"v?(\d+)\.(\d+)\.(\d+)")
 

@@ -7,7 +7,7 @@ the highest priority.
 
 **Please don't open a public issue.** Report privately through GitHub:
 **Security → Advisories → Report a vulnerability** on
-[blitzave/engine](https://github.com/blitzave/engine/security/advisories/new).
+[blitzave/blitzave](https://github.com/blitzave/blitzave/security/advisories/new).
 
 Include what you found, how to reproduce it, and the impact you expect. Never
 include real financial data or credentials, yours or anyone else's. We'll
