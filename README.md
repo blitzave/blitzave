@@ -315,16 +315,27 @@ edges.
 - [x] Monthly budgets with pace, never alarms
 - [x] Manual transfer and refund linking
 
-**Next**
-- [ ] Automatic matching for card payments and transfers
+**Next: the BlitZave MVP, the Savings arc**
 - [ ] Local snapshots and one-click export and import
-- [ ] **The Vital Five** behavior cards, BlitZave's core idea:
-  1. Pay yourself first: did savings move before spending?
-  2. Lifestyle creep: is spending rising as income rises?
-  3. Mindful vs. impulse: planned versus reactive spending
-  4. Consistency: are expenses steady, not spiky?
-  5. Goal trajectory: at this pace, when is the goal reached?
-- [ ] A home screen with the one thing that matters right now
+- [ ] Automatic matching for card payments and transfers
+- [ ] Savings goals, set right alongside your categories
+- [ ] Pay yourself first: how much moved to savings, and did it move before spending?
+- [ ] Goal trajectory: at your usual pace, when is the goal reached? (a range, so one
+  light month barely moves it)
+- [ ] A home screen with the one thing that matters right now. Wins get celebrated in
+  plain words; a light month is absorbed, never a broken streak.
+
+**After that**
+- [ ] Ask BlitZave: questions about your own money, answered from your own data. First
+  as a read-only MCP server for the AI app you already use, then in the app itself.
+  Every number comes from BlitZave's own calculations, never from the model.
+- [ ] Recurring charges on their own page, including price changes
+  ("went from $15.49 to $17.99")
+- [ ] More of **the Vital Five** behavior cards:
+  - Consistency: are expenses steady, not spiky?
+  - Lifestyle creep: is spending rising as income rises?
+  - Mindful vs. impulse: planned versus reactive spending
+- [ ] Spending by tag, for trips and projects
 
 **Open source, for good.** The core of BlitZave stays free and open source
 under Apache-2.0. A managed version for people who'd rather not self-host may
