@@ -137,15 +137,16 @@ use synthetic or scrubbed data only.
 ## Releasing (maintainers)
 
 Installs track `main`, but the in-app "new version" line only appears for a
-published GitHub Release. To ship one:
+published GitHub Release, and releases come from `pyproject.toml`:
 
-1. Bump `version` in `pyproject.toml`, run `uv lock` (CI's `uv sync --locked`
-   fails without it), and merge that to `main`.
-2. On GitHub, draft a release on that commit tagged `v` plus the same version
-   (for example `v0.2.0`) and publish it. Drafts and pre-releases don't count.
+1. Bump `version` in `pyproject.toml` (plain `X.Y.Z`) and run `uv lock`. CI's
+   `uv sync --locked` fails without it.
+2. Merge to `main`. Once CI passes there, `.github/workflows/release.yml`
+   publishes `vX.Y.Z` with notes generated from the merged PRs.
 
-The tag and `pyproject.toml` must agree. If a release is tagged ahead of the
-version in `pyproject.toml`, everyone keeps seeing the line even after updating.
+A merge that doesn't change the version releases nothing. Don't publish
+releases by hand: a tag ahead of `pyproject.toml` would keep showing the line
+even after everyone updates.
 
 ## Contributor License Agreement
 
