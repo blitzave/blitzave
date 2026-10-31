@@ -15,8 +15,8 @@ from blitzave.store import db, users
 
 logger = logging.getLogger(__name__)
 
-# engine/dev/ — a throwaway debug page, not the product UI. See AGENTS.md
-# ("Exception: engine/dev/"). Mounted same-origin so it needs no CORS.
+# dev/ — a throwaway debug page, not the product UI. See AGENTS.md
+# ("Two zones"). Mounted same-origin so it needs no CORS.
 DEV_DIR = Path(__file__).resolve().parents[2] / "dev"
 
 # blitzave/web/ — the vibecoded UI, served same-origin at / so the localhost

@@ -4,5 +4,5 @@ contact_links:
     url: https://discord.com/invite/VerUYP67
     about: Ask on the BlitZave Discord. Setup questions get answered fastest there.
   - name: Report a security vulnerability
-    url: https://github.com/blitzave/engine/security/advisories/new
+    url: https://github.com/blitzave/blitzave/security/advisories/new
     about: Please report security issues privately, never in a public issue.

@@ -1,4 +1,4 @@
-// Throwaway dev tool — see AGENTS.md ("Exception: engine/dev/"). No build step on purpose.
+// Throwaway dev tool — see AGENTS.md ("Two zones"). No build step on purpose.
 
 async function callApi(method, path, body) {
   const response = await fetch(path, {

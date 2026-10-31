@@ -106,7 +106,7 @@ You need [uv](https://docs.astral.sh/uv/). It installs Python 3.12 for you if
 needed.
 
 ```bash
-git clone https://github.com/blitzave/engine.git blitzave
+git clone https://github.com/blitzave/blitzave.git
 cd blitzave
 uv sync                  # install, including dev tools
 uv run blitzave          # http://127.0.0.1:8742 (API docs at /docs)
