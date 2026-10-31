@@ -1,6 +1,6 @@
 [project]
 name = "blitzave"
-version = "0.1.0"
+version = "0.1.1"
 description = "A calm, open-source personal finance app that runs on your own laptop."
 readme = "README.md"
 license = "Apache-2.0"
