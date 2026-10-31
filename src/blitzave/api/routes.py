@@ -3,7 +3,7 @@ from datetime import date
 from typing import Literal
 
 from fastapi import APIRouter, HTTPException, Query
-from pydantic import BaseModel, field_validator, model_validator
+from pydantic import BaseModel, StrictBool, field_validator, model_validator
 
 from blitzave import jobs
 from blitzave.api.money import format_cents, parse_amount
@@ -28,6 +28,10 @@ router = APIRouter(prefix="/api")
 
 class ConnectRequest(BaseModel):
     setup_token: str
+
+
+class UpdateCheckSetting(BaseModel):
+    enabled: StrictBool  # true or false only; "yes" or 1 is a 422, not a guess
 
 
 class SyncMonthRequest(BaseModel):
@@ -200,6 +204,21 @@ def sync_month(body: SyncMonthRequest) -> dict:
         return jobs.sync_month(year, month)
     except jobs.SyncError as e:
         raise HTTPException(status_code=400, detail=str(e)) from e
+
+
+# --- updates -----------------------------------------------------------------
+
+
+@router.get("/updates")
+def update_status() -> dict:
+    # Reads what the last startup check stored; never calls the network.
+    return jobs.update_status()
+
+
+@router.put("/updates")
+def set_update_check(body: UpdateCheckSetting) -> dict:
+    jobs.set_update_check(body.enabled)
+    return jobs.update_status()
 
 
 # --- accounts ----------------------------------------------------------------

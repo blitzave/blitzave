@@ -109,12 +109,13 @@ You need **[uv](https://docs.astral.sh/uv/)** (it installs Python 3.12 for you)
 and a **[SimpleFIN Bridge](https://bridge.simplefin.org/)** account.
 
 ```bash
-git clone https://github.com/blitzave/engine.git blitzave
-cd blitzave
-uv run blitzave
+uv tool install git+https://github.com/blitzave/engine
+blitzave
 ```
 
-Open **http://127.0.0.1:8742**, paste your SimpleFIN setup token, and you're done.
+BlitZave opens in your browser at **http://127.0.0.1:8742**. Paste your SimpleFIN
+setup token, and you're done. Run `blitzave` from any terminal whenever you want
+to open it.
 
 > BlitZave is built and tested on macOS. Linux should work with a running
 > Secret Service keychain; Windows is untested. Reports are welcome either way.
@@ -136,12 +137,14 @@ curl -LsSf https://astral.sh/uv/install.sh | sh
 On macOS you can also use `brew install uv`. For Windows and other options, see
 the [uv installation guide](https://docs.astral.sh/uv/getting-started/installation/).
 
-### 2. Get BlitZave
+### 2. Install BlitZave
 
 ```bash
-git clone https://github.com/blitzave/engine.git blitzave
-cd blitzave
+uv tool install git+https://github.com/blitzave/engine
 ```
+
+This installs the `blitzave` command, with its own Python and dependencies,
+so it runs from any folder. There's nothing to clone.
 
 ### 3. Connect your bank in SimpleFIN
 
@@ -160,16 +163,16 @@ stores that credential only in your operating system's keychain.
 ### 4. Start BlitZave
 
 ```bash
-uv run blitzave
+blitzave
 ```
 
-The first run installs dependencies, creates your data folder at `~/BlitZave/`,
-and starts the app at **http://127.0.0.1:8742**. Keep the terminal open while
+The first run creates your data folder at `~/BlitZave/`, syncs, and opens the
+app in your browser at **http://127.0.0.1:8742**. Keep the terminal open while
 you use it; press `Ctrl+C` to stop.
 
 ### 5. Onboard
 
-Open http://127.0.0.1:8742 in your browser.
+If you close the tab, open http://127.0.0.1:8742 again while BlitZave is running.
 
 <table>
 <tr>
@@ -217,7 +220,7 @@ Use **Sync now** in the top bar any time, or the per-month sync for history.
 Set `BLITZAVE_HOME` to keep the data folder somewhere else:
 
 ```bash
-BLITZAVE_HOME=~/Documents/BlitZave uv run blitzave
+BLITZAVE_HOME=~/Documents/BlitZave blitzave
 ```
 
 **Back up** by copying the database while BlitZave is stopped, or at any time
@@ -229,28 +232,42 @@ sqlite3 ~/BlitZave/blitzave.db ".backup ~/blitzave-backup.db"
 
 ### Update
 
+Stop BlitZave, then:
+
 ```bash
-git pull
-uv run blitzave
+uv tool upgrade blitzave
+blitzave
 ```
 
 Database migrations run automatically on startup and never touch your existing
 transactions.
 
+**Hearing about new versions.** Update checks are off until you turn them on,
+either at the end of setup or with **Check for updates** at the bottom of the
+sidebar. Once they're on, BlitZave asks GitHub for the latest release at most
+once a day, when it starts. It sends nothing about you or your money, not even
+which version you run; the comparison happens on your laptop. When a newer
+release exists, one line at the top of the app says so. Turn checks off the same
+way. Or skip all that and choose **Watch → Custom → Releases** on the
+[repository](https://github.com/blitzave/engine) to hear by email.
+
 ### Uninstall
 
-Stop BlitZave, delete `~/BlitZave/` (and the cloned folder), then remove the
-keychain entry. On macOS, open **Keychain Access** and delete the item named
-`blitzave`. On any OS:
+Stop BlitZave, uninstall it, delete `~/BlitZave/`, then remove the keychain
+entry. On macOS you can also delete the item named `blitzave` in
+**Keychain Access**.
 
 ```bash
-uv run python -c "import keyring; keyring.delete_password('blitzave', 'simplefin_access_url')"
+uv tool uninstall blitzave
+uvx keyring del blitzave simplefin_access_url
 ```
 
 ### Troubleshooting
 
 | Symptom | What to do |
 |---|---|
+| `command not found: blitzave` | Run `uv tool update-shell`, then open a new terminal. |
+| `Git operation failed` during install | uv needs Git. On macOS, run `xcode-select --install`, then install again. |
 | `address already in use` on start | BlitZave is already running in another terminal. Use that one, or stop it first. |
 | "SimpleFIN access was revoked" | Create a new setup token in SimpleFIN. Then open http://127.0.0.1:8742/docs, expand `POST /api/connect`, choose *Try it out*, and send `{"setup_token": "<your new token>"}`. It replaces the old credential. |
 | "Your SimpleFIN subscription needs payment" | Renew your SimpleFIN Bridge subscription, then sync again. |
@@ -263,7 +280,7 @@ Still stuck? Ask on [Discord](https://discord.com/invite/VerUYP67).
 
 - **Local-only server.** BlitZave listens on `127.0.0.1` only, never on your network.
 - **Read-only bank access.** SimpleFIN can see balances and transactions; it can never move money.
-- **One network call.** Syncing with your own SimpleFIN account is the only thing that touches the internet. No telemetry, no analytics, no remote fonts.
+- **One network call by default.** Syncing with your own SimpleFIN account is the only thing that touches the internet. The one other call, a daily update check against GitHub, stays off until you turn it on and sends nothing about you. No telemetry, no analytics, no remote fonts.
 - **Your keychain, not our database.** The SimpleFIN credential lives in the OS keychain, never in the database, logs or exports.
 - **No account, no server.** We don't hold your data. We can't sell what we never have.
 
@@ -352,4 +369,4 @@ come later; self-hosting will always be first-class.
 
 BlitZave is licensed under the [Apache License 2.0](LICENSE). Contributions are
 accepted under the [Contributor License Agreement](CLA.md). The Manrope typeface
-is licensed under the [SIL Open Font License 1.1](web/fonts/OFL.txt).
+is licensed under the [SIL Open Font License 1.1](src/blitzave/web/fonts/OFL.txt).

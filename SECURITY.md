@@ -24,8 +24,9 @@ care most about:
   DNS rebinding).
 - The SimpleFIN access credential leaking out of the OS keychain into the
   database, logs, exports, or error messages.
-- Data leaving the machine other than the user's own SimpleFIN sync.
-- Paths outside `web/` being served by the static file server.
+- Data leaving the machine other than the user's own SimpleFIN sync and the
+  opt-in update check (a single request for the latest release, nothing sent).
+- Paths outside `src/blitzave/web/` being served by the static file server.
 - Money integrity bugs: amounts that are rounded, duplicated, or changed
   silently.
 

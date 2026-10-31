@@ -335,6 +335,38 @@ h3 {
   color: var(--text-faint);
 }
 
+/* Version and the update-check switch. Off until the user says yes. */
+.sidebar-updates {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.sidebar-updates[hidden] {
+  display: none;
+}
+
+.sidebar-updates-actions {
+  display: flex;
+  gap: var(--space-1);
+}
+
+.sidebar-updates-actions .btn {
+  min-height: 32px;
+  padding: var(--space-1) var(--space-3);
+  font-size: var(--text-xs);
+}
+
+/* Inline text action inside a sentence, like "Turn off". */
+.link-button {
+  padding: 0;
+  color: var(--accent);
+}
+
+.link-button:hover {
+  text-decoration: underline;
+}
+
 @keyframes bz-spin {
   to {
     transform: rotate(360deg);
@@ -412,6 +444,60 @@ h3 {
 
 .topbar-sync-btn.is-syncing .sync-icon {
   animation: bz-spin 0.9s linear infinite;
+}
+
+/* "A new version is ready": one calm line under the top bar, in the accent
+   tint, never a warning color. Dismissed per version (bz.updateDismissed). */
+.update-note {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  width: calc(100% - 2 * var(--space-5));
+  max-width: var(--content-max);
+  margin: var(--space-4) auto 0;
+  padding: var(--space-3) var(--space-4);
+  background: var(--accent-soft);
+  border-radius: var(--radius-control);
+  font-size: var(--text-sm);
+  color: var(--text-primary);
+}
+
+.update-note[hidden] {
+  display: none;
+}
+
+.update-note p {
+  flex: 1 1 auto;
+}
+
+.update-note code {
+  padding: 1px 6px;
+  background: var(--bg-raised);
+  border-radius: 6px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.92em;
+}
+
+.update-note-dismiss {
+  flex: none;
+  display: inline-flex;
+  padding: var(--space-1);
+  border-radius: 8px;
+  color: var(--text-secondary);
+}
+
+.update-note-dismiss:hover {
+  color: var(--text-primary);
+  background: var(--accent-soft-hover);
+}
+
+.update-note-dismiss svg {
+  width: 16px;
+  height: 16px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 1.8;
+  stroke-linecap: round;
 }
 
 .content {

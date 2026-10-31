@@ -62,8 +62,8 @@ src/blitzave/
 ├── store/        # SQLite access and numbered migrations
 ├── refine/       # pure analysis: categorize, budgets, (soon) behavior detectors
 ├── api/          # FastAPI routes and money parsing/formatting — the contract
-└── jobs.py       # the sync pipeline
-web/              # the UI: plain HTML/CSS/JS modules, served at /
+├── jobs.py       # the sync pipeline
+└── web/          # the UI: plain HTML/CSS/JS modules, served at /
 tests/            # pytest; synthetic fixtures only
 ```
 
@@ -71,8 +71,10 @@ There are two zones, and the API is the wall between them:
 
 | Zone | Where | How we build it |
 |---|---|---|
-| **Engine** | `src/blitzave/` | Small, reviewed steps. Tested. You can explain every line. |
-| **UI** | `web/` | Moves faster, but may only talk to `/api/*` over HTTP. It never imports engine code and never does money math. It shows the API's `*_display` strings. |
+| **Engine** | `src/blitzave/`, except `web/` | Small, reviewed steps. Tested. You can explain every line. |
+| **UI** | `src/blitzave/web/` | Moves faster, but may only talk to `/api/*` over HTTP. It never imports engine code and never does money math. It shows the API's `*_display` strings. |
+
+The UI sits inside the package so `uv tool install` ships it.
 
 Never add CORS middleware. The server has no auth, so permissive CORS would let
 any website the user visits read their financial data. Same-origin serving is
@@ -129,6 +131,19 @@ use synthetic or scrubbed data only.
 - [ ] No new network calls, telemetry, or remote assets.
 - [ ] No real financial data anywhere in the diff.
 - [ ] New dependencies are justified in the PR description. Fewer moving parts wins.
+
+## Releasing (maintainers)
+
+Installs track `main`, but the in-app "new version" line only appears for a
+published GitHub Release. To ship one:
+
+1. Bump `version` in `pyproject.toml`, run `uv lock` (CI's `uv sync --locked`
+   fails without it), and merge that to `main`.
+2. On GitHub, draft a release on that commit tagged `v` plus the same version
+   (for example `v0.2.0`) and publish it. Drafts and pre-releases don't count.
+
+The tag and `pyproject.toml` must agree. If a release is tagged ahead of the
+version in `pyproject.toml`, everyone keeps seeing the line even after updating.
 
 ## Contributor License Agreement
 

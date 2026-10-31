@@ -9,7 +9,9 @@
 //   window.__bz.refreshShell();
 // refreshShell() reveals the sidebar and navigates to #/accounts itself.
 
-import * as api from "../api.js";
+// Versioned import: a tab left open across an upgrade still holds the old
+// api.js, which has no setUpdateCheck (see LESSONS.md 13).
+import * as api from "../api.js?updates=1";
 
 const TOTAL_STEPS = 5;
 const STEP_TRANSITION_MS = 240; // matches onboarding.css's bespoke page-turn duration
@@ -520,12 +522,49 @@ function renderFinish(panel, _ctx) {
           </div>
         </div>
       </div>
+      <div class="onboarding-updates">
+        <p class="onboarding-pointer-title">Check for updates?</p>
+        <p class="onboarding-pointer-body">BlitZave can ask GitHub once a day whether a newer version
+          exists. It sends nothing about you or your money.</p>
+        <div class="onboarding-updates-choices" id="update-choices">
+          <button type="button" class="btn btn-ghost" data-update-choice="yes">Yes, check</button>
+          <button type="button" class="btn btn-quiet" data-update-choice="no">No thanks</button>
+        </div>
+      </div>
       <div class="onboarding-actions">
         <button type="button" class="btn btn-primary onboarding-cta" data-action="finish">Take me in</button>
       </div>
     </div>
   `;
   panel.querySelector('[data-action="finish"]').addEventListener("click", finishOnboarding);
+  wireUpdateChoice(panel.querySelector("#update-choices"));
+}
+
+// Neither answer is preselected. Skipping it, or onboarding, leaves checks
+// off; the sidebar footer can turn them on any time.
+function wireUpdateChoice(choices) {
+  choices.addEventListener("click", (event) => {
+    const choice = event.target.closest("[data-update-choice]")?.dataset.updateChoice;
+    if (!choice) return;
+    const enabled = choice === "yes";
+    choices.querySelectorAll("button").forEach((b) => (b.disabled = true));
+    api
+      .setUpdateCheck(enabled)
+      .then(() => {
+        if (!choices.isConnected) return;
+        choices.innerHTML = `<p class="onboarding-updates-done">${
+          enabled
+            ? "Got it. BlitZave will check once a day."
+            : "Got it. You can turn this on later at the bottom of the sidebar."
+        }</p>`;
+      })
+      .catch((err) => {
+        if (!choices.isConnected) return;
+        choices.innerHTML = `<p class="onboarding-updates-done">${escapeHtml(
+          asSentence(err.detail) || "Couldn't save that just now."
+        )} You can choose later at the bottom of the sidebar.</p>`;
+      });
+  });
 }
 
 // ------------------------------ Shared bits ------------------------------
