@@ -162,3 +162,42 @@ def test_transfer_rejects_mismatched_amount(seeded_conn):
             VALUES (1, 1, 1, 2, 9999, '2026-10-02', 'rule', 0)
             """
         )
+
+
+@pytest.mark.parametrize(
+    "statement",
+    [
+        "CREATE TABLE sneaky (x INTEGER)",
+        "CREATE TEMP TABLE sneaky (x INTEGER)",
+        "CREATE INDEX sneaky ON users (username)",
+        "DROP TABLE category_rules",
+        "DROP VIEW activity",
+        "ALTER TABLE users ADD COLUMN sneaky TEXT",
+        "ATTACH DATABASE ':memory:' AS other",
+        "PRAGMA foreign_keys = OFF",
+        "PRAGMA user_version = 0",
+    ],
+)
+def test_app_connection_cannot_change_the_schema(tmp_path, monkeypatch, statement):
+    monkeypatch.setenv("BLITZAVE_HOME", str(tmp_path))
+    conn = db.connect()
+    try:
+        with pytest.raises(sqlite3.DatabaseError, match="not authorized"):
+            conn.execute(statement)
+    finally:
+        conn.close()
+
+
+def test_app_connection_can_still_read_and_write_rows(tmp_path, monkeypatch):
+    monkeypatch.setenv("BLITZAVE_HOME", str(tmp_path))
+    conn = db.connect()
+    try:
+        conn.execute(
+            "INSERT INTO users (id, username, created_at) VALUES (1, 'rohit', 0)"
+        )
+        conn.execute("UPDATE users SET username = 'r' WHERE id = 1")
+        assert conn.execute("SELECT username FROM users").fetchall() == [("r",)]
+        conn.execute("DELETE FROM users")
+        assert conn.execute("PRAGMA foreign_keys").fetchone()[0] == 1
+    finally:
+        conn.close()
