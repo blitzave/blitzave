@@ -443,7 +443,8 @@ def list_transactions(
     order: Literal["asc", "desc"] = "desc",
     limit: int = Query(default=100, ge=1, le=500),
     offset: int = Query(default=0, ge=0),
-    group_refunds: bool = False,
+    kind: Literal["transaction", "transfer", "refund", "credit"] | None = None,
+    group_pairs: bool = False,
 ) -> dict:
     conn = db.connect()
     try:
@@ -459,7 +460,8 @@ def list_transactions(
             order=order,
             limit=limit,
             offset=offset,
-            group_refunds=group_refunds,
+            kind=kind,
+            group_pairs=group_pairs,
         )
     finally:
         conn.close()

@@ -79,11 +79,23 @@ def _other_leg_sql(column: str) -> str:
             WHERE a.id IN (tr.debit_transaction_id, tr.credit_transaction_id))"""
 
 
-# The id of the pair `a` is in, when that pair's legs share an account:
-# what group_refunds collapses into one item.
+# The id of the pair `a` is in: what group_pairs collapses into one item.
+PAIR_ID_SQL = _other_leg_sql("tr.id")
+# ...only when that pair's legs share an account. Used when the list is
+# scoped to one account, where each account shows its own side of a transfer.
 SAME_ACCOUNT_PAIR_ID_SQL = _other_leg_sql(
     "CASE WHEN o.account_id = a.account_id THEN tr.id END"
 )
+
+# What the pair `a` is in is called (transfer, refund, credit), via the
+# pair_kind() SQL function, which is kind_of registered on the connection.
+PAIR_KIND_SQL = _other_leg_sql(
+    "pair_kind(o.account_id = a.account_id, a.description, o.description)"
+)
+
+
+def _pair_kind(same_account: int, description: str, other_description: str) -> str:
+    return kind_of(bool(same_account), description, other_description)
 
 _SELECT = f"""
     SELECT a.id, a.external_id, acc.external_id, acc.display_name, a.posted_on,
@@ -108,15 +120,19 @@ def list_transactions(
     order: str = "desc",
     limit: int = 100,
     offset: int = 0,
-    group_refunds: bool = False,
+    kind: str | None = None,
+    group_pairs: bool = False,
 ) -> tuple[int, list[dict]]:
     """Reads transactions, not the activity view, so each account shows its
     real debits and credits — a card payment still appears in checking.
     Transfer legs are labelled with transfer_id; totals and analysis still
     read activity, so a leg never counts as spending.
 
-    With group_refunds, each refund pair comes back as one refund_group item
-    (see _list_grouped)."""
+    kind narrows to one sort of row: "transaction" (not in any pair), or
+    "transfer" / "refund" / "credit" (a leg of that kind of pair).
+
+    With group_pairs, each pair comes back as one "pair" item (see
+    _list_grouped)."""
     where = []
     params: list = []
     if account_external_id:
@@ -145,13 +161,22 @@ def list_transactions(
             "EXISTS (SELECT 1 FROM transaction_tags tt WHERE tt.transaction_id = a.id AND tt.tag_id = ?)"
         )
         params.append(tag_id)
+    if kind == "transaction":
+        where.append("a.id IN (SELECT id FROM activity)")
+    elif kind is not None:
+        conn.create_function("pair_kind", 3, _pair_kind, deterministic=True)
+        where.append(f"{PAIR_KIND_SQL} = ?")
+        params.append(kind)
 
     where_sql = ("WHERE " + " AND ".join(where)) if where else ""
     base = f"FROM transactions a JOIN accounts acc ON acc.id = a.account_id {where_sql}"
     direction = "ASC" if order == "asc" else "DESC"
 
-    if group_refunds:
-        return _list_grouped(conn, base, params, sort, direction, limit, offset)
+    if group_pairs:
+        # Scoped to one account, only that account's side of a transfer is
+        # listed, so only same-account pairs (refunds, credits) collapse.
+        pair_id_sql = SAME_ACCOUNT_PAIR_ID_SQL if account_external_id else PAIR_ID_SQL
+        return _list_grouped(conn, base, params, pair_id_sql, sort, direction, limit, offset)
 
     total = conn.execute(f"SELECT COUNT(*) {base}", params).fetchone()[0]
 
@@ -176,29 +201,31 @@ def _list_grouped(
     conn: sqlite3.Connection,
     base: str,
     params: list,
+    pair_id_sql: str,
     sort: str,
     direction: str,
     limit: int,
     offset: int,
 ) -> tuple[int, list[dict]]:
-    """Collapse each refund pair into one item BEFORE sorting and paging.
-    Grouping on the client can't work: sorted by amount, -$14.02 and +$14.02
-    land far apart and can fall on different pages. A pair is listed when
-    either half matches the filters, and sorts by its later date, its net
-    amount, and its combined description. Read-only: nothing is written."""
+    """Collapse each pair (the ones pair_id_sql picks) into one item BEFORE
+    sorting and paging. Grouping on the client can't work: sorted by amount,
+    -$14.02 and +$14.02 land far apart and can fall on different pages. A
+    pair is listed when either half matches the filters, and sorts by its
+    later date, its net amount, and its combined description. Read-only:
+    nothing is written."""
     items_sql = f"""
         WITH matched AS (
-            SELECT a.id AS txn_id, {SAME_ACCOUNT_PAIR_ID_SQL} AS refund_id
+            SELECT a.id AS txn_id, {pair_id_sql} AS pair_id
             {base}
         ),
         items AS (
             SELECT DISTINCT
-                   CASE WHEN refund_id IS NULL THEN txn_id END AS txn_id,
-                   refund_id
+                   CASE WHEN pair_id IS NULL THEN txn_id END AS txn_id,
+                   pair_id
             FROM matched
         ),
         sortable AS (
-            SELECT i.txn_id, i.refund_id,
+            SELECT i.txn_id, i.pair_id,
                    COALESCE(t.posted_on, MAX(d.posted_on, c.posted_on)) AS s_date,
                    COALESCE(t.amount_cents, d.amount_cents + c.amount_cents) AS s_amount,
                    COALESCE(t.description, d.description || ' + ' || c.description)
@@ -206,7 +233,7 @@ def _list_grouped(
                    COALESCE(t.id, d.id) AS s_tiebreak
             FROM items i
             LEFT JOIN transactions t ON t.id = i.txn_id
-            LEFT JOIN transfers r ON r.id = i.refund_id
+            LEFT JOIN transfers r ON r.id = i.pair_id
             LEFT JOIN transactions d ON d.id = r.debit_transaction_id
             LEFT JOIN transactions c ON c.id = r.credit_transaction_id
         )
@@ -215,27 +242,27 @@ def _list_grouped(
     sort_column = _GROUP_SORT_COLUMNS[sort]
     page = conn.execute(
         f"""{items_sql}
-        SELECT txn_id, refund_id FROM sortable
+        SELECT txn_id, pair_id FROM sortable
         ORDER BY {sort_column} {direction}, s_tiebreak {direction}
         LIMIT ? OFFSET ?""",
         (*params, limit, offset),
     ).fetchall()
 
-    refund_ids = [refund_id for _, refund_id in page if refund_id is not None]
-    legs_by_refund = {}
-    if refund_ids:
-        placeholders = ",".join("?" * len(refund_ids))
-        legs_by_refund = {
+    pair_ids = [pair_id for _, pair_id in page if pair_id is not None]
+    legs_by_pair = {}
+    if pair_ids:
+        placeholders = ",".join("?" * len(pair_ids))
+        legs_by_pair = {
             row[0]: (row[1], row[2])
             for row in conn.execute(
                 "SELECT id, debit_transaction_id, credit_transaction_id "
                 f"FROM transfers WHERE id IN ({placeholders})",
-                refund_ids,
+                pair_ids,
             )
         }
 
     internal_ids = [txn_id for txn_id, _ in page if txn_id is not None]
-    for debit_id, credit_id in legs_by_refund.values():
+    for debit_id, credit_id in legs_by_pair.values():
         internal_ids.extend((debit_id, credit_id))
     rows_by_id = {}
     if internal_ids:
@@ -249,22 +276,23 @@ def _list_grouped(
         rows_by_id = {r[0]: _row_to_dict(r, tags_by_txn.get(r[0], [])) for r in raw}
 
     items = []
-    for txn_id, refund_id in page:
-        if refund_id is None:
+    for txn_id, pair_id in page:
+        if pair_id is None:
             items.append({"kind": "transaction", **rows_by_id[txn_id]})
         else:
-            debit_id, credit_id = legs_by_refund[refund_id]
-            items.append(_refund_group(refund_id, rows_by_id[debit_id], rows_by_id[credit_id]))
+            debit_id, credit_id = legs_by_pair[pair_id]
+            items.append(_pair_group(pair_id, rows_by_id[debit_id], rows_by_id[credit_id]))
     return total, items
 
 
-def _refund_group(transfer_id: int, debit: dict, credit: dict) -> dict:
-    """One list item for a charge and the refund/credit linked to it in the
-    same account. Both bank records stay intact inside `legs`; the group only
-    nets them for display (zero, since a pair cancels exactly)."""
+def _pair_group(transfer_id: int, debit: dict, credit: dict) -> dict:
+    """One list item for a pair: a transfer between two accounts, or a charge
+    and the refund/credit linked to it. Both bank records stay intact inside
+    `legs`; the group only nets them for display (zero, since a pair cancels
+    exactly). account_* is the debit leg's: where the money left from."""
     return {
-        "kind": "refund_group",
-        "id": f"refund-{transfer_id}",
+        "kind": "pair",
+        "id": f"pair-{transfer_id}",
         "transfer_id": transfer_id,
         "transfer_kind": debit["transfer_kind"],
         "account_id": debit["account_id"],

@@ -117,6 +117,15 @@ const KIND_CHIPS = {
 };
 const KIND_NAMES = { transfer: "Transfer", refund: "Refund", credit: "Credit" };
 
+// The "Type" half of the Category column's dropdown. Values match the API's
+// `kind` param; "transaction" means any row that isn't in a linked pair.
+const KIND_FILTERS = [
+  ["transaction", "Transactions"],
+  ["transfer", "Transfers"],
+  ["refund", "Refunds"],
+  ["credit", "Credits"],
+];
+
 /**
  * @param {HTMLElement} root
  * `initialFilters` pre-sets the month and filter bar, e.g. when another page
@@ -132,6 +141,7 @@ export function renderTransactionsTable(root, { accountId = null, onAdjustmentsC
     // A linked-in future month falls back to this one; there's nothing to show yet.
     month: initialFilters.month && initialFilters.month <= currentMonth() ? initialFilters.month : currentMonth(),
     categoryId: initialFilters.categoryId || "",
+    kind: "", // "", or one of KIND_FILTERS' values; never set with categoryId
     tagId: "",
     accountId: accountId || "",
     sort: "date",
@@ -148,7 +158,7 @@ export function renderTransactionsTable(root, { accountId = null, onAdjustmentsC
 
   let expandedId = null;
   let editorState = null; // { txId, catRows: [{categoryId, percent}], applyToAll, tagIds: Set, catError, tagError, adjustment }
-  const expandedGroups = new Set(); // ids of refund-pair tiles currently showing their two transactions
+  const expandedGroups = new Set(); // ids of pair tiles currently showing their two transactions
 
   let loadSeq = 0;
   let searchDebounce = null;
@@ -278,6 +288,7 @@ export function renderTransactionsTable(root, { accountId = null, onAdjustmentsC
     return Boolean(
       state.q ||
         state.categoryId ||
+        state.kind ||
         state.tagId ||
         (!accountId && state.accountId)
     );
@@ -304,7 +315,6 @@ export function renderTransactionsTable(root, { accountId = null, onAdjustmentsC
   }
 
   function renderFilterBar() {
-    const categoryOptions = categories.slice().sort(byName).map((c) => optionHtml(c.id, c.name, state.categoryId)).join("");
     const tagOptions = tags.slice().sort(byName).map((t) => optionHtml(t.id, t.name, state.tagId)).join("");
     const accountSelectHtml = accountId
       ? ""
@@ -321,10 +331,6 @@ export function renderTransactionsTable(root, { accountId = null, onAdjustmentsC
         <input type="text" class="input txn-search" placeholder="Search ${esc(monthLabel(state.month))}"
           aria-label="Search ${esc(monthLabel(state.month))}" value="${esc(state.q)}" />
       </div>
-      <select class="select txn-category-filter" aria-label="Filter by category">
-        <option value="">All categories</option>
-        ${categoryOptions}
-      </select>
       <select class="select txn-tag-filter" aria-label="Filter by tag">
         <option value="">All tags</option>
         ${tagOptions}
@@ -352,14 +358,6 @@ export function renderTransactionsTable(root, { accountId = null, onAdjustmentsC
       }, 300);
     });
 
-    const catFilter = els.filterBar.querySelector(".txn-category-filter");
-    catFilter.addEventListener("change", () => {
-      state.categoryId = catFilter.value;
-      state.offset = 0;
-      refreshClearLink();
-      loadPage();
-    });
-
     const tagFilter = els.filterBar.querySelector(".txn-tag-filter");
     tagFilter.addEventListener("change", () => {
       state.tagId = tagFilter.value;
@@ -385,6 +383,7 @@ export function renderTransactionsTable(root, { accountId = null, onAdjustmentsC
   function resetFilters() {
     state.q = "";
     state.categoryId = "";
+    state.kind = "";
     state.tagId = "";
     if (!accountId) state.accountId = "";
     state.offset = 0;
@@ -402,14 +401,16 @@ export function renderTransactionsTable(root, { accountId = null, onAdjustmentsC
       end,
       q: state.q,
       category_id: state.categoryId,
+      kind: state.kind,
       tag_id: state.tagId,
       sort: state.sort,
       order: state.order,
       limit: state.limit,
       offset: state.offset,
-      // The server collapses each refund pair into one item before sorting
-      // and paging, so a pair can never split across pages.
-      group_refunds: true,
+      // The server collapses each linked pair into one item before sorting
+      // and paging, so a pair can never split across pages. (Scoped to one
+      // account, a transfer shows only that account's side, ungrouped.)
+      group_pairs: true,
     };
   }
 
@@ -494,23 +495,59 @@ export function renderTransactionsTable(root, { accountId = null, onAdjustmentsC
   }
 
   function renderTable() {
-    if (rows.length === 0) {
+    // With no rows and no filters there's nothing to filter, so no header.
+    // With filters on, the header stays: the Category filter lives in it.
+    if (rows.length === 0 && !filtersActive()) {
       els.tableWrap.innerHTML = emptyStateHtml();
       return;
     }
+    const body = rows.length
+      ? rows.map(itemHtml).join("")
+      : `<tr class="txns-empty-row"><td colspan="4">${emptyStateHtml()}</td></tr>`;
     els.tableWrap.innerHTML = `
       <table class="table txns-table">
         <thead>
           <tr>
             <th class="is-sortable ${sortedClass("date")}" data-sort="date">Date${sortIconHtml("date")}</th>
             <th class="is-sortable ${sortedClass("description")}" data-sort="description">Description${sortIconHtml("description")}</th>
-            <th>Category</th>
+            ${categoryHeadHtml()}
             <th class="is-sortable is-numeric ${sortedClass("amount")}" data-sort="amount">Amount${sortIconHtml("amount")}</th>
           </tr>
         </thead>
-        <tbody>${rows.map(itemHtml).join("")}</tbody>
+        <tbody>${body}</tbody>
       </table>
     `;
+  }
+
+  // The Category column's header is a dropdown, the way Amount's header
+  // sorts: one list with the row types first, then every category. The two
+  // never combine (a linked row has no category), so one choice clears the
+  // other.
+  function categoryHeadHtml() {
+    const value = state.kind ? `kind:${state.kind}` : state.categoryId ? `cat:${state.categoryId}` : "";
+    const opt = (v, label) => `<option value="${esc(v)}" ${v === value ? "selected" : ""}>${esc(label)}</option>`;
+    const catOptions = categories.slice().sort(byName).map((c) => opt(`cat:${c.id}`, c.name)).join("");
+    return `
+      <th class="txn-cat-head${value ? " is-filtered" : ""}">
+        <span class="txn-head-select-wrap">
+          <select class="txn-head-select" aria-label="Filter by category or type">
+            ${opt("", "All categories")}
+            <optgroup label="Type">${KIND_FILTERS.map(([k, label]) => opt(`kind:${k}`, label)).join("")}</optgroup>
+            ${catOptions ? `<optgroup label="Category">${catOptions}</optgroup>` : ""}
+          </select>
+          <svg class="txn-head-select-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6" /></svg>
+        </span>
+      </th>
+    `;
+  }
+
+  function onCategoryHeadChange(select) {
+    const [type, id] = select.value.split(":");
+    state.kind = type === "kind" ? id : "";
+    state.categoryId = type === "cat" ? id : "";
+    state.offset = 0;
+    refreshClearLink();
+    loadPage();
   }
 
   // A 36px circular monogram, tinted by the first letter's charcode across
@@ -527,30 +564,42 @@ export function renderTransactionsTable(root, { accountId = null, onAdjustmentsC
   }
 
   function itemHtml(item) {
-    if (item.kind !== "refund_group") return rowHtml(item);
+    if (item.kind !== "pair") return rowHtml(item);
     const open = expandedGroups.has(item.id);
     const legs = open ? item.legs.map((leg) => rowHtml(leg, { groupId: item.id })).join("") : "";
     return groupRowHtml(item, open) + legs;
   }
 
-  // A linked charge and its refund/credit, shown as one tile that nets to
-  // zero. The two real transactions sit one click down, still editable.
+  // A linked pair — a transfer between two accounts, or a charge and its
+  // refund/credit — shown as one tile that nets to zero. The two real
+  // transactions sit one click down, still editable.
   function groupRowHtml(group, open) {
     // A linked pair cancels exactly, so the tile nets to zero and reads quiet.
     const netClass = group.amount_cents === 0
       ? "txn-amount-zero"
       : group.amount_cents > 0 ? "txn-amount-credit" : "txn-amount-debit";
+    const isTransfer = group.transfer_kind === "transfer";
+    const [from, to] = group.legs;
+    // A transfer's two bank descriptions say the same thing twice; where the
+    // money went says it once. Legs come debit first: money left `from`.
+    const title = isTransfer
+      ? `${accountLabel(from.account_display_name)} → ${accountLabel(to.account_display_name)}`
+      : group.description;
+    const subline = isTransfer
+      ? "2 transactions"
+      : `${accountLabel(group.account_display_name)} · 2 transactions`;
+    const kindName = KIND_NAMES[group.transfer_kind] || "Refund";
     return `
       <tr class="txn-group-row${open ? " is-open" : ""}" data-group-id="${esc(group.id)}"
         tabindex="0" role="button" aria-expanded="${open ? "true" : "false"}"
-        aria-label="Refund pair: ${esc(group.description)}. ${open ? "Hide" : "Show"} both transactions">
+        aria-label="${esc(kindName)}: ${esc(title)}. ${open ? "Hide" : "Show"} both transactions">
         <td class="txn-date-cell u-tabular">${esc(formatDate(group.posted_on))}</td>
         <td class="txn-desc-cell">
           <div class="txn-desc-row">
-            <span class="txn-avatar txn-avatar-refund" aria-hidden="true">${ICON_REFUND}</span>
+            <span class="txn-avatar ${isTransfer ? "txn-avatar-transfer" : "txn-avatar-refund"}" aria-hidden="true">${isTransfer ? ICON_TRANSFER : ICON_REFUND}</span>
             <div class="txn-desc-text">
-              <div class="txn-desc">${esc(group.description)}</div>
-              <div class="txn-account">${esc(accountLabel(group.account_display_name))} · 2 transactions</div>
+              <div class="txn-desc">${esc(title)}</div>
+              <div class="txn-account">${esc(subline)}</div>
             </div>
           </div>
         </td>
@@ -666,12 +715,12 @@ export function renderTransactionsTable(root, { accountId = null, onAdjustmentsC
     expandRow(tr, id);
   }
 
-  // A refund tile's legs are real transactions: the editor and in-place
+  // A pair tile's legs are real transactions: the editor and in-place
   // updates must find them as readily as top-level rows. The tile itself
   // isn't a transaction and is never returned.
   function findTx(id) {
     for (const item of rows) {
-      if (item.kind === "refund_group") {
+      if (item.kind === "pair") {
         const leg = item.legs.find((l) => l.id === id);
         if (leg) return leg;
       } else if (item.id === id) {
@@ -1178,7 +1227,9 @@ export function renderTransactionsTable(root, { accountId = null, onAdjustmentsC
     rerenderAdjustmentSection();
     try {
       await api.createAdjustment(tx.id, choice.id);
-      showNotice(choice.kind === "transfer"
+      // Scoped to one account, a transfer keeps showing just this side.
+      const scoped = Boolean(accountId || state.accountId);
+      showNotice(choice.kind === "transfer" && scoped
         ? "Marked as a transfer. It stays in each account's list but isn't counted in spending or income."
         : `Linked as a ${KIND_NAMES[choice.kind].toLowerCase()} — the pair now shows as one tile that nets to zero.`);
       loadPage({ keepNotice: true });
@@ -1295,9 +1346,9 @@ export function renderTransactionsTable(root, { accountId = null, onAdjustmentsC
 
   function applyUpdatedTransaction(updated) {
     // Merge rather than replace: keeps list-only fields (like `kind`) on a
-    // top-level row, and a refund tile's leg is updated where it lives.
+    // top-level row, and a pair tile's leg is updated where it lives.
     for (const item of rows) {
-      if (item.kind === "refund_group") {
+      if (item.kind === "pair") {
         const legIdx = item.legs.findIndex((l) => l.id === updated.id);
         if (legIdx !== -1) item.legs[legIdx] = { ...item.legs[legIdx], ...updated };
       } else if (item.id === updated.id) {
@@ -1425,6 +1476,11 @@ export function renderTransactionsTable(root, { accountId = null, onAdjustmentsC
   }
 
   function handleTableWrapChange(e) {
+    const headSelect = e.target.closest(".txn-head-select");
+    if (headSelect) {
+      onCategoryHeadChange(headSelect);
+      return;
+    }
     const scope = e.target.closest(".txn-scope-input");
     if (scope) {
       editorState.applyToAll = scope.value === "all";

@@ -231,6 +231,61 @@
   transform: rotate(180deg);
 }
 
+/* The Category header is a dropdown (category or row type). At rest it
+   reads like the other headers; a chosen filter turns it ink, like an
+   active sort. The native select sits on top so the whole label is the
+   hit target and the OS menu does the rest. */
+.txn-head-select-wrap {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.txn-head-select {
+  appearance: none;
+  max-width: 180px;
+  margin: 0;
+  padding: 0 calc(13px + var(--space-1)) 0 0;
+  background: transparent;
+  border: 0;
+  border-radius: var(--radius-control);
+  color: inherit;
+  font: inherit;
+  text-overflow: ellipsis;
+  cursor: pointer;
+}
+
+.txn-head-select:focus-visible {
+  outline: 2px solid var(--line-accent);
+  outline-offset: 3px;
+}
+
+.txn-head-select-icon {
+  position: absolute;
+  right: 0;
+  width: 13px;
+  height: 13px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  pointer-events: none;
+}
+
+.txns-table th.txn-cat-head:hover,
+.txns-table th.txn-cat-head.is-filtered {
+  color: var(--text-primary);
+}
+
+/* "No transactions match" inside the table, under the header that holds
+   the filter, so it can be changed right there. */
+.table tbody tr.txns-empty-row,
+.table tbody tr.txns-empty-row:hover {
+  background: transparent;
+}
+
 .txn-row {
   cursor: pointer;
 }
@@ -400,7 +455,7 @@
   color: var(--success);
 }
 
-/* ------------------------- Refund pair tile + its legs ------------------------- */
+/* ------------------------- Pair tile (transfer, refund, credit) + its legs ------------------------- */
 
 .txn-group-row {
   cursor: pointer;
@@ -421,7 +476,13 @@
   --avatar-ink: var(--success);
 }
 
-.txn-avatar-refund .txn-kind-icon {
+/* Money moved between two of your accounts: neutral ink, like its chip. */
+.txn-avatar-transfer {
+  --avatar-ink: var(--text-primary);
+}
+
+.txn-avatar-refund .txn-kind-icon,
+.txn-avatar-transfer .txn-kind-icon {
   width: 18px;
   height: 18px;
 }

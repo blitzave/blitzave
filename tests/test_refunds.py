@@ -346,7 +346,7 @@ def test_old_refund_endpoints_are_gone(client):
 
 def _card_items(conn, **kwargs):
     return transactions.list_transactions(
-        conn, account_external_id="card", group_refunds=True, limit=500, **kwargs
+        conn, account_external_id="card", group_pairs=True, limit=500, **kwargs
     )
 
 
@@ -355,12 +355,12 @@ def test_grouped_list_collapses_a_same_account_pair_into_one_zero_net_item(conn)
     pair = transfers.create_transfer(conn, user_id, "charge", "full-credit")
 
     total, items = _card_items(conn)
-    groups = [item for item in items if item["kind"] == "refund_group"]
+    groups = [item for item in items if item["kind"] == "pair"]
     standalone = {item["id"] for item in items if item["kind"] == "transaction"}
 
     assert len(groups) == 1
     group = groups[0]
-    assert group["id"] == f"refund-{pair['id']}"
+    assert group["id"] == f"pair-{pair['id']}"
     assert group["transfer_id"] == pair["id"]
     assert group["transfer_kind"] == "credit"
     assert group["amount_cents"] == 0
@@ -371,12 +371,52 @@ def test_grouped_list_collapses_a_same_account_pair_into_one_zero_net_item(conn)
     assert total == 5  # six card rows, the pair counted once
 
 
-def test_grouping_leaves_transfer_legs_alone(conn):
+def test_grouping_in_one_account_leaves_transfer_legs_alone(conn):
     # Each account shows its own side of a transfer (maintainer call, 2026-10-26).
     user_id = users.get_or_create_user(conn)
     transfers.create_transfer(conn, user_id, "card-payment", "full-credit")
     _, items = _card_items(conn)
     assert all(item["kind"] == "transaction" for item in items)
+
+
+def test_grouping_across_accounts_collapses_a_transfer_into_one_item(conn):
+    # Every account at once: both sides would be the same money listed twice.
+    user_id = users.get_or_create_user(conn)
+    pair = transfers.create_transfer(conn, user_id, "card-payment", "full-credit")
+    total, items = transactions.list_transactions(conn, group_pairs=True, limit=500)
+    groups = [item for item in items if item["kind"] == "pair"]
+    assert len(groups) == 1
+    group = groups[0]
+    assert group["id"] == f"pair-{pair['id']}"
+    assert group["transfer_kind"] == "transfer"
+    assert group["amount_cents"] == 0
+    assert group["account_id"] == "checking"  # where the money left from
+    assert [leg["id"] for leg in group["legs"]] == ["card-payment", "full-credit"]
+    assert total == 7  # eight rows, the pair counted once
+
+
+def _ids(conn, **kwargs):
+    _, rows = transactions.list_transactions(conn, limit=500, **kwargs)
+    return {row["id"] for row in rows}
+
+
+def test_kind_narrows_the_list_to_one_sort_of_row(conn):
+    user_id = users.get_or_create_user(conn)
+    transfers.create_transfer(conn, user_id, "card-payment", "full-credit")
+    transfers.create_transfer(conn, user_id, "charge", "other-account-credit")
+    paired = {"card-payment", "full-credit", "charge", "other-account-credit"}
+
+    assert _ids(conn, kind="transfer") == paired
+    assert _ids(conn, kind="transfer", account_external_id="card") == {"full-credit", "charge"}
+    assert _ids(conn, kind="refund") == set()
+    assert _ids(conn, kind="transaction") == _ids(conn) - paired
+
+
+def test_kind_tells_a_refund_from_a_credit(conn):
+    user_id = users.get_or_create_user(conn)
+    transfers.create_transfer(conn, user_id, "charge", "full-credit")
+    assert _ids(conn, kind="credit") == {"charge", "full-credit"}  # different descriptions
+    assert _ids(conn, kind="refund") == set()
 
 
 def test_grouping_is_opt_in(conn):
@@ -395,21 +435,21 @@ def test_a_pair_never_splits_across_pages(conn):
     seen = []
     for offset in range(8):
         total, items = transactions.list_transactions(
-            conn, account_external_id="card", group_refunds=True,
+            conn, account_external_id="card", group_pairs=True,
             sort="amount", order="asc", limit=1, offset=offset,
         )
         seen.extend(item["id"] for item in items)
     assert total == 5
     assert len(seen) == len(set(seen)) == 5
-    assert f"refund-{pair['id']}" in seen
+    assert f"pair-{pair['id']}" in seen
     assert "charge" not in seen and "full-credit" not in seen
 
 
 def test_a_pair_is_listed_when_either_half_matches_the_search(conn):
     user_id = users.get_or_create_user(conn)
     transfers.create_transfer(conn, user_id, "charge", "full-credit")
-    _, items = transactions.list_transactions(conn, q="full-credit", group_refunds=True)
-    assert [item["kind"] for item in items] == ["refund_group"]
+    _, items = transactions.list_transactions(conn, q="full-credit", group_pairs=True)
+    assert [item["kind"] for item in items] == ["pair"]
 
 
 def test_migration_007_moves_exact_refunds_into_transfers_and_drops_partial_ones(tmp_path):
@@ -460,9 +500,16 @@ def test_api_grouped_list_formats_the_group_and_its_legs(client):
         "/api/transfers", json={"transaction_id": "full-credit", "counterpart_id": "charge"}
     ).json()
     body = client.get(
-        "/api/transactions", params={"group_refunds": "true", "account_id": "card"}
+        "/api/transactions", params={"group_pairs": "true", "account_id": "card"}
     ).json()
-    group = next(item for item in body["transactions"] if item["kind"] == "refund_group")
+    group = next(item for item in body["transactions"] if item["kind"] == "pair")
     assert group["transfer_id"] == created["id"]
     assert group["amount_display"] == "$0.00"
     assert [leg["amount_display"] for leg in group["legs"]] == ["-$100.00", "$100.00"]
+
+
+def test_api_list_takes_a_kind_and_refuses_an_unknown_one(client):
+    client.post("/api/transfers", json={"transaction_id": "charge", "counterpart_id": "full-credit"})
+    body = client.get("/api/transactions", params={"kind": "credit"}).json()
+    assert {row["id"] for row in body["transactions"]} == {"charge", "full-credit"}
+    assert client.get("/api/transactions", params={"kind": "refunds"}).status_code == 422
