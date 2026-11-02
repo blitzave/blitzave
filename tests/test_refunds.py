@@ -181,48 +181,34 @@ def test_unlink_sticks_and_never_changes_bank_fields(conn):
         refunds.delete_refund(conn, 999)
 
 
+def _insert_pair(conn, user_id, debit, credit, amount_cents=10000):
+    conn.execute(
+        "INSERT INTO transfers (user_id, debit_transaction_id, credit_transaction_id, "
+        "transfer_amount_cents, transfer_date, matched_by, created_at) "
+        "VALUES (?, ?, ?, ?, '2026-10-04', 'user', 0)",
+        (user_id, _internal_id(conn, debit), _internal_id(conn, credit), amount_cents),
+    )
+
+
 @pytest.mark.parametrize("a,b", [
-    ("charge", "other-account-credit"), ("charge", "large-credit"),
-    ("charge", "euro-credit"), ("full-credit", "charge"), ("charge", "partial-credit"),
+    ("charge", "large-credit"), ("charge", "euro-credit"),
+    ("full-credit", "charge"), ("charge", "partial-credit"),
 ])
-def test_database_rejects_invalid_refund_pair_directly(conn, a, b):
-    with pytest.raises(sqlite3.IntegrityError, match="refund requires"):
-        conn.execute(
-            "INSERT INTO refunds (user_id, debit_transaction_id, credit_transaction_id, created_at) "
-            "VALUES (?, ?, ?, 0)",
-            (users.get_or_create_user(conn), _internal_id(conn, a), _internal_id(conn, b)),
-        )
+def test_database_rejects_invalid_same_account_pair_directly(conn, a, b):
+    with pytest.raises(sqlite3.IntegrityError, match="transfer legs must be"):
+        _insert_pair(conn, users.get_or_create_user(conn), a, b)
 
 
 def test_database_rejects_double_use_and_link_edits(conn):
     user_id = users.get_or_create_user(conn)
     refund = refunds.create_refund(conn, user_id, "charge", "full-credit")
     with pytest.raises(sqlite3.IntegrityError, match="UNIQUE"):
-        conn.execute(
-            "INSERT INTO refunds (user_id, debit_transaction_id, credit_transaction_id, created_at) "
-            "VALUES (?, ?, ?, 0)",
-            (user_id, _internal_id(conn, "charge"), _internal_id(conn, "full-credit")),
-        )
-    with pytest.raises(sqlite3.IntegrityError, match="unlink the refund"):
-        conn.execute("UPDATE refunds SET created_at = 1 WHERE id = ?", (refund["id"],))
-    with pytest.raises(sqlite3.IntegrityError, match="cannot also be a transfer"):
-        conn.execute(
-            "INSERT INTO transfers (user_id, debit_transaction_id, credit_transaction_id, "
-            "transfer_amount_cents, transfer_date, matched_by, created_at) "
-            "VALUES (?, ?, ?, 10000, '2026-10-04', 'user', 0)",
-            (user_id, _internal_id(conn, "card-payment"), _internal_id(conn, "full-credit")),
-        )
-
-
-def test_database_rejects_refund_using_transfer_leg(conn):
-    user_id = users.get_or_create_user(conn)
-    transfers.create_transfer(conn, user_id, "card-payment", "full-credit")
-    with pytest.raises(sqlite3.IntegrityError, match="cannot also be linked as a refund"):
-        conn.execute(
-            "INSERT INTO refunds (user_id, debit_transaction_id, credit_transaction_id, created_at) "
-            "VALUES (?, ?, ?, 0)",
-            (user_id, _internal_id(conn, "charge"), _internal_id(conn, "full-credit")),
-        )
+        _insert_pair(conn, user_id, "charge", "full-credit")
+    # A refund's credit can't also be a transfer's: one table, one row per leg.
+    with pytest.raises(sqlite3.IntegrityError, match="UNIQUE"):
+        _insert_pair(conn, user_id, "card-payment", "full-credit")
+    with pytest.raises(sqlite3.IntegrityError, match="unlink the pair"):
+        conn.execute("UPDATE transfers SET created_at = 1 WHERE id = ?", (refund["id"],))
 
 
 def test_unknown_and_ambiguous_transaction_ids_are_never_guessed(conn):
@@ -268,6 +254,7 @@ def test_api_manual_link_lists_pair_and_labels_both_transactions(client):
     created = response.json()
     assert created["amount_display"] == "$100.00"
     assert created["matched_by"] == "user"
+    assert created["kind"] == "credit"  # "Synthetic full-credit" names another merchant
     assert created["debit"]["amount_display"] == "-$100.00"
     assert created["credit"]["amount_display"] == "$100.00"
     assert client.get("/api/refunds").json() == [created]
@@ -412,7 +399,7 @@ def test_a_pair_is_listed_when_either_half_matches_the_search(conn):
     assert [item["kind"] for item in items] == ["refund_group"]
 
 
-def test_migration_007_drops_partial_links_and_keeps_exact_ones(tmp_path):
+def test_migration_007_moves_exact_refunds_into_transfers_and_drops_partial_ones(tmp_path):
     # A database at version 6 that already holds one exact and one partial link.
     connection = sqlite3.connect(tmp_path / "v6.db")
     for migration in sorted(db.MIGRATIONS_DIR.glob("00[1-6]_*.sql")):
@@ -424,25 +411,32 @@ def test_migration_007_drops_partial_links_and_keeps_exact_ones(tmp_path):
         issuer_name="Demo card", liability_type="credit_card",
     ))
     ids = {}
-    for ext, cents in [("a", -10000), ("a-back", 10000), ("b", -10000), ("b-part", 3500)]:
+    for ext, cents, posted in [
+        ("a", -10000, "2026-10-03"), ("a-back", 10000, "2026-10-05"),
+        ("b", -10000, "2026-10-03"), ("b-part", 3500, "2026-10-03"),
+    ]:
         ingest.upsert_transaction(connection, user_id, account_id, TxRow(
             account_external_id="card", external_id=ext, amount_cents=cents, currency="USD",
-            transaction_type="debit" if cents < 0 else "credit", posted_on="2026-10-03",
+            transaction_type="debit" if cents < 0 else "credit", posted_on=posted,
             description=ext, merchant_name=None,
         ))
         ids[ext] = _internal_id(connection, ext)
     for debit, credit in [("a", "a-back"), ("b", "b-part")]:
         connection.execute(
             "INSERT INTO refunds (user_id, debit_transaction_id, credit_transaction_id, created_at) "
-            "VALUES (?, ?, ?, 0)", (user_id, ids[debit], ids[credit]),
+            "VALUES (?, ?, ?, 7)", (user_id, ids[debit], ids[credit]),
         )
     connection.commit()
 
     db.migrate(connection)
 
     assert connection.execute(
-        "SELECT debit_transaction_id, matched_by FROM refunds"
-    ).fetchall() == [(ids["a"], "user")]
+        "SELECT debit_transaction_id, credit_transaction_id, transfer_amount_cents, "
+        "transfer_date, matched_by, created_at FROM transfers"
+    ).fetchall() == [(ids["a"], ids["a-back"], 10000, "2026-10-05", "user", 7)]
+    assert connection.execute(
+        "SELECT name FROM sqlite_master WHERE name = 'refunds'"
+    ).fetchall() == []
     activity = {r[0] for r in connection.execute("SELECT external_id FROM activity")}
     assert activity == {"b", "b-part"}  # the partial pair counted before and still does
     connection.close()

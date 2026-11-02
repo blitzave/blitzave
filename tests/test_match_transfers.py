@@ -1,6 +1,12 @@
 """The automatic matcher, as a pure function: legs in, (transfers, refunds) out."""
 
-from blitzave.refine.transfers import WINDOW_DAYS, Leg, find_pairs, looks_like_transfer
+from blitzave.refine.transfers import (
+    WINDOW_DAYS,
+    Leg,
+    find_pairs,
+    kind_of,
+    looks_like_transfer,
+)
 
 CHECKING, CARD, SAVINGS = 1, 2, 3
 
@@ -137,3 +143,34 @@ def test_transfer_words():
         assert looks_like_transfer(text)
     for text in ("Platinum Walmart+ Credit", "COSTCO WHSE #0669", "ACME CORP PAYROLL"):
         assert not looks_like_transfer(text)
+
+
+def test_a_later_rival_still_makes_a_pair_ambiguous():
+    # Each leg only looks back, but the debit still learns about both credits.
+    legs = [
+        leg(1, CHECKING, -10000, "2026-10-01", "TRANSFER TO SAVINGS"),
+        leg(2, SAVINGS, 10000, "2026-10-02", "TRANSFER FROM CHECKING"),
+        leg(3, SAVINGS, 10000, "2026-10-05", "TRANSFER FROM CHECKING"),
+    ]
+    assert find_pairs(legs) == ([], [])
+
+
+def test_each_pair_is_compared_once(monkeypatch):
+    from blitzave.refine import transfers as match
+
+    calls = []
+    real = match._days_apart
+    monkeypatch.setattr(match, "_days_apart", lambda a, b: calls.append((a.id, b.id)) or real(a, b))
+    legs = [
+        leg(1, CHECKING, -50000, "2026-10-03", "AUTOPAY"),
+        leg(2, CARD, 50000, "2026-10-04", "PAYMENT THANK YOU"),
+        leg(3, CARD, -1402, "2026-10-04", "Walmart+ Member"),  # another bucket: never compared
+    ]
+    assert find_pairs(legs) == ([(1, 2)], [])
+    assert calls == [(2, 1)]
+
+
+def test_kind_is_decided_when_shown():
+    assert kind_of(False, "CHASE CARD AUTOPAY", "PAYMENT THANK YOU") == "transfer"
+    assert kind_of(True, "COSTCO WHSE #0669", "COSTCO WHSE #0669") == "refund"
+    assert kind_of(True, "Walmart+ Member 10/28009666546 AR", "Platinum Walmart+ Credit") == "credit"

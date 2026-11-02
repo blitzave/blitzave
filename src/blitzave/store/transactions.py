@@ -67,14 +67,26 @@ def _row_to_dict(row: tuple, tags: list[dict]) -> dict:
     }
 
 
-_SELECT = """
+def _pair_id_sql(account_test: str) -> str:
+    """The id of the pair row `a` is a leg of, when its other leg's account
+    compares to a's with account_test: '<>' finds a transfer, '=' a refund or
+    credit. Both live in `transfers` (migration 007)."""
+    return f"""(SELECT tr.id FROM transfers tr
+            JOIN transactions o ON o.id = CASE WHEN tr.debit_transaction_id = a.id
+                THEN tr.credit_transaction_id ELSE tr.debit_transaction_id END
+            WHERE a.id IN (tr.debit_transaction_id, tr.credit_transaction_id)
+              AND o.account_id {account_test} a.account_id)"""
+
+
+TRANSFER_ID_SQL = _pair_id_sql("<>")
+REFUND_ID_SQL = _pair_id_sql("=")
+
+_SELECT = f"""
     SELECT a.id, a.external_id, acc.external_id, acc.display_name, a.posted_on,
            a.amount_cents, a.currency, a.transaction_type, a.description,
            a.merchant_name, a.categories, a.categories_set_by,
-           (SELECT tr.id FROM transfers tr
-            WHERE tr.debit_transaction_id = a.id OR tr.credit_transaction_id = a.id),
-           (SELECT r.id FROM refunds r
-            WHERE r.debit_transaction_id = a.id OR r.credit_transaction_id = a.id)
+           {TRANSFER_ID_SQL},
+           {REFUND_ID_SQL}
 """
 
 
@@ -171,10 +183,7 @@ def _list_grouped(
     amount, and its combined description. Read-only: nothing is written."""
     items_sql = f"""
         WITH matched AS (
-            SELECT a.id AS txn_id,
-                   (SELECT r.id FROM refunds r
-                    WHERE r.debit_transaction_id = a.id
-                       OR r.credit_transaction_id = a.id) AS refund_id
+            SELECT a.id AS txn_id, {REFUND_ID_SQL} AS refund_id
             {base}
         ),
         items AS (
@@ -192,7 +201,7 @@ def _list_grouped(
                    COALESCE(t.id, d.id) AS s_tiebreak
             FROM items i
             LEFT JOIN transactions t ON t.id = i.txn_id
-            LEFT JOIN refunds r ON r.id = i.refund_id
+            LEFT JOIN transfers r ON r.id = i.refund_id
             LEFT JOIN transactions d ON d.id = r.debit_transaction_id
             LEFT JOIN transactions c ON c.id = r.credit_transaction_id
         )
@@ -215,7 +224,7 @@ def _list_grouped(
             row[0]: (row[1], row[2])
             for row in conn.execute(
                 "SELECT id, debit_transaction_id, credit_transaction_id "
-                f"FROM refunds WHERE id IN ({placeholders})",
+                f"FROM transfers WHERE id IN ({placeholders})",
                 refund_ids,
             )
         }

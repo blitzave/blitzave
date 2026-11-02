@@ -9,6 +9,7 @@ from blitzave import jobs
 from blitzave.api.money import format_cents, parse_amount
 from blitzave.refine.budgets import monthly_budget
 from blitzave.refine.categorize import is_match, match_key
+from blitzave.refine.transfers import kind_of
 from blitzave.store import (
     accounts,
     categories,
@@ -525,7 +526,11 @@ def update_transaction_metadata(
 # --- transfers ----------------------------------------------------------------
 
 
-def _transfer_with_display(transfer: dict) -> dict:
+def _transfer_with_display(transfer: dict, same_account: bool = False) -> dict:
+    # transfer / refund / credit: decided here, for display; never stored.
+    transfer["kind"] = kind_of(
+        same_account, transfer["debit"]["description"], transfer["credit"]["description"]
+    )
     transfer["amount_display"] = format_cents(transfer["amount_cents"])
     for leg in (transfer["debit"], transfer["credit"]):
         leg["amount_display"] = format_cents(leg["amount_cents"])
@@ -629,7 +634,7 @@ def list_refunds() -> list[dict]:
         rows = refunds.list_refunds(conn)
     finally:
         conn.close()
-    return [_transfer_with_display(row) for row in rows]
+    return [_transfer_with_display(row, same_account=True) for row in rows]
 
 
 @router.post("/refunds", status_code=201)
@@ -655,7 +660,7 @@ def create_refund(request: TransferCreate) -> dict:
             raise HTTPException(status_code=422, detail=str(e)) from e
     finally:
         conn.close()
-    return _transfer_with_display(refund)
+    return _transfer_with_display(refund, same_account=True)
 
 
 @router.delete("/refunds/{refund_id}", status_code=204)

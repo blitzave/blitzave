@@ -277,10 +277,12 @@ def test_api_404s(client):
 def test_api_card_payment_counts_the_purchase_once(client):
     legal = client.post("/api/categories", json={"name": "Legal", "kind": "expense"}).json()
     client.patch("/api/transactions/TXN-fragomen", json={"categories": {str(legal["id"]): 1.0}})
-    assert client.post(
+    created = client.post(
         "/api/transfers",
         json={"transaction_id": "TXN-card-pay", "counterpart_id": "TXN-card-paid"},
-    ).status_code == 201
+    )
+    assert created.status_code == 201
+    assert created.json()["kind"] == "transfer"
 
     april = {"start": "2026-04-01", "end": "2026-04-30"}
     summary = client.get("/api/categories/summary", params=april).json()

@@ -9,7 +9,7 @@ import pytest
 from blitzave import jobs
 from blitzave.sources import simplefin
 from blitzave.sources.base import AccountRow, Fetched, TxRow
-from blitzave.store import accounts, categories, db, transfers
+from blitzave.store import accounts, categories, db, refunds, transfers
 
 FIXTURE = json.loads(
     (Path(__file__).parent / "fixtures" / "simplefin_accounts.json").read_text()
@@ -189,13 +189,11 @@ def test_sync_links_the_fixture_card_credit_as_a_refund(monkeypatch):
     assert result["transfers_matched"] == 0
     assert result["refunds_matched"] == 1
     conn = db.connect()
-    linked = conn.execute(
-        "SELECT d.description, c.description, r.matched_by FROM refunds r "
-        "JOIN transactions d ON d.id = r.debit_transaction_id "
-        "JOIN transactions c ON c.id = r.credit_transaction_id"
-    ).fetchall()
+    [pair] = refunds.list_refunds(conn)
     conn.close()
-    assert linked == [("Walmart+ Member 10/28009666546 AR", "Platinum Walmart+ Credit", "rule")]
+    assert pair["debit"]["description"] == "Walmart+ Member 10/28009666546 AR"
+    assert pair["credit"]["description"] == "Platinum Walmart+ Credit"
+    assert pair["matched_by"] == "rule"
 
 
 def test_sync_turns_a_card_payment_into_one_transfer_and_zero_spending(monkeypatch):

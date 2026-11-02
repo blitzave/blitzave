@@ -5,15 +5,7 @@ from blitzave.refine import transfers as match
 from blitzave.refine.categorize import is_match, match_key
 from blitzave.sources import github, simplefin
 from blitzave.sources.base import Fetched
-from blitzave.store import (
-    categories,
-    db,
-    ingest,
-    refunds,
-    transactions,
-    transfers,
-    users,
-)
+from blitzave.store import categories, db, ingest, transactions, transfers, users
 
 SYNC_JOB = "ingest"
 MATCH_JOB = "match_transfers"  # its watermark only records that the one full pass ran
@@ -84,8 +76,9 @@ def _categorize(conn, user_id: int) -> int:
 
 
 def _match_pairs(conn, user_id: int, fetched: Fetched) -> dict:
-    """Link the other side of each new transaction: a transfer when it's in
-    another account, a refund/credit when it's in the same one.
+    """Link the other side of each new transaction. Every pair is one
+    `transfers` row, whatever it's called when shown: two accounts make a
+    transfer, one account a refund or credit.
 
     The first run looks at all history once. After that, only the fetched
     range matters, widened by two windows: a fetched row's candidate can sit
@@ -99,13 +92,13 @@ def _match_pairs(conn, user_id: int, fetched: Fetched) -> dict:
         return {"transfers_matched": 0, "refunds_matched": 0}
 
     legs = [match.Leg(**row) for row in transfers.unlinked_legs(conn, start)]
-    transfer_pairs, refund_pairs = match.find_pairs(legs)
-    result = {
-        "transfers_matched": transfers.create_rule_transfers(conn, user_id, transfer_pairs),
-        "refunds_matched": refunds.create_rule_refunds(conn, user_id, refund_pairs),
-    }
+    transfer_pairs, same_account_pairs = match.find_pairs(legs)
+    transfers.create_rule_pairs(conn, user_id, transfer_pairs + same_account_pairs)
     ingest.set_watermark(conn, MATCH_JOB, date.today().isoformat())
-    return result
+    return {
+        "transfers_matched": len(transfer_pairs),
+        "refunds_matched": len(same_account_pairs),  # refunds and credits
+    }
 
 
 def _fetch(since: date, until: date | None = None) -> Fetched:
@@ -118,7 +111,7 @@ def _fetch(since: date, until: date | None = None) -> Fetched:
 
 
 def _ingest(conn, user_id: int, fetched: Fetched) -> dict:
-    """Upsert what SimpleFIN returned, link transfers and refunds, then
+    """Upsert what SimpleFIN returned, link matched pairs, then
     categorize what's left. Idempotent, so
     fetching an overlapping range again never duplicates anything."""
     account_ids_by_external_id = {}

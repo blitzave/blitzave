@@ -1,12 +1,13 @@
-import sqlite3
-import time
+"""Refunds and credits: pairs whose two legs share an account. They live in
+`transfers` like every other pair (store/transfers.py); this module is the
+same-account view behind /api/refunds, so the UI's contract is unchanged."""
 
-from blitzave.store.transactions import (
-    _SELECT,
-    AmbiguousTransactionError,
-    TransactionNotFoundError,
-    _row_to_dict,
-    _tags_for,
+import sqlite3
+
+from blitzave.store import transfers
+from blitzave.store.transfers import (
+    AlreadyAdjustmentLinkedError,
+    AlreadyTransferLegError,
 )
 
 
@@ -14,119 +15,40 @@ class RefundNotFoundError(Exception):
     """No refund link exists with the given id."""
 
 
-class AlreadyAdjustmentLinkedError(Exception):
-    """A transaction is already linked as a refund or transfer."""
-
-
 class InvalidRefundPairError(Exception):
     """A refund must exactly cancel a charge in the same account and currency."""
 
 
-def _lookup(conn: sqlite3.Connection, external_id: str) -> tuple[int, int, int, str, str, int]:
-    rows = conn.execute(
-        "SELECT id, account_id, amount_cents, posted_on, currency, user_id "
-        "FROM transactions WHERE external_id = ?",
-        (external_id,),
-    ).fetchall()
-    if not rows:
-        raise TransactionNotFoundError(f"no transaction with id {external_id}")
-    if len(rows) > 1:
-        raise AmbiguousTransactionError(
-            f"transaction id {external_id} exists in more than one account"
-        )
-    return rows[0]
-
-
-def is_refund_linked(conn: sqlite3.Connection, internal_id: int) -> bool:
-    return conn.execute(
-        "SELECT 1 FROM refunds WHERE debit_transaction_id = ? OR credit_transaction_id = ?",
-        (internal_id, internal_id),
-    ).fetchone() is not None
-
-
 def _check_unlinked(conn: sqlite3.Connection, internal_id: int, external_id: str) -> None:
-    if is_refund_linked(conn, internal_id):
-        raise AlreadyAdjustmentLinkedError(
-            f"transaction {external_id} is already linked as a refund or credit"
-        )
-    transfer = conn.execute(
-        "SELECT 1 FROM transfers WHERE debit_transaction_id = ? OR credit_transaction_id = ?",
-        (internal_id, internal_id),
-    ).fetchone()
-    if transfer is not None:
-        raise AlreadyAdjustmentLinkedError(
-            f"transaction {external_id} is already part of a transfer"
-        )
+    # Either kind of link is "already linked" here, with one error type.
+    try:
+        transfers.check_unlinked(conn, internal_id, external_id)
+    except AlreadyTransferLegError as e:
+        raise AlreadyAdjustmentLinkedError(str(e)) from e
 
 
 def list_candidates(conn: sqlite3.Connection, external_id: str) -> list[dict]:
-    """Possible pairs for the user to review, never automatic refund decisions.
-
-    Only the exact opposite amount in the same account and currency — the
-    other side of this transaction, so a linked pair nets to zero. (The API
-    can still link a partial credit; the picker just never offers one.)
-    There is no date window or description guess; nearest dates appear
-    first. Each transaction may have only one adjustment link.
-    """
-    internal_id, account_id, amount_cents, posted_on, currency, user_id = _lookup(
-        conn, external_id
-    )
+    """Possible pairs for the user to review: the exact opposite amount in
+    the same account and currency, nearest dates first."""
+    internal_id = transfers.lookup(conn, external_id)[0]
     _check_unlinked(conn, internal_id, external_id)
-    rows = conn.execute(
-        f"""
-        {_SELECT}
-        FROM activity a JOIN accounts acc ON acc.id = a.account_id
-        WHERE a.account_id = ? AND a.currency = ? AND a.user_id = ?
-          AND a.amount_cents = ?
-          AND NOT EXISTS (
-            SELECT 1 FROM refunds r
-            WHERE r.debit_transaction_id = a.id OR r.credit_transaction_id = a.id
-          )
-        ORDER BY ABS(julianday(a.posted_on) - julianday(?)), a.id
-        """,
-        (account_id, currency, user_id, -amount_cents, posted_on),
-    ).fetchall()
-    tags_by_txn = _tags_for(conn, [r[0] for r in rows])
-    return [_row_to_dict(r, tags_by_txn.get(r[0], [])) for r in rows]
+    return transfers.candidates(conn, external_id, same_account=True)
 
 
-_REFUND_SELECT = """
-    SELECT r.id, c.amount_cents, MAX(d.posted_on, c.posted_on),
-           d.external_id, dacc.display_name, d.posted_on, d.description, d.amount_cents,
-           c.external_id, cacc.display_name, c.posted_on, c.description, c.amount_cents,
-           r.matched_by
-    FROM refunds r
-    JOIN transactions d ON d.id = r.debit_transaction_id
-    JOIN accounts dacc ON dacc.id = d.account_id
-    JOIN transactions c ON c.id = r.credit_transaction_id
-    JOIN accounts cacc ON cacc.id = c.account_id
-"""
-
-
-def _leg(row: tuple) -> dict:
+def _refund_to_dict(pair: dict) -> dict:
+    # /api/refunds has always called the pair's date adjustment_date.
     return {
-        "id": row[0],
-        "account_display_name": row[1],
-        "posted_on": row[2],
-        "description": row[3],
-        "amount_cents": row[4],
-    }
-
-
-def _refund_to_dict(row: tuple) -> dict:
-    return {
-        "id": row[0],
-        "amount_cents": row[1],
-        "adjustment_date": row[2],
-        "debit": _leg(row[3:8]),
-        "credit": _leg(row[8:13]),
-        "matched_by": row[13],
+        "id": pair["id"],
+        "amount_cents": pair["amount_cents"],
+        "adjustment_date": pair["transfer_date"],
+        "debit": pair["debit"],
+        "credit": pair["credit"],
+        "matched_by": pair["matched_by"],
     }
 
 
 def list_refunds(conn: sqlite3.Connection) -> list[dict]:
-    rows = conn.execute(f"{_REFUND_SELECT} ORDER BY 3 DESC, r.id DESC").fetchall()
-    return [_refund_to_dict(row) for row in rows]
+    return [_refund_to_dict(p) for p in transfers.list_pairs(conn, same_account=True)]
 
 
 def create_refund(
@@ -137,8 +59,8 @@ def create_refund(
     so the pair counts as nothing. Categories are left alone, so unlinking
     brings both rows back exactly as they were. Partial credits aren't
     supported for now (maintainer call, 2026-11-02)."""
-    a_id, a_account, a_cents, _, a_currency, a_user = _lookup(conn, external_id_a)
-    b_id, b_account, b_cents, _, b_currency, b_user = _lookup(conn, external_id_b)
+    a_id, a_account, a_cents, _, a_currency, a_user = transfers.lookup(conn, external_id_a)
+    b_id, b_account, b_cents, _, b_currency, b_user = transfers.lookup(conn, external_id_b)
     _check_unlinked(conn, a_id, external_id_a)
     _check_unlinked(conn, b_id, external_id_b)
 
@@ -150,54 +72,18 @@ def create_refund(
         raise InvalidRefundPairError("both transactions must use the same currency")
     if (a_cents < 0) == (b_cents < 0):
         raise InvalidRefundPairError("choose one negative charge and one positive credit")
-
-    debit_id, credit_id = (a_id, b_id) if a_cents < 0 else (b_id, a_id)
     if a_cents + b_cents != 0:
         raise InvalidRefundPairError(
             "the credit must exactly cancel the charge (partial credits aren't supported yet)"
         )
 
-    cursor = conn.execute(
-        "INSERT INTO refunds (user_id, debit_transaction_id, credit_transaction_id, created_at) "
-        "VALUES (?, ?, ?, ?)",
-        (user_id, debit_id, credit_id, int(time.time())),
-    )
+    debit_id, credit_id = (a_id, b_id) if a_cents < 0 else (b_id, a_id)
+    pair_id = transfers.insert_pair(conn, user_id, debit_id, credit_id, "user")
     conn.commit()
-    row = conn.execute(f"{_REFUND_SELECT} WHERE r.id = ?", (cursor.lastrowid,)).fetchone()
-    return _refund_to_dict(row)
-
-
-def create_rule_refunds(
-    conn: sqlite3.Connection, user_id: int, pairs: list[tuple[int, int]]
-) -> int:
-    """Link (charge id, credit id) pairs the matcher found, in one commit. The
-    refunds_require_valid_pair trigger still checks every pair."""
-    now = int(time.time())
-    for debit_id, credit_id in pairs:
-        conn.execute(
-            "INSERT INTO refunds "
-            "(user_id, debit_transaction_id, credit_transaction_id, matched_by, created_at) "
-            "VALUES (?, ?, ?, 'rule', ?)",
-            (user_id, debit_id, credit_id, now),
-        )
-    conn.commit()
-    return len(pairs)
+    row = conn.execute(f"{transfers.PAIR_SELECT} WHERE tr.id = ?", (pair_id,)).fetchone()
+    return _refund_to_dict(transfers.pair_to_dict(row))
 
 
 def delete_refund(conn: sqlite3.Connection, refund_id: int) -> None:
-    """Unlink a refund. Both rows return to activity. "Unlinking sticks", as
-    for transfers: each row gets meta.no_auto_transfer, so the sync's
-    matcher never links it again."""
-    row = conn.execute(
-        "SELECT debit_transaction_id, credit_transaction_id FROM refunds WHERE id = ?",
-        (refund_id,),
-    ).fetchone()
-    if row is None:
+    if not transfers.unlink(conn, refund_id, same_account=True):
         raise RefundNotFoundError(f"no refund link with id {refund_id}")
-    conn.execute("DELETE FROM refunds WHERE id = ?", (refund_id,))
-    conn.execute(
-        "UPDATE transactions SET meta = json_set(meta, '$.no_auto_transfer', json('true')) "
-        "WHERE id IN (?, ?)",
-        row,
-    )
-    conn.commit()
