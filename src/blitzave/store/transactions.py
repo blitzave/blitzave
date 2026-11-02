@@ -1,6 +1,7 @@
 import json
 import sqlite3
 
+from blitzave.refine.transfers import kind_of
 from blitzave.store.categories import upsert_rule
 
 # Whitelisted sort columns — the API's sort param maps here, so user input
@@ -62,31 +63,35 @@ def _row_to_dict(row: tuple, tags: list[dict]) -> dict:
         "categories": json.loads(row[10]),
         "categories_set_by": row[11],
         "tags": tags,
-        "transfer_id": row[12],  # set when this row is one leg of a transfer
-        "refund_id": row[13],
+        # Set when this row is one leg of a pair. The kind (transfer, refund,
+        # credit) is worked out from the two legs, never stored.
+        "transfer_id": row[12],
+        "transfer_kind": None if row[12] is None else kind_of(bool(row[13]), row[8], row[14]),
     }
 
 
-def _pair_id_sql(account_test: str) -> str:
-    """The id of the pair row `a` is a leg of, when its other leg's account
-    compares to a's with account_test: '<>' finds a transfer, '=' a refund or
-    credit. Both live in `transfers` (migration 007)."""
-    return f"""(SELECT tr.id FROM transfers tr
+def _other_leg_sql(column: str) -> str:
+    """`column` of the other leg of the pair row `a` is in (NULL when `a` is
+    in no pair). Every pair is one `transfers` row (migration 007)."""
+    return f"""(SELECT {column} FROM transfers tr
             JOIN transactions o ON o.id = CASE WHEN tr.debit_transaction_id = a.id
                 THEN tr.credit_transaction_id ELSE tr.debit_transaction_id END
-            WHERE a.id IN (tr.debit_transaction_id, tr.credit_transaction_id)
-              AND o.account_id {account_test} a.account_id)"""
+            WHERE a.id IN (tr.debit_transaction_id, tr.credit_transaction_id))"""
 
 
-TRANSFER_ID_SQL = _pair_id_sql("<>")
-REFUND_ID_SQL = _pair_id_sql("=")
+# The id of the pair `a` is in, when that pair's legs share an account:
+# what group_refunds collapses into one item.
+SAME_ACCOUNT_PAIR_ID_SQL = _other_leg_sql(
+    "CASE WHEN o.account_id = a.account_id THEN tr.id END"
+)
 
 _SELECT = f"""
     SELECT a.id, a.external_id, acc.external_id, acc.display_name, a.posted_on,
            a.amount_cents, a.currency, a.transaction_type, a.description,
            a.merchant_name, a.categories, a.categories_set_by,
-           {TRANSFER_ID_SQL},
-           {REFUND_ID_SQL}
+           {_other_leg_sql("tr.id")},
+           {_other_leg_sql("o.account_id = a.account_id")},
+           {_other_leg_sql("o.description")}
 """
 
 
@@ -183,7 +188,7 @@ def _list_grouped(
     amount, and its combined description. Read-only: nothing is written."""
     items_sql = f"""
         WITH matched AS (
-            SELECT a.id AS txn_id, {REFUND_ID_SQL} AS refund_id
+            SELECT a.id AS txn_id, {SAME_ACCOUNT_PAIR_ID_SQL} AS refund_id
             {base}
         ),
         items AS (
@@ -253,14 +258,15 @@ def _list_grouped(
     return total, items
 
 
-def _refund_group(refund_id: int, debit: dict, credit: dict) -> dict:
-    """One list item for a linked charge and its refund/credit. Both bank
-    records stay intact and editable inside `legs`; the group only nets them
-    for display (zero for a full refund)."""
+def _refund_group(transfer_id: int, debit: dict, credit: dict) -> dict:
+    """One list item for a charge and the refund/credit linked to it in the
+    same account. Both bank records stay intact inside `legs`; the group only
+    nets them for display (zero, since a pair cancels exactly)."""
     return {
         "kind": "refund_group",
-        "id": f"refund-{refund_id}",
-        "refund_id": refund_id,
+        "id": f"refund-{transfer_id}",
+        "transfer_id": transfer_id,
+        "transfer_kind": debit["transfer_kind"],
         "account_id": debit["account_id"],
         "account_display_name": debit["account_display_name"],
         "posted_on": max(debit["posted_on"], credit["posted_on"]),

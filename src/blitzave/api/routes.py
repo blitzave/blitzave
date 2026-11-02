@@ -14,7 +14,6 @@ from blitzave.store import (
     accounts,
     categories,
     db,
-    refunds,
     tags,
     transactions,
     transfers,
@@ -479,12 +478,13 @@ def update_transaction_metadata(
     try:
         try:
             current = transactions.get_transaction(conn, transaction_id)
-            # Transfer legs never get a category (AGENTS.md) — they aren't
-            # spending or income. Tags are still fine.
+            # A paired leg (transfer, refund or credit) never gets a category
+            # (AGENTS.md) — it isn't spending or income. Tags are still fine.
             if patch.categories is not None and current["transfer_id"] is not None:
                 raise HTTPException(
                     status_code=409,
-                    detail="this is part of a transfer, so it doesn't take a category",
+                    detail=f"this is part of a {current['transfer_kind']}, "
+                    "so it doesn't take a category",
                 )
             rule_key = None
             matching_ids = None
@@ -523,11 +523,15 @@ def update_transaction_metadata(
     return row
 
 
-# --- transfers ----------------------------------------------------------------
+# --- transfers: every matched pair --------------------------------------------
+# One table, one set of endpoints. What a pair is called (transfer, refund,
+# credit) is worked out for display by kind_of, never stored.
+
+PairKind = Literal["transfer", "refund", "credit"]
 
 
-def _transfer_with_display(transfer: dict, same_account: bool = False) -> dict:
-    # transfer / refund / credit: decided here, for display; never stored.
+def _transfer_with_display(transfer: dict) -> dict:
+    same_account = transfer.pop("same_account")
     transfer["kind"] = kind_of(
         same_account, transfer["debit"]["description"], transfer["credit"]["description"]
     )
@@ -539,33 +543,38 @@ def _transfer_with_display(transfer: dict, same_account: bool = False) -> dict:
 
 @router.get("/transactions/{transaction_id}/transfer-candidates")
 def list_transfer_candidates(transaction_id: str) -> list[dict]:
+    """The exact opposite amount, in any account. Each candidate's `kind` is
+    what linking it would make."""
     conn = db.connect()
     try:
         try:
+            current = transactions.get_transaction(conn, transaction_id)
             rows = transfers.list_candidates(conn, transaction_id)
         except transactions.TransactionNotFoundError as e:
             raise HTTPException(status_code=404, detail=str(e)) from e
         except (
             transactions.AmbiguousTransactionError,
             transfers.AlreadyTransferLegError,
-            refunds.AlreadyAdjustmentLinkedError,
         ) as e:
             raise HTTPException(status_code=409, detail=str(e)) from e
     finally:
         conn.close()
     for row in rows:
+        row["kind"] = kind_of(row.pop("same_account"), current["description"], row["description"])
         row["amount_display"] = format_cents(row["amount_cents"])
     return rows
 
 
 @router.get("/transfers")
-def list_transfers() -> list[dict]:
+def list_transfers(kind: PairKind | None = None) -> list[dict]:
+    """Every pair, newest first; `kind` narrows it to one kind."""
     conn = db.connect()
     try:
         rows = transfers.list_transfers(conn)
     finally:
         conn.close()
-    return [_transfer_with_display(row) for row in rows]
+    pairs = [_transfer_with_display(row) for row in rows]
+    return [p for p in pairs if kind is None or p["kind"] == kind]
 
 
 @router.post("/transfers", status_code=201)
@@ -582,7 +591,6 @@ def create_transfer(request: TransferCreate) -> dict:
         except (
             transactions.AmbiguousTransactionError,
             transfers.AlreadyTransferLegError,
-            refunds.AlreadyAdjustmentLinkedError,
         ) as e:
             raise HTTPException(status_code=409, detail=str(e)) from e
         except transfers.InvalidTransferPairError as e:
@@ -599,77 +607,6 @@ def delete_transfer(transfer_id: int) -> None:
         try:
             transfers.delete_transfer(conn, transfer_id)
         except transfers.TransferNotFoundError as e:
-            raise HTTPException(status_code=404, detail=str(e)) from e
-    finally:
-        conn.close()
-
-
-# --- manual refunds / credits -------------------------------------------------
-
-
-@router.get("/transactions/{transaction_id}/refund-candidates")
-def list_refund_candidates(transaction_id: str) -> list[dict]:
-    conn = db.connect()
-    try:
-        try:
-            rows = refunds.list_candidates(conn, transaction_id)
-        except transactions.TransactionNotFoundError as e:
-            raise HTTPException(status_code=404, detail=str(e)) from e
-        except (
-            transactions.AmbiguousTransactionError,
-            refunds.AlreadyAdjustmentLinkedError,
-        ) as e:
-            raise HTTPException(status_code=409, detail=str(e)) from e
-    finally:
-        conn.close()
-    for row in rows:
-        row["amount_display"] = format_cents(row["amount_cents"])
-    return rows
-
-
-@router.get("/refunds")
-def list_refunds() -> list[dict]:
-    conn = db.connect()
-    try:
-        rows = refunds.list_refunds(conn)
-    finally:
-        conn.close()
-    return [_transfer_with_display(row, same_account=True) for row in rows]
-
-
-@router.post("/refunds", status_code=201)
-def create_refund(request: TransferCreate) -> dict:
-    conn = db.connect()
-    try:
-        user_id = users.get_or_create_user(conn)
-        try:
-            refund = refunds.create_refund(
-                conn,
-                user_id,
-                request.transaction_id,
-                request.counterpart_id,
-            )
-        except transactions.TransactionNotFoundError as e:
-            raise HTTPException(status_code=404, detail=str(e)) from e
-        except (
-            transactions.AmbiguousTransactionError,
-            refunds.AlreadyAdjustmentLinkedError,
-        ) as e:
-            raise HTTPException(status_code=409, detail=str(e)) from e
-        except refunds.InvalidRefundPairError as e:
-            raise HTTPException(status_code=422, detail=str(e)) from e
-    finally:
-        conn.close()
-    return _transfer_with_display(refund, same_account=True)
-
-
-@router.delete("/refunds/{refund_id}", status_code=204)
-def delete_refund(refund_id: int) -> None:
-    conn = db.connect()
-    try:
-        try:
-            refunds.delete_refund(conn, refund_id)
-        except refunds.RefundNotFoundError as e:
             raise HTTPException(status_code=404, detail=str(e)) from e
     finally:
         conn.close()

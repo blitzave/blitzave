@@ -9,7 +9,7 @@ import pytest
 from blitzave import jobs
 from blitzave.sources import simplefin
 from blitzave.sources.base import AccountRow, Fetched, TxRow
-from blitzave.store import accounts, categories, db, refunds, transfers
+from blitzave.store import accounts, categories, db, transfers
 
 FIXTURE = json.loads(
     (Path(__file__).parent / "fixtures" / "simplefin_accounts.json").read_text()
@@ -189,8 +189,9 @@ def test_sync_links_the_fixture_card_credit_as_a_refund(monkeypatch):
     assert result["transfers_matched"] == 0
     assert result["refunds_matched"] == 1
     conn = db.connect()
-    [pair] = refunds.list_refunds(conn)
+    [pair] = transfers.list_transfers(conn)
     conn.close()
+    assert pair["same_account"]
     assert pair["debit"]["description"] == "Walmart+ Member 10/28009666546 AR"
     assert pair["credit"]["description"] == "Platinum Walmart+ Credit"
     assert pair["matched_by"] == "rule"
