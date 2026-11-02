@@ -126,6 +126,14 @@ def list_transfers(conn: sqlite3.Connection) -> list[dict]:
     return [pair_to_dict(r) for r in rows]
 
 
+def get_transfer(conn: sqlite3.Connection, transfer_id: int) -> dict:
+    """One pair with both legs, so the user can see what a row is linked to."""
+    row = conn.execute(f"{PAIR_SELECT} WHERE tr.id = ?", (transfer_id,)).fetchone()
+    if row is None:
+        raise TransferNotFoundError(f"no transfer with id {transfer_id}")
+    return pair_to_dict(row)
+
+
 def insert_pair(
     conn: sqlite3.Connection, user_id: int, debit_id: int, credit_id: int, matched_by: str
 ) -> int:

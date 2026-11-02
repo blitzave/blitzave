@@ -721,6 +721,24 @@ export function renderTransactionsTable(root, { accountId = null, onAdjustmentsC
     requestAnimationFrame(() => {
       wrap.style.maxHeight = `${wrap.scrollHeight}px`;
     });
+    if (tx.transfer_id != null) loadPair(tx);
+  }
+
+  // Fetch the pair a linked row belongs to. Ignored if the editor has moved
+  // on (closed, or opened on another row) by the time it answers.
+  async function loadPair(tx) {
+    const state = editorState;
+    state.pair = { status: "loading", data: null, error: null };
+    rerenderAdjustmentSection();
+    try {
+      const data = await api.getAdjustment(tx.transfer_id);
+      if (editorState !== state) return;
+      state.pair = { status: "ready", data, error: null };
+    } catch (err) {
+      if (editorState !== state) return;
+      state.pair = { status: "error", data: null, error: err.detail || "Couldn't load the other side." };
+    }
+    rerenderAdjustmentSection();
   }
 
   function collapseRow() {
@@ -777,6 +795,9 @@ export function renderTransactionsTable(root, { accountId = null, onAdjustmentsC
       adjustment: { type: null, status: "idle", candidates: [], selectedId: null, error: null, saving: false },
       // for a row that's already part of an adjustment: inline Unlink confirm
       unlink: { confirming: false, busy: false, error: null },
+      // ...and the pair it belongs to, so the other side is visible before
+      // anyone decides to unlink. status: idle → loading → ready | error
+      pair: { status: "idle", data: null, error: null },
     };
   }
 
@@ -1017,8 +1038,37 @@ export function renderTransactionsTable(root, { accountId = null, onAdjustmentsC
     }
     return `
       <p class="txn-adjustment-hint">Linked as a ${name} — not counted in spending or income.</p>
+      ${otherSideHtml(tx)}
       <div class="txn-adjustment-actions">${actions}</div>
       ${u.error ? `<p class="field-error">${esc(u.error)}</p>` : ""}
+    `;
+  }
+
+  // The other leg of a linked row, in the same layout as a match in the
+  // picker, so "is this right?" can be answered at a glance.
+  function otherSideHtml(tx) {
+    const p = editorState.pair;
+    if (p.status === "loading" || p.status === "idle") {
+      return '<p class="txn-adjustment-hint">Loading the other side…</p>';
+    }
+    if (p.status === "error") return `<p class="field-error">${esc(p.error)}</p>`;
+    const pair = p.data;
+    const other = pair.debit.id === tx.id ? pair.credit : pair.debit;
+    const who = pair.matched_by === "rule" ? "Linked automatically when your bank synced." : "Linked by you.";
+    return `
+      <p class="txn-adjustment-linked-label">Linked to</p>
+      <div class="txn-adjustment-candidates">
+        <div class="txn-adjustment-candidate txn-adjustment-linked">
+          <span class="txn-adjustment-cand-date u-tabular">${esc(formatDate(other.posted_on))}</span>
+          <span class="txn-adjustment-cand-main">
+            <span class="txn-adjustment-cand-account">${esc(accountLabel(other.account_display_name))}</span>
+            <span class="txn-adjustment-cand-desc">${esc(other.description || "")}</span>
+          </span>
+          ${KIND_CHIPS[pair.kind] || ""}
+          <span class="txn-adjustment-cand-amount u-tabular">${esc(other.amount_display)}</span>
+        </div>
+      </div>
+      <p class="txn-adjustment-hint">${who}</p>
     `;
   }
 

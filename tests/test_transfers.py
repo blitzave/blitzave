@@ -314,3 +314,16 @@ def test_api_card_payment_counts_the_purchase_once(client):
     listed = _transfer_ids(client, **april)
     assert set(listed) == {"TXN-fragomen", "TXN-card-pay", "TXN-card-paid"}
     assert listed["TXN-fragomen"] is None
+
+
+def test_api_one_pair_shows_both_legs(client):
+    created = client.post(
+        "/api/transfers", json={"transaction_id": "TXN-pay", "counterpart_id": "TXN-paid"}
+    ).json()
+    pair = client.get(f"/api/transfers/{created['id']}").json()
+    assert pair == created
+    assert pair["kind"] == "transfer"
+    assert (pair["debit"]["id"], pair["credit"]["id"]) == ("TXN-pay", "TXN-paid")
+    assert pair["credit"]["account_display_name"] == "liability-2222"
+    assert pair["credit"]["amount_display"] == "$500.00"
+    assert client.get("/api/transfers/999").status_code == 404

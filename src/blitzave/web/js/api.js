@@ -190,6 +190,10 @@ export function listAdjustments(kind = null) {
   return request(kind ? `/api/transfers?kind=${encodeURIComponent(kind)}` : "/api/transfers");
 }
 
+export function getAdjustment(id) {
+  return request(`/api/transfers/${encodeURIComponent(id)}`);
+}
+
 export function createAdjustment(transactionId, counterpartId) {
   return request("/api/transfers", {
     method: "POST",

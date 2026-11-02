@@ -577,6 +577,20 @@ def list_transfers(kind: PairKind | None = None) -> list[dict]:
     return [p for p in pairs if kind is None or p["kind"] == kind]
 
 
+@router.get("/transfers/{transfer_id}")
+def get_transfer(transfer_id: int) -> dict:
+    """One pair with both legs: what the transaction editor shows as "linked to"."""
+    conn = db.connect()
+    try:
+        try:
+            row = transfers.get_transfer(conn, transfer_id)
+        except transfers.TransferNotFoundError as e:
+            raise HTTPException(status_code=404, detail=str(e)) from e
+    finally:
+        conn.close()
+    return _transfer_with_display(row)
+
+
 @router.post("/transfers", status_code=201)
 def create_transfer(request: TransferCreate) -> dict:
     conn = db.connect()

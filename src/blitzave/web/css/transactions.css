@@ -888,6 +888,23 @@
   background: var(--accent-soft);
 }
 
+/* The other side of an existing link: same row layout as a match, but it's
+   information, not a choice. */
+.txn-adjustment-candidate.txn-adjustment-linked {
+  cursor: default;
+}
+
+.txn-adjustment-candidate.txn-adjustment-linked:hover {
+  background: transparent;
+}
+
+.txn-adjustment-linked-label {
+  margin: 0;
+  font-size: var(--text-xs);
+  font-weight: var(--weight-medium);
+  color: var(--text-secondary);
+}
+
 .txn-adjustment-cand-date {
   flex: 0 0 104px;
   color: var(--text-secondary);
