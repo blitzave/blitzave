@@ -78,21 +78,23 @@ def test_candidates_are_only_the_exact_other_side_in_the_same_account_and_curren
     assert refunds.list_candidates(conn, "large-credit") == []
 
 
-@pytest.mark.parametrize("credit,amount", [("full-credit", 10000), ("partial-credit", 3500)])
-def test_manual_link_accepts_full_or_partial_credit_in_either_order(conn, credit, amount):
+def test_manual_link_accepts_an_exact_credit_in_either_order_and_both_leave_activity(conn):
     user_id = users.get_or_create_user(conn)
-    created = refunds.create_refund(conn, user_id, credit, "charge")
-    assert created["amount_cents"] == amount
+    created = refunds.create_refund(conn, user_id, "full-credit", "charge")
+    assert created["amount_cents"] == 10000
     assert created["debit"]["id"] == "charge"
-    assert created["credit"]["id"] == credit
+    assert created["credit"]["id"] == "full-credit"
     assert created["debit"]["account_display_name"] == "liability-1111"
-    assert created["adjustment_date"] == ("2026-10-04" if credit == "full-credit" else "2026-10-05")
+    assert created["adjustment_date"] == "2026-10-04"
+    assert created["matched_by"] == "user"
     assert refunds.list_refunds(conn) == [created]
-    assert conn.execute("SELECT COUNT(*) FROM activity").fetchone()[0] == 8
+    # Like a transfer, the pair counts as nothing: 8 rows, minus both legs.
+    assert conn.execute("SELECT COUNT(*) FROM activity").fetchone()[0] == 6
 
 
 @pytest.mark.parametrize("other", [
     "other-account-credit", "euro-credit", "other-charge", "large-credit", "charge",
+    "partial-credit",  # partial credits aren't supported for now
 ])
 def test_invalid_account_currency_sign_or_amount_rejected(conn, other):
     with pytest.raises(refunds.InvalidRefundPairError):
@@ -107,26 +109,27 @@ def test_pair_must_belong_to_selected_user(conn):
         refunds.create_refund(conn, user_id, "charge", "full-credit")
 
 
-def test_link_does_not_rewrite_categories_and_refund_offsets_manual_category(conn):
+def test_link_leaves_categories_alone_and_unlinking_restores_the_totals(conn):
     user_id = users.get_or_create_user(conn)
     travel = categories.create_category(conn, user_id, "Travel", "expense")
     shopping = categories.create_category(conn, user_id, "Shopping", "expense")
     transactions.update_metadata(conn, "charge", categories={travel["id"]: 1.0})
-    transactions.update_metadata(conn, "partial-credit", categories={shopping["id"]: 1.0})
-    refund = refunds.create_refund(conn, user_id, "charge", "partial-credit")
-    credit = transactions.get_transaction(conn, "partial-credit")
+    transactions.update_metadata(conn, "full-credit", categories={shopping["id"]: 1.0})
+
+    def totals():
+        summary, _ = categories.summary(conn, "2026-10-01", "2026-10-31")
+        return {category["name"]: category["total_cents"] for category in summary}
+
+    before = totals()
+    assert before == {"Travel": -10000, "Shopping": 10000}
+    refund = refunds.create_refund(conn, user_id, "charge", "full-credit")
+    credit = transactions.get_transaction(conn, "full-credit")
     assert credit["categories"] == {str(shopping["id"]): 1.0}
     assert credit["categories_set_by"] == "user"
-    # The user explicitly chooses the same category to offset this charge.
-    transactions.update_metadata(conn, "partial-credit", categories={travel["id"]: 1.0})
-    summary, _ = categories.summary(conn, "2026-10-01", "2026-10-31")
-    totals = {category["name"]: category["total_cents"] for category in summary}
-    assert totals["Travel"] == -6500
-    assert totals["Shopping"] == 0
+    # Both legs left activity, so neither category counts them.
+    assert totals() == {"Travel": 0, "Shopping": 0}
     refunds.delete_refund(conn, refund["id"])
-    # Unlinking changes the relationship only; recorded spending stays the same.
-    assert categories.summary(conn, "2026-10-01", "2026-10-31")[0] == summary
-    assert transactions.get_transaction(conn, "partial-credit")["categories_set_by"] == "user"
+    assert totals() == before
 
 
 def test_refund_cannot_be_linked_twice_or_reused_as_transfer(conn):
@@ -157,14 +160,22 @@ def test_transfer_cannot_be_reused_as_refund(conn):
     assert refunds.list_candidates(conn, "charge") == []
 
 
-def test_unlink_is_reversible_and_never_changes_bank_fields(conn):
+def test_unlink_sticks_and_never_changes_bank_fields(conn):
     user_id = users.get_or_create_user(conn)
-    before = conn.execute("SELECT * FROM transactions ORDER BY id").fetchall()
+    bank_fields = "SELECT id, account_id, external_id, amount_cents, posted_on, description " \
+        "FROM transactions ORDER BY id"
+    before = conn.execute(bank_fields).fetchall()
     created = refunds.create_refund(conn, user_id, "charge", "full-credit")
     refunds.delete_refund(conn, created["id"])
     assert refunds.list_refunds(conn) == []
-    assert conn.execute("SELECT * FROM transactions ORDER BY id").fetchall() == before
-    assert json.loads(conn.execute("SELECT meta FROM transactions LIMIT 1").fetchone()[0]) == {}
+    assert conn.execute(bank_fields).fetchall() == before
+    # Unlinking sticks: the sync's matcher never links these two again.
+    for ext in ("charge", "full-credit"):
+        meta = conn.execute(
+            "SELECT meta FROM transactions WHERE external_id = ?", (ext,)
+        ).fetchone()[0]
+        assert json.loads(meta) == {"no_auto_transfer": True}
+    # The user can still link them again by hand.
     refunds.create_refund(conn, user_id, "charge", "full-credit")
     with pytest.raises(refunds.RefundNotFoundError):
         refunds.delete_refund(conn, 999)
@@ -172,7 +183,7 @@ def test_unlink_is_reversible_and_never_changes_bank_fields(conn):
 
 @pytest.mark.parametrize("a,b", [
     ("charge", "other-account-credit"), ("charge", "large-credit"),
-    ("charge", "euro-credit"), ("full-credit", "charge"),
+    ("charge", "euro-credit"), ("full-credit", "charge"), ("charge", "partial-credit"),
 ])
 def test_database_rejects_invalid_refund_pair_directly(conn, a, b):
     with pytest.raises(sqlite3.IntegrityError, match="refund requires"):
@@ -190,7 +201,7 @@ def test_database_rejects_double_use_and_link_edits(conn):
         conn.execute(
             "INSERT INTO refunds (user_id, debit_transaction_id, credit_transaction_id, created_at) "
             "VALUES (?, ?, ?, 0)",
-            (user_id, _internal_id(conn, "charge"), _internal_id(conn, "partial-credit")),
+            (user_id, _internal_id(conn, "charge"), _internal_id(conn, "full-credit")),
         )
     with pytest.raises(sqlite3.IntegrityError, match="unlink the refund"):
         conn.execute("UPDATE refunds SET created_at = 1 WHERE id = ?", (refund["id"],))
@@ -248,18 +259,17 @@ def test_api_candidates_show_display_money_and_same_account(client):
     assert candidates[0]["refund_id"] is None
 
 
-@pytest.mark.parametrize("credit,amount_display", [
-    ("full-credit", "$100.00"), ("partial-credit", "$35.00"),
-])
-def test_api_manual_link_lists_pair_and_labels_both_transactions(client, credit, amount_display):
+def test_api_manual_link_lists_pair_and_labels_both_transactions(client):
+    credit = "full-credit"
     response = client.post(
         "/api/refunds", json={"transaction_id": credit, "counterpart_id": "charge"}
     )
     assert response.status_code == 201
     created = response.json()
-    assert created["amount_display"] == amount_display
+    assert created["amount_display"] == "$100.00"
+    assert created["matched_by"] == "user"
     assert created["debit"]["amount_display"] == "-$100.00"
-    assert created["credit"]["amount_display"] == amount_display
+    assert created["credit"]["amount_display"] == "$100.00"
     assert client.get("/api/refunds").json() == [created]
     rows = client.get("/api/transactions").json()["transactions"]
     by_id = {row["id"]: row for row in rows}
@@ -270,12 +280,12 @@ def test_api_manual_link_lists_pair_and_labels_both_transactions(client, credit,
     assert client.get("/api/transactions/charge/refund-candidates").status_code == 409
 
 
-def test_api_refund_stays_editable_and_offsets_category_spending(client):
+def test_api_refund_legs_stay_editable_but_leave_totals_and_category_lists(client):
     category = client.post("/api/categories", json={"name": "Travel", "kind": "expense"}).json()
     assert client.post(
-        "/api/refunds", json={"transaction_id": "charge", "counterpart_id": "partial-credit"}
+        "/api/refunds", json={"transaction_id": "charge", "counterpart_id": "full-credit"}
     ).status_code == 201
-    for ext in ("charge", "partial-credit"):
+    for ext in ("charge", "full-credit"):
         response = client.patch(
             f"/api/transactions/{ext}", json={"categories": {str(category["id"]): 1.0}}
         )
@@ -285,11 +295,12 @@ def test_api_refund_stays_editable_and_offsets_category_spending(client):
     summary = client.get("/api/categories/summary", params=params).json()
     assert next(row for row in summary["categories"] if row["id"] == category["id"])[
         "total_cents"
-    ] == -6500
+    ] == 0
+    # A leg doesn't count toward its category, so it isn't listed under it.
     rows = client.get("/api/transactions", params={"category_id": category["id"]}).json()[
         "transactions"
     ]
-    assert {row["id"] for row in rows} == {"charge", "partial-credit"}
+    assert rows == []
 
 
 def test_api_unlink_removes_label_without_changing_categories(client):
@@ -314,7 +325,9 @@ def test_api_refund_missing_invalid_and_conflicting_pairs(client):
     assert client.get("/api/transactions/missing/refund-candidates").status_code == 404
     assert link("charge", "missing").status_code == 404
     assert client.delete("/api/refunds/999").status_code == 404
-    for other in ("other-account-credit", "euro-credit", "other-charge", "large-credit"):
+    for other in (
+        "other-account-credit", "euro-credit", "other-charge", "large-credit", "partial-credit",
+    ):
         assert link("charge", other).status_code == 422
     assert client.post("/api/refunds", json={"transaction_id": "charge"}).status_code == 422
     assert link("charge", "full-credit").status_code == 201
@@ -399,12 +412,40 @@ def test_a_pair_is_listed_when_either_half_matches_the_search(conn):
     assert [item["kind"] for item in items] == ["refund_group"]
 
 
-def test_a_partial_refund_group_shows_what_is_still_owed(conn):
-    user_id = users.get_or_create_user(conn)
-    refunds.create_refund(conn, user_id, "charge", "partial-credit")
-    _, items = _card_items(conn)
-    group = next(item for item in items if item["kind"] == "refund_group")
-    assert group["amount_cents"] == -6500
+def test_migration_007_drops_partial_links_and_keeps_exact_ones(tmp_path):
+    # A database at version 6 that already holds one exact and one partial link.
+    connection = sqlite3.connect(tmp_path / "v6.db")
+    for migration in sorted(db.MIGRATIONS_DIR.glob("00[1-6]_*.sql")):
+        connection.executescript(migration.read_text())
+    connection.execute("PRAGMA user_version = 6")
+    user_id = users.get_or_create_user(connection)
+    account_id = ingest.upsert_account(connection, user_id, AccountRow(
+        external_id="card", account_type="liability", account_number="1111",
+        issuer_name="Demo card", liability_type="credit_card",
+    ))
+    ids = {}
+    for ext, cents in [("a", -10000), ("a-back", 10000), ("b", -10000), ("b-part", 3500)]:
+        ingest.upsert_transaction(connection, user_id, account_id, TxRow(
+            account_external_id="card", external_id=ext, amount_cents=cents, currency="USD",
+            transaction_type="debit" if cents < 0 else "credit", posted_on="2026-10-03",
+            description=ext, merchant_name=None,
+        ))
+        ids[ext] = _internal_id(connection, ext)
+    for debit, credit in [("a", "a-back"), ("b", "b-part")]:
+        connection.execute(
+            "INSERT INTO refunds (user_id, debit_transaction_id, credit_transaction_id, created_at) "
+            "VALUES (?, ?, ?, 0)", (user_id, ids[debit], ids[credit]),
+        )
+    connection.commit()
+
+    db.migrate(connection)
+
+    assert connection.execute(
+        "SELECT debit_transaction_id, matched_by FROM refunds"
+    ).fetchall() == [(ids["a"], "user")]
+    activity = {r[0] for r in connection.execute("SELECT external_id FROM activity")}
+    assert activity == {"b", "b-part"}  # the partial pair counted before and still does
+    connection.close()
 
 
 def test_api_grouped_list_formats_the_group_and_its_legs(client):

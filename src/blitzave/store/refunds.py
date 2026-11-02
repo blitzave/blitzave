@@ -19,7 +19,7 @@ class AlreadyAdjustmentLinkedError(Exception):
 
 
 class InvalidRefundPairError(Exception):
-    """A refund must credit a charge in the same account and currency."""
+    """A refund must exactly cancel a charge in the same account and currency."""
 
 
 def _lookup(conn: sqlite3.Connection, external_id: str) -> tuple[int, int, int, str, str, int]:
@@ -93,7 +93,8 @@ def list_candidates(conn: sqlite3.Connection, external_id: str) -> list[dict]:
 _REFUND_SELECT = """
     SELECT r.id, c.amount_cents, MAX(d.posted_on, c.posted_on),
            d.external_id, dacc.display_name, d.posted_on, d.description, d.amount_cents,
-           c.external_id, cacc.display_name, c.posted_on, c.description, c.amount_cents
+           c.external_id, cacc.display_name, c.posted_on, c.description, c.amount_cents,
+           r.matched_by
     FROM refunds r
     JOIN transactions d ON d.id = r.debit_transaction_id
     JOIN accounts dacc ON dacc.id = d.account_id
@@ -119,6 +120,7 @@ def _refund_to_dict(row: tuple) -> dict:
         "adjustment_date": row[2],
         "debit": _leg(row[3:8]),
         "credit": _leg(row[8:13]),
+        "matched_by": row[13],
     }
 
 
@@ -130,11 +132,11 @@ def list_refunds(conn: sqlite3.Connection) -> list[dict]:
 def create_refund(
     conn: sqlite3.Connection, user_id: int, external_id_a: str, external_id_b: str
 ) -> dict:
-    """Manually link a charge and credit without changing either bank record.
-
-    Both stay in activity. Categories, including existing user corrections,
-    remain untouched; a refund offsets whichever category the user assigns.
-    """
+    """Manually link a charge and the credit that exactly cancels it, without
+    changing either bank record. Like a transfer's legs, both leave activity,
+    so the pair counts as nothing. Categories are left alone, so unlinking
+    brings both rows back exactly as they were. Partial credits aren't
+    supported for now (maintainer call, 2026-11-02)."""
     a_id, a_account, a_cents, _, a_currency, a_user = _lookup(conn, external_id_a)
     b_id, b_account, b_cents, _, b_currency, b_user = _lookup(conn, external_id_b)
     _check_unlinked(conn, a_id, external_id_a)
@@ -150,10 +152,10 @@ def create_refund(
         raise InvalidRefundPairError("choose one negative charge and one positive credit")
 
     debit_id, credit_id = (a_id, b_id) if a_cents < 0 else (b_id, a_id)
-    charge_cents = -min(a_cents, b_cents)
-    credit_cents = max(a_cents, b_cents)
-    if credit_cents > charge_cents:
-        raise InvalidRefundPairError("the credit cannot be larger than the charge")
+    if a_cents + b_cents != 0:
+        raise InvalidRefundPairError(
+            "the credit must exactly cancel the charge (partial credits aren't supported yet)"
+        )
 
     cursor = conn.execute(
         "INSERT INTO refunds (user_id, debit_transaction_id, credit_transaction_id, created_at) "
@@ -165,8 +167,37 @@ def create_refund(
     return _refund_to_dict(row)
 
 
+def create_rule_refunds(
+    conn: sqlite3.Connection, user_id: int, pairs: list[tuple[int, int]]
+) -> int:
+    """Link (charge id, credit id) pairs the matcher found, in one commit. The
+    refunds_require_valid_pair trigger still checks every pair."""
+    now = int(time.time())
+    for debit_id, credit_id in pairs:
+        conn.execute(
+            "INSERT INTO refunds "
+            "(user_id, debit_transaction_id, credit_transaction_id, matched_by, created_at) "
+            "VALUES (?, ?, ?, 'rule', ?)",
+            (user_id, debit_id, credit_id, now),
+        )
+    conn.commit()
+    return len(pairs)
+
+
 def delete_refund(conn: sqlite3.Connection, refund_id: int) -> None:
-    cursor = conn.execute("DELETE FROM refunds WHERE id = ?", (refund_id,))
-    if cursor.rowcount == 0:
+    """Unlink a refund. Both rows return to activity. "Unlinking sticks", as
+    for transfers: each row gets meta.no_auto_transfer, so the sync's
+    matcher never links it again."""
+    row = conn.execute(
+        "SELECT debit_transaction_id, credit_transaction_id FROM refunds WHERE id = ?",
+        (refund_id,),
+    ).fetchone()
+    if row is None:
         raise RefundNotFoundError(f"no refund link with id {refund_id}")
+    conn.execute("DELETE FROM refunds WHERE id = ?", (refund_id,))
+    conn.execute(
+        "UPDATE transactions SET meta = json_set(meta, '$.no_auto_transfer', json('true')) "
+        "WHERE id IN (?, ?)",
+        row,
+    )
     conn.commit()

@@ -120,12 +120,9 @@ def list_transactions(
             "EXISTS (SELECT 1 FROM json_each(a.categories) je WHERE CAST(je.key AS INTEGER) = ?)"
         )
         params.append(category_id)
-        # A leg doesn't count toward its category's total, so it mustn't be
-        # listed under that category either.
-        where.append(
-            "NOT EXISTS (SELECT 1 FROM transfers tr "
-            "WHERE tr.debit_transaction_id = a.id OR tr.credit_transaction_id = a.id)"
-        )
+        # A transfer or refund leg doesn't count toward its category's total,
+        # so it mustn't be listed under that category either.
+        where.append("a.id IN (SELECT id FROM activity)")
     if tag_id is not None:
         where.append(
             "EXISTS (SELECT 1 FROM transaction_tags tt WHERE tt.transaction_id = a.id AND tt.tag_id = ?)"

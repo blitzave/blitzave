@@ -180,6 +180,50 @@ def create_transfer(
     return _transfer_to_dict(row)
 
 
+def unlinked_legs(conn: sqlite3.Connection, start: str | None = None) -> list[dict]:
+    """Every activity row (so not yet a transfer or refund leg) posted on or
+    after start, or all of them when start is None: what the matcher needs."""
+    where, params = ("WHERE posted_on >= ?", (start,)) if start else ("", ())
+    rows = conn.execute(
+        f"""
+        SELECT id, account_id, amount_cents, currency, posted_on, description,
+               COALESCE(json_extract(meta, '$.no_auto_transfer'), 0)
+        FROM activity {where}
+        """,
+        params,
+    ).fetchall()
+    return [
+        {
+            "id": r[0], "account_id": r[1], "amount_cents": r[2], "currency": r[3],
+            "posted_on": r[4], "description": r[5], "no_auto": bool(r[6]),
+        }
+        for r in rows
+    ]
+
+
+def create_rule_transfers(
+    conn: sqlite3.Connection, user_id: int, pairs: list[tuple[int, int]]
+) -> int:
+    """Link (debit id, credit id) pairs the matcher found, in one commit. The
+    transfer's date is the later leg's, as for a manual link; the
+    transfers_must_balance trigger still checks every pair."""
+    now = int(time.time())
+    for debit_id, credit_id in pairs:
+        conn.execute(
+            """
+            INSERT INTO transfers
+              (user_id, debit_transaction_id, credit_transaction_id,
+               transfer_amount_cents, transfer_date, description, matched_by, created_at)
+            SELECT ?, d.id, c.id, -d.amount_cents, MAX(d.posted_on, c.posted_on), NULL, 'rule', ?
+            FROM transactions d, transactions c
+            WHERE d.id = ? AND c.id = ?
+            """,
+            (user_id, now, debit_id, credit_id),
+        )
+    conn.commit()
+    return len(pairs)
+
+
 def delete_transfer(conn: sqlite3.Connection, transfer_id: int) -> None:
     """Unlink a transfer. Both legs return to activity with their categories
     intact. "Unlinking sticks" (AGENTS.md): each leg gets
