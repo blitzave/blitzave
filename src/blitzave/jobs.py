@@ -230,4 +230,6 @@ def update_status() -> dict:
         "enabled": enabled,
         "installed_version": installed,
         "available_version": latest if newer else None,
+        # The release's notes page, so the UI can say what changed.
+        "release_url": github.RELEASE_PAGE_URL.format(version=latest) if newer else None,
     }

@@ -143,6 +143,7 @@ def test_status_starts_unanswered_with_nothing_available():
         "enabled": None,
         "installed_version": "0.1.0",
         "available_version": None,
+        "release_url": None,
     }
 
 
@@ -152,11 +153,26 @@ def test_a_newer_release_shows_once_checked(github_calls):
     assert jobs.update_status()["available_version"] == "0.2.0"
 
 
+def test_a_newer_release_links_to_its_notes(github_calls):
+    jobs.set_update_check(True)
+    jobs.check_for_update(TODAY)
+    assert (
+        jobs.update_status()["release_url"]
+        == "https://github.com/blitzave/blitzave/releases/tag/v0.2.0"
+    )
+
+
+def test_no_notes_link_without_a_newer_release():
+    set_meta({"update_check": True, "latest_version": "0.1.0"})
+    assert jobs.update_status()["release_url"] is None
+
+
 def test_turning_checks_off_hides_a_release_found_earlier(github_calls):
     jobs.set_update_check(True)
     jobs.check_for_update(TODAY)
     jobs.set_update_check(False)
     assert jobs.update_status()["available_version"] is None
+    assert jobs.update_status()["release_url"] is None
 
 
 def test_the_same_version_as_installed_is_not_an_update():

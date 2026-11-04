@@ -470,6 +470,12 @@ h3 {
   flex: 1 1 auto;
 }
 
+.update-note a {
+  color: inherit;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
 .update-note code {
   padding: 1px 6px;
   background: var(--bg-raised);

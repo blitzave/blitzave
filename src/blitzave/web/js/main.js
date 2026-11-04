@@ -143,8 +143,9 @@ function shellMarkup() {
           </div>
         </header>
         <div class="update-note" id="update-note" role="status" hidden>
-          <p>BlitZave <span data-update-version></span> is ready. Stop it, run
-            <code>uv tool upgrade blitzave</code>, and start it again.</p>
+          <p>BlitZave <span data-update-version></span> is ready.
+            <span data-update-notes-line hidden><a data-update-notes href="#" target="_blank" rel="noopener noreferrer">See what's new</a>.</span>
+            Stop it, run <code>uv tool upgrade blitzave</code>, and start it again.</p>
           <button type="button" class="update-note-dismiss" data-update-dismiss aria-label="Dismiss">${ICON_CLOSE}</button>
         </div>
         <main class="content" id="app-content"></main>
@@ -258,6 +259,12 @@ function renderUpdateNote() {
     return;
   }
   updateNoteEl.querySelector("[data-update-version]").textContent = version;
+  // The engine hands over the notes page; clicking is the only time the
+  // browser goes online. No link when the engine gave none.
+  updateNoteEl.querySelector("[data-update-notes-line]").hidden = !updateStatus.release_url;
+  if (updateStatus.release_url) {
+    updateNoteEl.querySelector("[data-update-notes]").href = updateStatus.release_url;
+  }
   updateNoteEl.hidden = false;
 }
 

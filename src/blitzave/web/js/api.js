@@ -92,7 +92,8 @@ export function syncMonth(month) {
 
 // ------------------------------- Updates -------------------------------
 
-// { enabled: true|false|null, installed_version, available_version|null }.
+// { enabled: true|false|null, installed_version, available_version|null,
+//   release_url|null } (release_url: the notes page for available_version).
 // Reads what the engine stored; this call never reaches the internet.
 export function updateStatus() {
   return request("/api/updates");
