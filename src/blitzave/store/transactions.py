@@ -76,7 +76,7 @@ def _other_leg_sql(column: str) -> str:
     return f"""(SELECT {column} FROM transfers tr
             JOIN transactions o ON o.id = CASE WHEN tr.debit_transaction_id = a.id
                 THEN tr.credit_transaction_id ELSE tr.debit_transaction_id END
-            WHERE a.id IN (tr.debit_transaction_id, tr.credit_transaction_id))"""
+            WHERE tr.debit_transaction_id = a.id OR tr.credit_transaction_id = a.id)"""
 
 
 # The id of the pair `a` is in: what group_pairs collapses into one item.
