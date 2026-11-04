@@ -42,6 +42,7 @@ To update: `uv tool upgrade blitzave`, then start `blitzave` as usual.
   still links to its charge.
 - The app can no longer change your database's layout while running. Only an
   update can.
+- The browser tab no longer shows an icon, just the name.
 
 ### Good to know
 
