@@ -141,8 +141,12 @@ published GitHub Release, and releases come from `pyproject.toml`:
 
 1. Bump `version` in `pyproject.toml` (plain `X.Y.Z`) and run `uv lock`. CI's
    `uv sync --locked` fails without it.
-2. Merge to `main`. Once CI passes there, `.github/workflows/release.yml`
-   publishes `vX.Y.Z` with notes generated from the merged PRs.
+2. In `CHANGELOG.md`, turn "unreleased" into the version and date, and make sure
+   it says in plain words what a user will notice. The heading must start with
+   `## X.Y.Z`.
+3. Merge to `main`. Once CI passes there, `.github/workflows/release.yml`
+   publishes `vX.Y.Z` with that `CHANGELOG.md` section as its notes. A version
+   with no section is not released; add one and merge again.
 
 A merge that doesn't change the version releases nothing. Don't publish
 releases by hand: a tag ahead of `pyproject.toml` would keep showing the line

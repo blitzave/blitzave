@@ -3,8 +3,9 @@ name: Release
 # Bumping `version` in pyproject.toml is how a release happens. After CI
 # passes on a push to main, this publishes a GitHub Release tagged
 # v<version> if there isn't one yet, and friends with update checks on see
-# "BlitZave <version> is ready". A merge that leaves the version alone
-# releases nothing. Never publish releases by hand: a tag that doesn't match
+# "BlitZave <version> is ready". The release notes are that version's section
+# of CHANGELOG.md; a version with no section isn't released. A merge that
+# leaves the version alone releases nothing. Never publish releases by hand: a tag that doesn't match
 # pyproject.toml would show that line forever.
 on:
   workflow_run:
@@ -44,4 +45,16 @@ jobs:
             echo "v$version is already released; nothing to do."
             exit 0
           fi
-          gh release create "v$version" --target "$HEAD_SHA" --title "BlitZave $version" --generate-notes
+          # The release notes are this version's CHANGELOG.md section, so a user
+          # who updates reads what changed in plain words. No section, no
+          # release: add one to CHANGELOG.md and merge again.
+          notes="$RUNNER_TEMP/release-notes.md"
+          awk -v v="$version" '
+            $1 == "##" { in_section = ($2 == v); next }
+            in_section { print }
+          ' CHANGELOG.md > "$notes"
+          if ! grep -q '[^[:space:]]' "$notes"; then
+            echo "CHANGELOG.md has no '## $version' section with notes in it."
+            exit 1
+          fi
+          gh release create "v$version" --target "$HEAD_SHA" --title "BlitZave $version" --notes-file "$notes"
