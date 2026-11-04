@@ -213,12 +213,14 @@ def delete_transfer(conn: sqlite3.Connection, transfer_id: int) -> None:
 def unlinked_legs(conn: sqlite3.Connection, start: str | None = None) -> list[dict]:
     """Every activity row (so not yet in a pair) posted on or after start, or
     all of them when start is None: what the matcher needs."""
-    where, params = ("WHERE posted_on >= ?", (start,)) if start else ("", ())
+    where, params = ("WHERE a.posted_on >= ?", (start,)) if start else ("", ())
     rows = conn.execute(
         f"""
-        SELECT id, account_id, amount_cents, currency, posted_on, description,
-               COALESCE(json_extract(meta, '$.no_auto_transfer'), 0)
-        FROM activity {where}
+        SELECT a.id, a.account_id, a.amount_cents, a.currency, a.posted_on, a.description,
+               COALESCE(json_extract(a.meta, '$.no_auto_transfer'), 0),
+               COALESCE(l.liability_type = 'credit_card', 0)
+        FROM activity a LEFT JOIN liabilities l ON l.account_id = a.account_id
+        {where}
         """,
         params,
     ).fetchall()
@@ -226,6 +228,7 @@ def unlinked_legs(conn: sqlite3.Connection, start: str | None = None) -> list[di
         {
             "id": r[0], "account_id": r[1], "amount_cents": r[2], "currency": r[3],
             "posted_on": r[4], "description": r[5], "no_auto": bool(r[6]),
+            "is_card": bool(r[7]),
         }
         for r in rows
     ]

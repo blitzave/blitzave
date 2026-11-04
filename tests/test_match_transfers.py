@@ -12,7 +12,7 @@ CHECKING, CARD, SAVINGS = 1, 2, 3
 
 
 def leg(id, account, cents, posted, description="Synthetic", no_auto=False, currency="USD"):
-    return Leg(id, account, cents, currency, posted, description, no_auto)
+    return Leg(id, account, cents, currency, posted, description, no_auto, is_card=account == CARD)
 
 
 def test_a_card_payment_is_one_transfer():
@@ -23,13 +23,22 @@ def test_a_card_payment_is_one_transfer():
     assert find_pairs(legs) == ([(1, 2)], [])
 
 
-def test_a_payment_across_a_long_weekend_still_matches():
-    # Friday out of checking, Tuesday onto the card: 4 days.
+def test_a_payment_posting_two_days_apart_still_matches():
+    legs = [
+        leg(1, CHECKING, -50000, "2026-10-02", "ONLINE TRANSFER TO CARD"),
+        leg(2, CARD, 50000, "2026-10-04", "PAYMENT RECEIVED"),
+    ]
+    assert find_pairs(legs) == ([(1, 2)], [])
+
+
+def test_a_payment_across_a_long_weekend_is_left_for_the_user():
+    # The accepted cost of a small window (WINDOW_DAYS): Friday out of
+    # checking, Tuesday onto the card is 4 days, so the user links it by hand.
     legs = [
         leg(1, CHECKING, -50000, "2026-10-02", "ONLINE TRANSFER TO CARD"),
         leg(2, CARD, 50000, "2026-10-06", "PAYMENT RECEIVED"),
     ]
-    assert find_pairs(legs) == ([(1, 2)], [])
+    assert find_pairs(legs) == ([], [])
 
 
 def test_one_day_past_the_window_is_left_for_the_user():
@@ -92,6 +101,23 @@ def test_a_card_credit_that_names_no_merchant_is_a_refund_by_amount():
     assert find_pairs(legs) == ([], [(1, 2)])
 
 
+def test_an_equal_amount_in_checking_is_not_a_refund_without_a_shared_merchant():
+    # $100 cash out, then a $100 deposit from someone else: a coincidence.
+    legs = [
+        leg(1, CHECKING, -10000, "2026-10-01", "ATM WITHDRAWAL 123 MAIN ST"),
+        leg(2, CHECKING, 10000, "2026-10-03", "MOBILE DEPOSIT"),
+    ]
+    assert find_pairs(legs) == ([], [])
+
+
+def test_the_same_merchant_still_pairs_in_checking():
+    legs = [
+        leg(1, CHECKING, -2500, "2026-10-01", "PLANET FITNESS"),
+        leg(2, CHECKING, 2500, "2026-10-03", "PLANET FITNESS"),
+    ]
+    assert find_pairs(legs) == ([], [(1, 2)])
+
+
 def test_an_ambiguous_amount_falls_back_to_the_merchant():
     # Two $42.10 charges; only one is from the store that refunded.
     legs = [
@@ -150,7 +176,7 @@ def test_a_later_rival_still_makes_a_pair_ambiguous():
     legs = [
         leg(1, CHECKING, -10000, "2026-10-01", "TRANSFER TO SAVINGS"),
         leg(2, SAVINGS, 10000, "2026-10-02", "TRANSFER FROM CHECKING"),
-        leg(3, SAVINGS, 10000, "2026-10-05", "TRANSFER FROM CHECKING"),
+        leg(3, SAVINGS, 10000, "2026-10-03", "TRANSFER FROM CHECKING"),
     ]
     assert find_pairs(legs) == ([], [])
 

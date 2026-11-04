@@ -203,7 +203,7 @@ def test_sync_turns_a_card_payment_into_one_transfer_and_zero_spending(monkeypat
     _serve(monkeypatch, _card_and_checking([
         ("card", "dinner", -6400, "2026-10-01", "LA LA LAND KIND CAFE"),
         ("checking", "pay", -6400, "2026-10-09", "CHASE CARD AUTOPAY"),
-        ("card", "paid", 6400, "2026-10-12", "AUTOMATIC PAYMENT - THANK YOU"),
+        ("card", "paid", 6400, "2026-10-11", "AUTOMATIC PAYMENT - THANK YOU"),
     ]))
 
     result = jobs.sync()
@@ -215,7 +215,7 @@ def test_sync_turns_a_card_payment_into_one_transfer_and_zero_spending(monkeypat
     conn.close()
     assert (transfer["debit"]["id"], transfer["credit"]["id"]) == ("pay", "paid")
     assert transfer["matched_by"] == "rule"
-    assert transfer["transfer_date"] == "2026-10-12"
+    assert transfer["transfer_date"] == "2026-10-11"
     assert uncategorized == -6400  # only the dinner
 
 
@@ -229,6 +229,24 @@ def test_sync_never_turns_a_card_refund_into_a_transfer(monkeypatch):
     result = jobs.sync()
 
     assert (result["transfers_matched"], result["refunds_matched"]) == (0, 0)
+
+
+def test_sync_leaves_cash_out_and_a_same_size_deposit_in_checking_alone(monkeypatch):
+    # The same amount match links a card credit, but never two checking rows.
+    _serve(monkeypatch, _card_and_checking([
+        ("checking", "atm", -10000, "2026-10-01", "ATM WITHDRAWAL 123 MAIN ST"),
+        ("checking", "deposit", 10000, "2026-10-03", "MOBILE DEPOSIT"),
+        ("card", "charge", -1402, "2026-10-20", "WALMART+ MEMBER"),
+        ("card", "credit", 1402, "2026-10-21", "PLATINUM WALMART+ CREDIT"),
+    ]))
+
+    result = jobs.sync()
+
+    assert result["refunds_matched"] == 1  # only the card pair
+    conn = db.connect()
+    [pair] = transfers.list_transfers(conn)
+    conn.close()
+    assert pair["debit"]["id"] == "charge"
 
 
 def test_sync_never_relinks_a_pair_the_user_unlinked(monkeypatch):
@@ -274,5 +292,5 @@ def test_first_match_looks_at_all_history_then_only_the_fetched_range(monkeypatc
     _serve(monkeypatch, _card_and_checking(new))
     jobs.sync()
 
-    assert seen == [None, "2026-10-01"]  # 2026-10-09 minus two 4-day windows
+    assert seen == [None, "2026-10-05"]  # 2026-10-09 minus two 2-day windows
 

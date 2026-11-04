@@ -19,10 +19,19 @@ from datetime import date
 
 from blitzave.refine.categorize import is_match, match_key
 
-# How many days apart the two legs may post, whichever comes first. Banks post
-# each leg on their own schedule: a Friday card payment can land on Tuesday
-# after a long weekend.
-WINDOW_DAYS = 4
+# How many days apart the two legs may post, whichever comes first.
+#
+# Deliberately small (maintainer call, 2026-11-04). The matcher only links a
+# pair when it is the only candidate, and that claim is only as good as the
+# rows it can see. Rows can be missing at the edges: the incremental sync
+# loads a limited range, an old month synced alone leaves a gap, and the
+# newest days may still gain a rival. A small window shrinks every one of
+# those edges, so most wrong links are avoided. The price is real: a pair
+# that posts more than WINDOW_DAYS apart (a Friday card payment landing on
+# Tuesday after a long weekend) is left for the user to link by hand.
+# Proper fix, later: record which date ranges have been fetched and judge a
+# pair only when the days around both legs are covered (see TODOS.md).
+WINDOW_DAYS = 2
 
 # Words that say "money moved between your own accounts". Lowercase; matched
 # as substrings of the lowercased description.
@@ -44,6 +53,7 @@ class Leg:
     posted_on: str  # ISO date
     description: str
     no_auto: bool = False  # the user unlinked it once; never link it automatically
+    is_card: bool = False  # the leg is in a credit card account
 
 
 def looks_like_transfer(description: str) -> bool:
@@ -88,9 +98,11 @@ def find_pairs(
 
     Then same-account pairs (refunds and credits), from what's left, in two
     levels:
-      1. by amount: the only candidate on both sides, in the same account.
-         Catches card credits that name no merchant ("Platinum Walmart+
-         Credit" against "Walmart+ Member").
+      1. by amount: the only candidate on both sides, in the same credit
+         card account. Catches card credits that name no merchant ("Platinum
+         Walmart+ Credit" against "Walmart+ Member"). Never in checking or
+         savings, where a matching amount is often a coincidence (an ATM
+         withdrawal and a deposit of the same $100).
       2. by merchant: when the amount alone is ambiguous, the only
          same-account candidate with the same merchant key, on both sides.
     A leg that looks like a transfer is never a refund: a card payment from
@@ -160,7 +172,12 @@ def _pairs_in_bucket(
         if d.id in linked:
             continue
         c = _only(left(d))
-        by_amount = c is not None and c.account_id == d.account_id and _only(left(c)) is d
+        by_amount = (
+            d.is_card
+            and c is not None
+            and c.account_id == d.account_id
+            and _only(left(c)) is d
+        )
         if not by_amount:
             c = _only(same_account_merchant(d))
             if c is None or _only(same_account_merchant(c)) is not d:
