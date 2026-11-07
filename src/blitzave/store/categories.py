@@ -15,13 +15,47 @@ class CategoryInUseError(Exception):
     """The category is referenced by at least one transaction's split map."""
 
 
+# A category's amount and its schedule travel together (migration 008):
+#   once       budget_cents by target_on
+#   recurring  budget_cents every period_months, until ends_on if set
+# The API checks a plan's shape; the database's triggers refuse a bad one too.
+PLAN_FIELDS = ("budget_cents", "schedule", "period_months", "target_on", "ends_on")
+NO_PLAN = dict.fromkeys(PLAN_FIELDS)
+
+_SELECT = (
+    "SELECT c.id, c.name, c.kind, "
+    + ", ".join(f"c.{f}" for f in PLAN_FIELDS)
+    + " FROM categories c"
+)
+
+
+def _row_to_dict(row: tuple) -> dict:
+    return dict(zip(("id", "name", "kind", *PLAN_FIELDS), row))
+
+
+def _is_duplicate_name(error: sqlite3.IntegrityError) -> bool:
+    # A bad plan also raises IntegrityError (from a trigger or CHECK), and it
+    # must not be reported as a duplicate name.
+    return "UNIQUE constraint failed" in str(error)
+
+
+def _raise_refused(error: sqlite3.IntegrityError, name: str) -> None:
+    """Turn a refused write into the error the caller can act on."""
+    if _is_duplicate_name(error):
+        raise DuplicateCategoryError(f"a category named {name!r} already exists") from error
+    raise error
+
+
 def list_categories(conn: sqlite3.Connection) -> list[dict]:
-    rows = conn.execute(
-        "SELECT id, name, kind, budget_cents FROM categories ORDER BY name COLLATE NOCASE"
-    ).fetchall()
-    return [
-        {"id": r[0], "name": r[1], "kind": r[2], "budget_cents": r[3]} for r in rows
-    ]
+    rows = conn.execute(f"{_SELECT} ORDER BY c.name COLLATE NOCASE").fetchall()
+    return [_row_to_dict(r) for r in rows]
+
+
+def get_category(conn: sqlite3.Connection, category_id: int) -> dict:
+    row = conn.execute(f"{_SELECT} WHERE c.id = ?", (category_id,)).fetchone()
+    if row is None:
+        raise CategoryNotFoundError(f"no category with id {category_id}")
+    return _row_to_dict(row)
 
 
 def create_category(
@@ -29,22 +63,21 @@ def create_category(
     user_id: int,
     name: str,
     kind: str,
-    budget_cents: int | None = None,
+    plan: dict | None = None,
 ) -> dict:
+    """plan holds every key in PLAN_FIELDS; None means no amount."""
+    plan = plan or NO_PLAN
     try:
         cursor = conn.execute(
-            "INSERT INTO categories (user_id, name, kind, budget_cents) VALUES (?, ?, ?, ?)",
-            (user_id, name, kind, budget_cents),
+            "INSERT INTO categories (user_id, name, kind, "
+            + ", ".join(PLAN_FIELDS)
+            + ") VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            (user_id, name, kind, *(plan[f] for f in PLAN_FIELDS)),
         )
     except sqlite3.IntegrityError as e:
-        raise DuplicateCategoryError(f"a category named {name!r} already exists") from e
+        _raise_refused(e, name)
     conn.commit()
-    return {
-        "id": cursor.lastrowid,
-        "name": name,
-        "kind": kind,
-        "budget_cents": budget_cents,
-    }
+    return get_category(conn, cursor.lastrowid)
 
 
 def update_category(
@@ -53,33 +86,27 @@ def update_category(
     name: str | None,
     kind: str | None,
     *,
-    budget_cents: int | None = None,
-    budget_provided: bool = False,
+    plan: dict | None = None,
 ) -> dict:
-    row = conn.execute(
-        "SELECT name, kind, budget_cents FROM categories WHERE id = ?", (category_id,)
-    ).fetchone()
-    if row is None:
-        raise CategoryNotFoundError(f"no category with id {category_id}")
-    new_name = name if name is not None else row[0]
-    new_kind = kind if kind is not None else row[1]
-    new_budget = budget_cents if budget_provided else row[2]
+    """None leaves a field as it is. A plan replaces all of PLAN_FIELDS at
+    once, so the amount and its schedule can never disagree."""
+    current = get_category(conn, category_id)
+    values = {
+        "name": name if name is not None else current["name"],
+        "kind": kind if kind is not None else current["kind"],
+        **(plan if plan is not None else {f: current[f] for f in PLAN_FIELDS}),
+    }
     try:
         conn.execute(
-            "UPDATE categories SET name = ?, kind = ?, budget_cents = ? WHERE id = ?",
-            (new_name, new_kind, new_budget, category_id),
+            "UPDATE categories SET "
+            + ", ".join(f"{column} = ?" for column in values)
+            + " WHERE id = ?",
+            (*values.values(), category_id),
         )
     except sqlite3.IntegrityError as e:
-        raise DuplicateCategoryError(
-            f"a category named {new_name!r} already exists"
-        ) from e
+        _raise_refused(e, values["name"])
     conn.commit()
-    return {
-        "id": category_id,
-        "name": new_name,
-        "kind": new_kind,
-        "budget_cents": new_budget,
-    }
+    return get_category(conn, category_id)
 
 
 def delete_category(conn: sqlite3.Connection, category_id: int) -> None:

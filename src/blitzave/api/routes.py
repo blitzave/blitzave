@@ -77,12 +77,62 @@ def _validate_budget(value: str | None) -> str | None:
     return value
 
 
+# How a category's amount repeats (migration 008). Rounds are
+# calendar-aligned, so a period has to divide the year evenly.
+Schedule = Literal["once", "recurring"]
+PeriodMonths = Literal[1, 2, 3, 4, 6, 12]
+SCHEDULE_FIELDS = ("schedule", "period_months", "target_on", "ends_on")
+
+
+def _check_plan(model: "CategoryCreate | CategoryUpdate") -> None:
+    """A plan is an amount plus its schedule, checked as a whole. An amount
+    with no schedule means a monthly one, which is what every budget was
+    before schedules existed (and what the budget editor still sends)."""
+    if model.budget_amount is None:
+        if any(getattr(model, f) is not None for f in SCHEDULE_FIELDS):
+            raise ValueError(
+                "schedule, period_months, target_on and ends_on need a budget_amount"
+            )
+        return
+    if (model.schedule or "recurring") == "once":
+        if model.target_on is None:
+            raise ValueError("a one-time amount needs a target_on date")
+        if model.period_months is not None or model.ends_on is not None:
+            raise ValueError("period_months and ends_on are only for recurring amounts")
+    elif model.target_on is not None:
+        raise ValueError("target_on is only for one-time amounts; use ends_on")
+
+
+def _plan(model: "CategoryCreate | CategoryUpdate") -> dict:
+    """The validated request as the five columns the store saves."""
+    if model.budget_amount is None:
+        return dict(categories.NO_PLAN)
+    schedule = model.schedule or "recurring"
+    recurring = schedule == "recurring"
+    return {
+        "budget_cents": parse_amount(model.budget_amount),
+        "schedule": schedule,
+        "period_months": (model.period_months or 1) if recurring else None,
+        "target_on": None if recurring else model.target_on.isoformat(),
+        "ends_on": model.ends_on.isoformat() if recurring and model.ends_on else None,
+    }
+
+
 class CategoryCreate(BaseModel):
     name: str
     kind: Literal["expense", "income", "savings"]
     budget_amount: str | None = None
+    schedule: Schedule | None = None
+    period_months: PeriodMonths | None = None
+    target_on: date | None = None
+    ends_on: date | None = None
 
     _budget = field_validator("budget_amount")(_validate_budget)
+
+    @model_validator(mode="after")
+    def _plan_is_whole(self) -> "CategoryCreate":
+        _check_plan(self)
+        return self
 
     @field_validator("name")
     @classmethod
@@ -97,6 +147,10 @@ class CategoryUpdate(BaseModel):
     name: str | None = None
     kind: Literal["expense", "income", "savings"] | None = None
     budget_amount: str | None = None
+    schedule: Schedule | None = None
+    period_months: PeriodMonths | None = None
+    target_on: date | None = None
+    ends_on: date | None = None
 
     _budget = field_validator("budget_amount")(_validate_budget)
 
@@ -112,12 +166,17 @@ class CategoryUpdate(BaseModel):
 
     @model_validator(mode="after")
     def _something_to_change(self) -> "CategoryUpdate":
+        sent = self.model_fields_set
         if (
             self.name is None
             and self.kind is None
-            and "budget_amount" not in self.model_fields_set
+            and "budget_amount" not in sent
         ):
             raise ValueError("provide name, kind, and/or budget_amount")
+        # Sending any schedule field means "here is the whole plan", so it is
+        # checked as one. budget_amount alone keeps the current schedule.
+        if sent & set(SCHEDULE_FIELDS):
+            _check_plan(self)
         return self
 
 
@@ -293,13 +352,7 @@ def create_category(request: CategoryCreate) -> dict:
         try:
             return _category_with_display(
                 categories.create_category(
-                    conn,
-                    user_id,
-                    request.name,
-                    request.kind,
-                    None
-                    if request.budget_amount is None
-                    else parse_amount(request.budget_amount),
+                    conn, user_id, request.name, request.kind, _plan(request)
                 )
             )
         except categories.DuplicateCategoryError as e:
@@ -328,7 +381,13 @@ def category_summary(start: date | None = None, end: date | None = None) -> dict
         if row["kind"] == "expense":
             row.update(
                 monthly_budget(
-                    row["total_cents"], row["budget_cents"], start, end, today
+                    row["total_cents"],
+                    # Pace for longer rounds comes with the next step; until
+                    # then only a monthly amount is measured against a month.
+                    row["budget_cents"] if row["period_months"] == 1 else None,
+                    start,
+                    end,
+                    today,
                 )
             )
             row["spent_display"] = format_cents(row["spent_cents"])
@@ -352,6 +411,24 @@ def category_summary(start: date | None = None, end: date | None = None) -> dict
     }
 
 
+def _updated_plan(conn, category_id: int, request: CategoryUpdate) -> dict | None:
+    """None leaves the amount and schedule alone. Any schedule field sends a
+    whole new plan. budget_amount on its own changes only the amount (or,
+    when null, removes the plan), keeping the schedule the category had."""
+    sent = request.model_fields_set
+    if sent & set(SCHEDULE_FIELDS):
+        return _plan(request)
+    if "budget_amount" not in sent:
+        return None
+    if request.budget_amount is None:
+        return dict(categories.NO_PLAN)
+    current = categories.get_category(conn, category_id)
+    if current["schedule"] is None:
+        return _plan(request)  # a first amount: monthly
+    kept = {f: current[f] for f in categories.PLAN_FIELDS}
+    return {**kept, "budget_cents": parse_amount(request.budget_amount)}
+
+
 @router.patch("/categories/{category_id}")
 def update_category(category_id: int, request: CategoryUpdate) -> dict:
     conn = db.connect()
@@ -363,10 +440,7 @@ def update_category(category_id: int, request: CategoryUpdate) -> dict:
                     category_id,
                     request.name,
                     request.kind,
-                    budget_cents=None
-                    if request.budget_amount is None
-                    else parse_amount(request.budget_amount),
-                    budget_provided="budget_amount" in request.model_fields_set,
+                    plan=_updated_plan(conn, category_id, request),
                 )
             )
         except categories.CategoryNotFoundError as e:
