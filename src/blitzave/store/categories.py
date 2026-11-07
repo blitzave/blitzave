@@ -15,6 +15,14 @@ class CategoryInUseError(Exception):
     """The category is referenced by at least one transaction's split map."""
 
 
+class UnknownAccountError(Exception):
+    """A goal names an account that doesn't exist."""
+
+
+class GoalRuleError(Exception):
+    """The database refused a goal's home (migration 009's triggers)."""
+
+
 # A category's amount and its schedule travel together (migration 008):
 #   once       budget_cents by target_on
 #   recurring  budget_cents every period_months, until ends_on if set
@@ -22,15 +30,31 @@ class CategoryInUseError(Exception):
 PLAN_FIELDS = ("budget_cents", "schedule", "period_months", "target_on", "ends_on")
 NO_PLAN = dict.fromkeys(PLAN_FIELDS)
 
+# A goal is a savings category with a level and a home (migration 009):
+#   critical  has a targeted savings account to itself
+#   regular   shares one; the account's money fills goals in fill_order
+# completed_on marks a goal that's been bought. Outside this module,
+# account_id is the account's public id (SimpleFIN's), never the row id.
+GOAL_FIELDS = ("goal_level", "account_id", "fill_order", "completed_on")
+NO_GOAL = dict.fromkeys(GOAL_FIELDS)
+
+# The messages migration 009's triggers raise.
+_GOAL_RULES = (
+    "a goal is a savings category",
+    "goals live only in targeted savings accounts",
+    "a critical goal needs a targeted savings account to itself",
+)
+
 _SELECT = (
     "SELECT c.id, c.name, c.kind, "
     + ", ".join(f"c.{f}" for f in PLAN_FIELDS)
-    + " FROM categories c"
+    + ", c.goal_level, a.external_id, c.fill_order, c.completed_on"
+    " FROM categories c LEFT JOIN accounts a ON a.id = c.account_id"
 )
 
 
 def _row_to_dict(row: tuple) -> dict:
-    return dict(zip(("id", "name", "kind", *PLAN_FIELDS), row))
+    return dict(zip(("id", "name", "kind", *PLAN_FIELDS, *GOAL_FIELDS), row))
 
 
 def _is_duplicate_name(error: sqlite3.IntegrityError) -> bool:
@@ -43,7 +67,28 @@ def _raise_refused(error: sqlite3.IntegrityError, name: str) -> None:
     """Turn a refused write into the error the caller can act on."""
     if _is_duplicate_name(error):
         raise DuplicateCategoryError(f"a category named {name!r} already exists") from error
+    if str(error).startswith(_GOAL_RULES):
+        raise GoalRuleError(str(error)) from error
     raise error
+
+
+def _account_row_id(conn: sqlite3.Connection, external_id: str) -> int:
+    row = conn.execute(
+        "SELECT id FROM accounts WHERE source = 'simplefin' AND external_id = ?",
+        (external_id,),
+    ).fetchone()
+    if row is None:
+        raise UnknownAccountError(f"no account with id {external_id}")
+    return row[0]
+
+
+def _end_of_line(conn: sqlite3.Connection, account_row_id: int, category_id: int | None) -> int:
+    """The place after the last active goal in an account."""
+    return conn.execute(
+        "SELECT COALESCE(MAX(fill_order), 0) + 1 FROM categories"
+        " WHERE account_id = ? AND completed_on IS NULL AND id IS NOT ?",
+        (account_row_id, category_id),
+    ).fetchone()[0]
 
 
 def list_categories(conn: sqlite3.Connection) -> list[dict]:
@@ -64,15 +109,30 @@ def create_category(
     name: str,
     kind: str,
     plan: dict | None = None,
+    goal: dict | None = None,
 ) -> dict:
-    """plan holds every key in PLAN_FIELDS; None means no amount."""
+    """plan holds every key in PLAN_FIELDS; None means no amount. goal holds
+    goal_level and account_id; None means it isn't a goal. A new goal joins
+    the end of its account's line."""
     plan = plan or NO_PLAN
+    columns = dict(NO_GOAL)
+    if goal is not None:
+        account = _account_row_id(conn, goal["account_id"])
+        columns.update(
+            goal_level=goal["goal_level"],
+            account_id=account,
+            fill_order=_end_of_line(conn, account, None),
+        )
     try:
         cursor = conn.execute(
             "INSERT INTO categories (user_id, name, kind, "
-            + ", ".join(PLAN_FIELDS)
-            + ") VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-            (user_id, name, kind, *(plan[f] for f in PLAN_FIELDS)),
+            + ", ".join(PLAN_FIELDS + GOAL_FIELDS)
+            + ") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (
+                user_id, name, kind,
+                *(plan[f] for f in PLAN_FIELDS),
+                *(columns[f] for f in GOAL_FIELDS),
+            ),
         )
     except sqlite3.IntegrityError as e:
         _raise_refused(e, name)
@@ -87,15 +147,39 @@ def update_category(
     kind: str | None,
     *,
     plan: dict | None = None,
+    goal: dict | None = None,
 ) -> dict:
     """None leaves a field as it is. A plan replaces all of PLAN_FIELDS at
-    once, so the amount and its schedule can never disagree."""
+    once, so the amount and its schedule can never disagree.
+
+    goal is the whole goal as it should be: goal_level, account_id and
+    completed_on (account_id None: no longer a goal). Its place in line is
+    kept while it stays in the same account; a goal that moves, or comes back
+    from completed, joins the end of the line."""
     current = get_category(conn, category_id)
     values = {
         "name": name if name is not None else current["name"],
         "kind": kind if kind is not None else current["kind"],
         **(plan if plan is not None else {f: current[f] for f in PLAN_FIELDS}),
     }
+    if goal is not None:
+        if goal["account_id"] is None:
+            # Passed on, not dropped: a completed_on here is refused below.
+            values.update(NO_GOAL, completed_on=goal["completed_on"])
+        else:
+            account = _account_row_id(conn, goal["account_id"])
+            reopened = current["completed_on"] is not None and goal["completed_on"] is None
+            same_place = current["account_id"] == goal["account_id"] and not reopened
+            values.update(
+                goal_level=goal["goal_level"],
+                account_id=account,
+                fill_order=(
+                    current["fill_order"]
+                    if same_place
+                    else _end_of_line(conn, account, category_id)
+                ),
+                completed_on=goal["completed_on"],
+            )
     try:
         conn.execute(
             "UPDATE categories SET "

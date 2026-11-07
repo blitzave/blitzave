@@ -49,7 +49,8 @@ class SyncMonthRequest(BaseModel):
 
 class AccountTypeCorrection(BaseModel):
     account_type: Literal["asset", "liability"]
-    asset_type: Literal["checking", "savings"] | None = None
+    # targeted: a savings account that holds goals (migration 009)
+    asset_type: Literal["checking", "savings", "targeted"] | None = None
     liability_type: Literal["credit_card", "loan"] | None = None
 
     @model_validator(mode="after")
@@ -82,6 +83,7 @@ def _validate_budget(value: str | None) -> str | None:
 Schedule = Literal["once", "recurring"]
 PeriodMonths = Literal[1, 2, 3, 4, 6, 12]
 SCHEDULE_FIELDS = ("schedule", "period_months", "target_on", "ends_on")
+GOAL_REQUEST_FIELDS = ("goal_level", "account_id", "completed_on")
 
 
 def _check_plan(model: "CategoryCreate | CategoryUpdate") -> None:
@@ -101,6 +103,15 @@ def _check_plan(model: "CategoryCreate | CategoryUpdate") -> None:
             raise ValueError("period_months and ends_on are only for recurring amounts")
     elif model.target_on is not None:
         raise ValueError("target_on is only for one-time amounts; use ends_on")
+
+
+# A goal's level (migration 009). account_id is the public account id.
+GoalLevel = Literal["critical", "regular"]
+
+
+def _check_goal_home(model: "CategoryCreate | CategoryUpdate") -> None:
+    if (model.goal_level is None) != (model.account_id is None):
+        raise ValueError("a goal needs both goal_level and account_id")
 
 
 def _plan(model: "CategoryCreate | CategoryUpdate") -> dict:
@@ -126,12 +137,20 @@ class CategoryCreate(BaseModel):
     period_months: PeriodMonths | None = None
     target_on: date | None = None
     ends_on: date | None = None
+    goal_level: GoalLevel | None = None
+    account_id: str | None = None
 
     _budget = field_validator("budget_amount")(_validate_budget)
 
     @model_validator(mode="after")
     def _plan_is_whole(self) -> "CategoryCreate":
         _check_plan(self)
+        _check_goal_home(self)
+        if self.goal_level is not None:
+            if self.kind != "savings":
+                raise ValueError("only a savings category can be a goal")
+            if self.budget_amount is None:
+                raise ValueError("a goal needs a budget_amount")
         return self
 
     @field_validator("name")
@@ -151,6 +170,9 @@ class CategoryUpdate(BaseModel):
     period_months: PeriodMonths | None = None
     target_on: date | None = None
     ends_on: date | None = None
+    goal_level: GoalLevel | None = None
+    account_id: str | None = None
+    completed_on: date | None = None
 
     _budget = field_validator("budget_amount")(_validate_budget)
 
@@ -170,13 +192,22 @@ class CategoryUpdate(BaseModel):
         if (
             self.name is None
             and self.kind is None
-            and "budget_amount" not in sent
+            and not sent & {"budget_amount", *GOAL_REQUEST_FIELDS}
         ):
-            raise ValueError("provide name, kind, and/or budget_amount")
+            raise ValueError(
+                "provide name, kind, budget_amount, goal_level and account_id,"
+                " or completed_on"
+            )
         # Sending any schedule field means "here is the whole plan", so it is
         # checked as one. budget_amount alone keeps the current schedule.
         if sent & set(SCHEDULE_FIELDS):
             _check_plan(self)
+        # A goal's home is its level and account together; both null means
+        # it's no longer a goal.
+        if sent & {"goal_level", "account_id"}:
+            if not {"goal_level", "account_id"} <= sent:
+                raise ValueError("send goal_level and account_id together")
+            _check_goal_home(self)
         return self
 
 
@@ -313,7 +344,7 @@ def correct_account_type(account_id: str, correction: AccountTypeCorrection) -> 
             )
         except accounts.AccountNotFoundError as e:
             raise HTTPException(status_code=404, detail=str(e)) from e
-        except accounts.AccountConflictError as e:
+        except (accounts.AccountConflictError, accounts.AccountHoldsGoalsError) as e:
             raise HTTPException(status_code=409, detail=str(e)) from e
         # Return the full updated row, same shape as GET /api/accounts,
         # so the UI can refresh the card from the response alone.
@@ -349,13 +380,20 @@ def create_category(request: CategoryCreate) -> dict:
     conn = db.connect()
     try:
         user_id = users.get_or_create_user(conn)
+        goal = (
+            None
+            if request.account_id is None
+            else {"goal_level": request.goal_level, "account_id": request.account_id}
+        )
         try:
             return _category_with_display(
                 categories.create_category(
-                    conn, user_id, request.name, request.kind, _plan(request)
+                    conn, user_id, request.name, request.kind, _plan(request), goal
                 )
             )
-        except categories.DuplicateCategoryError as e:
+        except categories.UnknownAccountError as e:
+            raise HTTPException(status_code=422, detail=str(e)) from e
+        except (categories.DuplicateCategoryError, categories.GoalRuleError) as e:
             raise HTTPException(status_code=409, detail=str(e)) from e
     finally:
         conn.close()
@@ -429,6 +467,26 @@ def _updated_plan(conn, category_id: int, request: CategoryUpdate) -> dict | Non
     return {**kept, "budget_cents": parse_amount(request.budget_amount)}
 
 
+def _updated_goal(conn, category_id: int, request: CategoryUpdate) -> dict | None:
+    """None leaves the goal alone. Otherwise the whole goal as it should be:
+    the current one with what the request sent laid over it."""
+    sent = request.model_fields_set
+    if not sent & set(GOAL_REQUEST_FIELDS):
+        return None
+    current = categories.get_category(conn, category_id)
+    goal = {f: current[f] for f in GOAL_REQUEST_FIELDS}
+    if "account_id" in sent:  # goal_level always comes with it
+        goal["goal_level"] = request.goal_level
+        goal["account_id"] = request.account_id
+        if request.account_id is None:
+            goal["completed_on"] = None  # no longer a goal, so nothing to complete
+    if "completed_on" in sent:
+        goal["completed_on"] = (
+            None if request.completed_on is None else request.completed_on.isoformat()
+        )
+    return goal
+
+
 @router.patch("/categories/{category_id}")
 def update_category(category_id: int, request: CategoryUpdate) -> dict:
     conn = db.connect()
@@ -441,11 +499,14 @@ def update_category(category_id: int, request: CategoryUpdate) -> dict:
                     request.name,
                     request.kind,
                     plan=_updated_plan(conn, category_id, request),
+                    goal=_updated_goal(conn, category_id, request),
                 )
             )
         except categories.CategoryNotFoundError as e:
             raise HTTPException(status_code=404, detail=str(e)) from e
-        except categories.DuplicateCategoryError as e:
+        except categories.UnknownAccountError as e:
+            raise HTTPException(status_code=422, detail=str(e)) from e
+        except (categories.DuplicateCategoryError, categories.GoalRuleError) as e:
             raise HTTPException(status_code=409, detail=str(e)) from e
     finally:
         conn.close()

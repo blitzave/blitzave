@@ -34,9 +34,11 @@ def test_upgrade_makes_existing_budgets_monthly_and_leaves_the_rest_alone(tmp_pa
         db.migrate(conn)
         assert categories.list_categories(conn) == [
             {"id": 1, "name": "Groceries", "kind": "expense", "budget_cents": 50000,
-             "schedule": "recurring", "period_months": 1, "target_on": None, "ends_on": None},
+             "schedule": "recurring", "period_months": 1, "target_on": None, "ends_on": None,
+             **categories.NO_GOAL},
             {"id": 2, "name": "Misc", "kind": "expense", "budget_cents": None,
-             "schedule": None, "period_months": None, "target_on": None, "ends_on": None},
+             "schedule": None, "period_months": None, "target_on": None, "ends_on": None,
+             **categories.NO_GOAL},
         ]
     finally:
         conn.close()

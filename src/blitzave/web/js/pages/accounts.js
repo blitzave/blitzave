@@ -13,7 +13,7 @@
 import * as api from "../api.js";
 import { navigate } from "../router.js";
 
-const ASSET_LABELS = { checking: "Checking", savings: "Savings" };
+const ASSET_LABELS = { checking: "Checking", savings: "Savings", targeted: "Targeted savings" };
 const LIABILITY_LABELS = { credit_card: "Credit card", loan: "Loan" };
 
 // Real inline SVG, 16-20px, currentColor, round caps — see DESIGN.md's
@@ -418,6 +418,17 @@ function buildEditPopover(root, account) {
       popover.hidden = true;
       await render(root);
     } catch (err) {
+      const holdsGoals =
+        err && err.status === 409 && String(err.detail || "").includes("holds goals");
+      if (holdsGoals) {
+        // Not a failure: the account is home to goals, so it keeps its job.
+        showToast(
+          "Goals live in this account. Move them to another targeted savings account first, then change its job."
+        );
+        saveBtn.disabled = false;
+        saveBtn.textContent = "Save";
+        return;
+      }
       const message =
         err && err.status === 409
           ? "That account is already set that way."

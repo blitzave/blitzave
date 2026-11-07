@@ -10,6 +10,11 @@ class AccountConflictError(Exception):
     """The correction would collide with another account's display_name."""
 
 
+class AccountHoldsGoalsError(Exception):
+    """The account is home to active goals, so it stays a targeted savings
+    account until they move or complete (migration 009)."""
+
+
 def list_accounts(conn: sqlite3.Connection) -> list[dict]:
     rows = conn.execute(
         """
@@ -106,6 +111,8 @@ def update_account_type(
             raise AccountConflictError(
                 f"another account already has the display_name this correction would produce: {e}"
             ) from e
+        if "holds goals" in str(e):
+            raise AccountHoldsGoalsError(str(e)) from e
         raise
     except Exception:
         conn.rollback()

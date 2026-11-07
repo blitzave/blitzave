@@ -66,7 +66,7 @@ const ICON_BANK = `
   </svg>
 `;
 
-const ASSET_LABELS = { checking: "Checking", savings: "Savings" };
+const ASSET_LABELS = { checking: "Checking", savings: "Savings", targeted: "Targeted savings" };
 const LIABILITY_LABELS = { credit_card: "Credit card", loan: "Loan" };
 
 const ICON_TRANSACTIONS_MINI = `
