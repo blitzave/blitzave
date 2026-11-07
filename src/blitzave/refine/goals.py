@@ -22,7 +22,8 @@ ACCOUNT_FIELDS = ("id", "name", "bank_name", "account_number", "balance_cents", 
 
 def fill(balance_cents: int, goals: list[dict]) -> tuple[list[dict], int]:
     """Fill goals, already in fill_order, from a balance. Returns each goal
-    with saved_cents, saved_percent and state added, and what's left over."""
+    with saved_cents, to_go_cents (what it still needs), saved_percent and
+    state added, and what's left over."""
     left = max(balance_cents, 0)
     filled = []
     for goal in goals:
@@ -39,6 +40,7 @@ def fill(balance_cents: int, goals: list[dict]) -> tuple[list[dict], int]:
             {
                 **goal,
                 "saved_cents": saved,
+                "to_go_cents": max(amount - saved, 0),
                 "saved_percent": round(saved * 100 / amount, 1),
                 "state": state,
             }
@@ -49,7 +51,8 @@ def fill(balance_cents: int, goals: list[dict]) -> tuple[list[dict], int]:
 def savings_by_account(accounts: list[dict], categories: list[dict]) -> dict:
     """The Savings page's facts. Every targeted savings account, including an
     empty one (a new critical goal needs one), with its active goals filled in
-    line. Then the completed goals, most recent first.
+    line, and what they hold between them. Then the completed goals, most
+    recent first.
 
     accounts as store.accounts.list_accounts gives them; categories as
     store.categories.list_categories does (a goal's account_id is the
@@ -80,4 +83,5 @@ def savings_by_account(accounts: list[dict], categories: list[dict]) -> dict:
         key=lambda goal: goal["completed_on"],
         reverse=True,
     )
-    return {"accounts": homes, "completed": completed}
+    total = sum(home["balance_cents"] or 0 for home in homes)
+    return {"total_cents": total, "accounts": homes, "completed": completed}

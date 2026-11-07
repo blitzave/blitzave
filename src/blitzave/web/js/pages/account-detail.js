@@ -6,7 +6,7 @@
 import * as api from "../api.js";
 import { renderTransactionsTable } from "../components/transactions-table.js";
 
-const ASSET_LABELS = { checking: "Checking", savings: "Savings", targeted: "Targeted savings" };
+const ASSET_LABELS = { checking: "Checking", savings: "Savings", targeted: "Goal account" };
 const LIABILITY_LABELS = { credit_card: "Credit card", loan: "Loan" };
 
 // Real inline SVG, 16-20px, currentColor, round caps — see DESIGN.md's

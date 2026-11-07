@@ -30,6 +30,7 @@ def test_the_order_decides_who_fills_first():
     assert left == 0
     ps5_first, left = fill(50000, [ps5, japan])
     assert _split(ps5_first) == {"PS5": (30000, "done"), "Japan": (20000, "in_progress")}
+    assert [g["to_go_cents"] for g in ps5_first] == [0, 1180000]
     assert left == 0
 
 
@@ -44,7 +45,7 @@ def test_a_critical_goal_has_the_whole_balance_even_past_its_amount():
     fund = _goal(1, "Emergency fund", 900000, goal_level="critical")
     filled, left = fill(1000000, [fund])
     assert _split(filled) == {"Emergency fund": (1000000, "done")}
-    assert filled[0]["saved_percent"] == 111.1
+    assert (filled[0]["saved_percent"], filled[0]["to_go_cents"]) == (111.1, 0)
     assert left == 0
     partway, left = fill(450000, [fund])
     assert (_split(partway), partway[0]["saved_percent"], left) == (
@@ -91,6 +92,7 @@ def test_savings_lists_every_targeted_account_with_its_line():
     view = savings_by_account(accounts, categories)
     by_id = {a["id"]: a for a in view["accounts"]}
     assert list(by_id) == ["A1", "A3", "A4"]
+    assert view["total_cents"] == 57000  # goal accounts only; A3 has no balance yet
     assert [g["name"] for g in by_id["A1"]["goals"]] == ["PS5", "Japan"]
     assert _split(by_id["A1"]["goals"]) == {"PS5": (30000, "done"), "Japan": (20000, "in_progress")}
     assert _split(by_id["A3"]["goals"]) == {"Runway": (0, "backlog")}
@@ -145,13 +147,14 @@ def test_goals_show_what_each_one_has(client):
 
     view = client.get("/api/goals").json()
     marcus, free = view["accounts"]
+    assert view["total_display"] == "$525.00"
     assert (marcus["id"], marcus["balance_display"], marcus["unassigned_display"]) == (
         "ACT-marcus", "$500.00", "$0.00"
     )
-    assert [(g["name"], g["saved_display"], g["budget_display"], g["state"])
+    assert [(g["name"], g["saved_display"], g["budget_display"], g["to_go_display"], g["state"])
             for g in marcus["goals"]] == [
-        ("Japan", "$500.00", "$12,000.00", "in_progress"),
-        ("PS5", "$0.00", "$300.00", "backlog"),
+        ("Japan", "$500.00", "$12,000.00", "$11,500.00", "in_progress"),
+        ("PS5", "$0.00", "$300.00", "$300.00", "backlog"),
     ]
     assert (free["goals"], free["unassigned_display"]) == ([], "$25.00")
     assert view["completed"] == []

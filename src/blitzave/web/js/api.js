@@ -125,10 +125,12 @@ export function listCategories() {
   return request("/api/categories");
 }
 
-export function createCategory(name, kind) {
+// extra: the rest of a category, e.g. a goal's budget_amount, schedule,
+// target_on / period_months / ends_on, goal_level and account_id.
+export function createCategory(name, kind, extra = {}) {
   return request("/api/categories", {
     method: "POST",
-    body: JSON.stringify({ name, kind }),
+    body: JSON.stringify({ name, kind, ...extra }),
   });
 }
 
@@ -145,6 +147,26 @@ export function deleteCategory(id) {
 
 export function categorySummary(start, end) {
   return request(`/api/categories/summary${query({ start, end })}`);
+}
+
+// -------------------------------- Goals --------------------------------
+// A goal is a savings category that lives in a goal account (asset_type
+// "targeted"). Goals are created and edited through /api/categories; these
+// two read and reorder them.
+
+// { total_display, accounts: [goal accounts, each with goals in line,
+//   saved/to-go/budget displays and a state], completed: [...] }
+export function listGoals() {
+  return request("/api/goals");
+}
+
+// goalIds: every active goal in the account, top first. Returns the account
+// with its new split, the same shape as one entry of listGoals().accounts.
+export function reorderGoals(accountId, goalIds) {
+  return request(`/api/accounts/${encodeURIComponent(accountId)}/goal-order`, {
+    method: "PUT",
+    body: JSON.stringify({ goal_ids: goalIds }),
+  });
 }
 
 // -------------------------------- Tags --------------------------------

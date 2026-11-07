@@ -547,6 +547,7 @@ def _savings(conn) -> dict:
     """Every targeted savings account with its goals filled in line, and the
     completed goals, with display strings added at the edge."""
     view = savings_by_account(accounts.list_accounts(conn), categories.list_categories(conn))
+    view["total_display"] = format_cents(view["total_cents"])
     for home in view["accounts"]:
         balance = home["balance_cents"]
         home["balance_display"] = None if balance is None else format_cents(balance)
@@ -554,6 +555,7 @@ def _savings(conn) -> dict:
         for goal in home["goals"]:
             _category_with_display(goal)
             goal["saved_display"] = format_cents(goal["saved_cents"])
+            goal["to_go_display"] = format_cents(goal["to_go_cents"])
     for goal in view["completed"]:
         _category_with_display(goal)
     return view

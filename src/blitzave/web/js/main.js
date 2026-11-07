@@ -26,6 +26,15 @@ const ICON_TRANSACTIONS = `
   </svg>
 `;
 
+// A target: Savings is where goals live.
+const ICON_SAVINGS = `
+  <svg class="sidebar-link-icon" viewBox="0 0 24 24" aria-hidden="true">
+    <circle cx="12" cy="12" r="9" />
+    <circle cx="12" cy="12" r="5" />
+    <circle cx="12" cy="12" r="1" />
+  </svg>
+`;
+
 const ICON_CATEGORIES = `
   <svg class="sidebar-link-icon" viewBox="0 0 24 24" aria-hidden="true">
     <rect x="3" y="3" width="18" height="18" rx="2" />
@@ -63,6 +72,7 @@ const UPDATE_DISCLOSURE =
   "BlitZave can ask GitHub once a day whether a newer version exists. It sends nothing about you or your money.";
 
 const NAV_ITEMS = [
+  { label: "Savings", path: "/savings", icon: ICON_SAVINGS },
   { label: "Accounts", path: "/accounts", icon: ICON_ACCOUNTS },
   { label: "Transactions", path: "/transactions", icon: ICON_TRANSACTIONS },
   { label: "Categories", path: "/categories", icon: ICON_CATEGORIES },
@@ -75,6 +85,8 @@ const TOPBAR_COPY = [
   { prefix: "/accounts", title: "Accounts", subtitle: "Balances across everything you've connected." },
   { prefix: "/transactions", title: "Transactions", subtitle: "Review and categorize your recent activity." },
   { prefix: "/categories", title: "Categories", subtitle: "Monthly budgets, with room to adjust." },
+  { prefix: "/savings/", title: "Goal", subtitle: "Something you're saving toward." },
+  { prefix: "/savings", title: "Savings", subtitle: "Your goals, and the accounts they live in." },
   { prefix: "/onboarding", title: "Setup", subtitle: "One token to paste, then you're done." },
 ];
 

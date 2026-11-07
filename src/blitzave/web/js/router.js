@@ -12,6 +12,9 @@ const routes = [
   { pattern: "/accounts", load: () => import("./pages/accounts.js") },
   { pattern: "/transactions", load: () => import("./pages/transactions.js") },
   { pattern: "/categories", load: () => import("./pages/categories.js") },
+  { pattern: "/savings/new", load: () => import("./pages/goal-form.js") },
+  { pattern: "/savings/:id", load: () => import("./pages/goal-form.js") },
+  { pattern: "/savings", load: () => import("./pages/savings.js") },
 ];
 
 const DEFAULT_PATH = "/accounts";

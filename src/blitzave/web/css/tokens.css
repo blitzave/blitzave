@@ -67,6 +67,14 @@
   --danger: #d4202c;
   --danger-soft: rgba(238, 15, 29, 0.08);
 
+  /* ----- Progress -----
+     How far money has reached toward a goal (Savings rings, bars and the
+     line's rail). A calm blue-grey: not the action accent, and not a status.
+     --line-dashed draws the parts it hasn't reached yet. */
+  --progress: #3d6a99;
+  --progress-soft: rgba(61, 106, 153, 0.16);
+  --line-dashed: #b8c7d9;
+
   /* ----- Type -----
      Manrope for everything: interface, headings, and every numeral. */
   --font-ui: "Manrope", ui-sans-serif, -apple-system, BlinkMacSystemFont,
