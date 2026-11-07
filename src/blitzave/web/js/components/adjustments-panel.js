@@ -1,7 +1,8 @@
 // BlitZave — adjustments panel.
 //
-// Linked transfers and refunds stay separate so money moved between accounts
-// is never confused with a credit that offsets a charge in the same account.
+// Every linked pair comes from one list (GET /api/transfers). The server says
+// what each pair is (kind: transfer, refund or credit); the panel shows money
+// moved between accounts apart from refunds and credits within one account.
 // Mounted by the transactions page behind its "Adjustments" toggle.
 //
 //   const panel = renderAdjustmentsPanel(root, { onUnlinked })
@@ -41,14 +42,13 @@ export function renderAdjustmentsPanel(root, { onUnlinked = null } = {}) {
     try {
       // Legs carry only the raw display_name; the accounts list supplies the
       // friendly name. A failed accounts fetch just falls back to the raw one.
-      const [res, refundRows, accts] = await Promise.all([
+      const [pairs, accts] = await Promise.all([
         api.listAdjustments(),
-        api.listRefunds(),
         api.listAccounts().catch(() => []),
       ]);
       if (seq !== loadSeq) return;
-      transfers = res || [];
-      refunds = refundRows || [];
+      transfers = (pairs || []).filter((p) => p.kind === "transfer");
+      refunds = (pairs || []).filter((p) => p.kind !== "transfer");
       accountNames = new Map((accts || []).map((a) => {
         const name = a.name || a.display_name;
         const lastFour = a.account_number;
@@ -89,7 +89,6 @@ export function renderAdjustmentsPanel(root, { onUnlinked = null } = {}) {
       </section>
       <section class="adjustments-group">
         <h2 class="adjustments-group-title">Refunds / credits</h2>
-        <p class="txn-adjustment-hint">Use the same category on the charge and credit so they offset.</p>
         ${refunds.length
           ? `<ul class="adjustments-list">${refunds.map((r) => itemHtml(r, "refund")).join("")}</ul>`
           : '<p class="txn-adjustment-hint">No linked refunds or credits yet.</p>'}
@@ -110,19 +109,22 @@ export function renderAdjustmentsPanel(root, { onUnlinked = null } = {}) {
 
   function itemHtml(t, type) {
     const id = String(t.id);
-    const key = `${type}:${id}`;
+    const key = id;
     const refund = type === "refund";
+    const kindLabel = { transfer: "Transfer", refund: "Refund", credit: "Credit" }[t.kind] || "";
+    // The sync links pairs on its own; say so, so they're easy to review.
+    const source = t.matched_by === "rule" ? " · linked automatically" : "";
     let actions;
     if (unlinkingId === key) {
       actions = '<span class="adjustment-unlink-prompt">Unlinking…</span>';
     } else if (confirmingId === key) {
       actions = `
-        <span class="adjustment-unlink-prompt">${refund ? "Unlink this refund pair? Amounts and categories stay as they are." : "They'll count as spending or income again."}</span>
-        <button type="button" class="btn btn-ghost adjustment-unlink-confirm" data-id="${esc(id)}" data-type="${type}">Unlink</button>
+        <span class="adjustment-unlink-prompt">They'll count as spending or income again, and won't be linked automatically.</span>
+        <button type="button" class="btn btn-ghost adjustment-unlink-confirm" data-id="${esc(id)}">Unlink</button>
         <button type="button" class="btn btn-quiet adjustment-unlink-cancel">Keep</button>
       `;
     } else {
-      actions = `<button type="button" class="btn btn-quiet adjustment-unlink" data-id="${esc(id)}" data-type="${type}">Unlink</button>`;
+      actions = `<button type="button" class="btn btn-quiet adjustment-unlink" data-id="${esc(id)}">Unlink</button>`;
     }
     const error = rowError && rowError.key === key ? `<p class="field-error">${esc(rowError.message)}</p>` : "";
     return `
@@ -134,7 +136,8 @@ export function renderAdjustmentsPanel(root, { onUnlinked = null } = {}) {
         </div>
         <div class="adjustment-meta">
           <span class="adjustment-amount u-tabular">${esc(t.amount_display)}</span>
-          <span class="adjustment-date u-tabular">${esc(formatDate(refund ? t.adjustment_date : t.transfer_date))}</span>
+          <span class="adjustment-date u-tabular">${esc(formatDate(t.transfer_date))}</span>
+          <span class="adjustment-date">${esc(kindLabel + source)}</span>
         </div>
         <div class="adjustment-actions">${actions}</div>
         ${error}
@@ -142,14 +145,13 @@ export function renderAdjustmentsPanel(root, { onUnlinked = null } = {}) {
     `;
   }
 
-  async function unlink(id, type) {
-    const key = `${type}:${id}`;
+  async function unlink(id) {
+    const key = id;
     unlinkingId = key;
     rowError = null;
     renderList();
     try {
-      if (type === "refund") await api.deleteRefund(id);
-      else await api.deleteAdjustment(id);
+      await api.deleteAdjustment(id);
       if (onUnlinked) onUnlinked();
       await load();
     } catch (err) {
@@ -167,7 +169,7 @@ export function renderAdjustmentsPanel(root, { onUnlinked = null } = {}) {
     }
     const start = e.target.closest(".adjustment-unlink");
     if (start) {
-      confirmingId = `${start.dataset.type}:${start.dataset.id}`;
+      confirmingId = start.dataset.id;
       rowError = null;
       renderList();
       return;
@@ -178,7 +180,7 @@ export function renderAdjustmentsPanel(root, { onUnlinked = null } = {}) {
       return;
     }
     const confirmBtn = e.target.closest(".adjustment-unlink-confirm");
-    if (confirmBtn) unlink(confirmBtn.dataset.id, confirmBtn.dataset.type);
+    if (confirmBtn) unlink(confirmBtn.dataset.id);
   }
 }
 

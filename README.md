@@ -197,10 +197,12 @@ If you close the tab, open http://127.0.0.1:8742 again while BlitZave is running
 - **Categorize.** On **Transactions**, open any row and pick a category. Choose
   *All transactions like this* to teach BlitZave the merchant; matching
   transactions are updated now and in every future sync.
-- **Link adjustments.** For a credit card payment or a transfer between your
-  own accounts, open the row, choose **Find its other side**, and pick the
-  matching transaction. It stops counting as spending. Refunds link the same
-  way. Review everything linked under **Adjustments**.
+- **Link adjustments.** Each sync links card payments, transfers between your
+  own accounts, and refunds that exactly cancel a charge, when the other side
+  is clear. For anything it leaves alone, open the row, choose **Find its other
+  side**, and pick the matching transaction. A linked pair stops counting as
+  spending. Review everything linked under **Adjustments**, and unlink anything
+  that's wrong: a pair you unlink is never linked automatically again.
 - **Look back.** Use the month arrows to move through history. To pull a month
   older than your first sync, open it and choose **Sync *Month Year***.
 
@@ -331,10 +333,10 @@ edges.
 - [x] Categories, splits, tags, and "apply to all" rules
 - [x] Monthly budgets with pace, never alarms
 - [x] Manual transfer and refund linking
+- [x] Automatic matching for card payments, transfers and refunds
 
 **Next: the BlitZave MVP, the Savings arc**
 - [ ] Local snapshots and one-click export and import
-- [ ] Automatic matching for card payments and transfers
 - [ ] Savings goals, set right alongside your categories
 - [ ] Pay yourself first: how much moved to savings, and did it move before spending?
 - [ ] Goal trajectory: at your usual pace, when is the goal reached? (a range, so one

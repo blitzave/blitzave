@@ -1,12 +1,14 @@
 from datetime import date, timedelta
 from importlib import metadata
 
+from blitzave.refine import transfers as match
 from blitzave.refine.categorize import is_match, match_key
 from blitzave.sources import github, simplefin
 from blitzave.sources.base import Fetched
-from blitzave.store import categories, db, ingest, transactions, users
+from blitzave.store import categories, db, ingest, transactions, transfers, users
 
 SYNC_JOB = "ingest"
+MATCH_JOB = "match_transfers"  # its watermark only records that the one full pass ran
 WATERMARK_OVERLAP_DAYS = 7  # banks post late; re-fetching the overlap is safe, upserts are idempotent
 INITIAL_LOOKBACK_DAYS = 90  # how far back the very first sync reaches, before any watermark exists
 
@@ -73,6 +75,32 @@ def _categorize(conn, user_id: int) -> int:
     return categories.apply_rules(conn, assignments)
 
 
+def _match_pairs(conn, user_id: int, fetched: Fetched) -> dict:
+    """Link the other side of each new transaction. Every pair is one
+    `transfers` row, whatever it's called when shown: two accounts make a
+    transfer, one account a refund or credit.
+
+    The first run looks at all history once. After that, only the fetched
+    range matters, widened by two windows: a fetched row's candidate can sit
+    one window earlier, and that candidate's own rivals one window before it."""
+    if ingest.get_watermark(conn, MATCH_JOB) is None:
+        start = None
+    elif fetched.transactions:
+        earliest = min(date.fromisoformat(t.posted_on) for t in fetched.transactions)
+        start = (earliest - timedelta(days=2 * match.WINDOW_DAYS)).isoformat()
+    else:
+        return {"transfers_matched": 0, "refunds_matched": 0}
+
+    legs = [match.Leg(**row) for row in transfers.unlinked_legs(conn, start)]
+    transfer_pairs, same_account_pairs = match.find_pairs(legs)
+    transfers.create_rule_pairs(conn, user_id, transfer_pairs + same_account_pairs)
+    ingest.set_watermark(conn, MATCH_JOB, date.today().isoformat())
+    return {
+        "transfers_matched": len(transfer_pairs),
+        "refunds_matched": len(same_account_pairs),  # refunds and credits
+    }
+
+
 def _fetch(since: date, until: date | None = None) -> Fetched:
     if not simplefin.is_connected():
         raise SyncError("not connected to SimpleFIN yet — POST /api/connect first")
@@ -83,7 +111,8 @@ def _fetch(since: date, until: date | None = None) -> Fetched:
 
 
 def _ingest(conn, user_id: int, fetched: Fetched) -> dict:
-    """Upsert what SimpleFIN returned, then categorize. Idempotent, so
+    """Upsert what SimpleFIN returned, link matched pairs, then
+    categorize what's left. Idempotent, so
     fetching an overlapping range again never duplicates anything."""
     account_ids_by_external_id = {}
     for account_row in fetched.accounts:
@@ -103,21 +132,23 @@ def _ingest(conn, user_id: int, fetched: Fetched) -> dict:
             continue
         ingest.upsert_balance(conn, account_id, balance_row)
 
-    # match_transfers belongs here, before categorize, once it's built.
+    # Before categorize, so linked legs never get a category.
+    matched = _match_pairs(conn, user_id, fetched)
     categorized = _categorize(conn, user_id)
 
     return {
         "accounts": len(fetched.accounts),
         "transactions": len(fetched.transactions),
         "balances": len(fetched.balances),
+        **matched,
         "categorized": categorized,
     }
 
 
 def sync() -> dict:
-    """Run the pipeline steps that exist so far: ingest, then categorize.
-    match_transfers, detect, and snapshot_backup join as their own tasks get
-    built (see AGENTS.md "Refinement: the sync pipeline")."""
+    """Run the pipeline steps that exist so far: ingest, match_transfers,
+    categorize. detect joins when the detectors are built (see AGENTS.md
+    "Refinement: the sync pipeline")."""
     conn = db.connect()
     try:
         user_id = users.get_or_create_user(conn)
@@ -199,4 +230,6 @@ def update_status() -> dict:
         "enabled": enabled,
         "installed_version": installed,
         "available_version": latest if newer else None,
+        # The release's notes page, so the UI can say what changed.
+        "release_url": github.RELEASE_PAGE_URL.format(version=latest) if newer else None,
     }

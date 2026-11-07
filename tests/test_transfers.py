@@ -83,12 +83,17 @@ def conn(tmp_path):
     connection.close()
 
 
-def test_candidates_are_exact_opposite_other_account_closest_date_first(conn):
+def test_candidates_are_exact_opposite_any_account_closest_date_first(conn):
     rows = transfers.list_candidates(conn, "TXN-pay")
-    # same-account +500.00 and the +499.99 are left out
-    assert [r["id"] for r in rows] == ["TXN-paid", "TXN-save-in", "TXN-far"]
+    # the +499.99 is left out; the same-account +500.00 would be a refund/credit
+    assert [(r["id"], r["same_account"]) for r in rows] == [
+        ("TXN-same-acct", True),
+        ("TXN-paid", False),
+        ("TXN-save-in", False),
+        ("TXN-far", False),
+    ]
     assert all(r["amount_cents"] == 50000 for r in rows)
-    assert rows[0]["account_display_name"] == "liability-2222"
+    assert rows[1]["account_display_name"] == "liability-2222"
 
 
 def test_candidates_leave_out_rows_already_in_a_transfer(conn):
@@ -113,9 +118,9 @@ def test_create_transfer_works_out_debit_and_credit_in_either_order(conn):
 def test_create_transfer_rejects_invalid_pairs(conn):
     user_id = users.get_or_create_user(conn)
     with pytest.raises(transfers.InvalidTransferPairError):
-        transfers.create_transfer(conn, user_id, "TXN-pay", "TXN-same-acct")
-    with pytest.raises(transfers.InvalidTransferPairError):
         transfers.create_transfer(conn, user_id, "TXN-pay", "TXN-other-amt")
+    with pytest.raises(transfers.InvalidTransferPairError):
+        transfers.create_transfer(conn, user_id, "TXN-pay", "TXN-pay")
     assert transfers.list_transfers(conn) == []
 
 
@@ -161,7 +166,12 @@ def test_api_candidates_have_display_money(client):
     response = client.get("/api/transactions/TXN-pay/transfer-candidates")
     assert response.status_code == 200
     body = response.json()
-    assert [r["id"] for r in body] == ["TXN-paid", "TXN-save-in", "TXN-far"]
+    assert [(r["id"], r["kind"]) for r in body] == [
+        ("TXN-same-acct", "credit"),
+        ("TXN-paid", "transfer"),
+        ("TXN-save-in", "transfer"),
+        ("TXN-far", "transfer"),
+    ]
     assert body[0]["amount_display"] == "$500.00"
 
 
@@ -230,7 +240,6 @@ def test_api_rejects_invalid_and_already_linked_pairs(client):
             "/api/transfers", json={"transaction_id": a, "counterpart_id": b}
         ).status_code
 
-    assert link("TXN-pay", "TXN-same-acct") == 422
     assert link("TXN-pay", "TXN-other-amt") == 422
     assert link("TXN-pay", "TXN-paid") == 201
     assert link("TXN-pay", "TXN-save-in") == 409  # TXN-pay is already a leg
@@ -277,10 +286,12 @@ def test_api_404s(client):
 def test_api_card_payment_counts_the_purchase_once(client):
     legal = client.post("/api/categories", json={"name": "Legal", "kind": "expense"}).json()
     client.patch("/api/transactions/TXN-fragomen", json={"categories": {str(legal["id"]): 1.0}})
-    assert client.post(
+    created = client.post(
         "/api/transfers",
         json={"transaction_id": "TXN-card-pay", "counterpart_id": "TXN-card-paid"},
-    ).status_code == 201
+    )
+    assert created.status_code == 201
+    assert created.json()["kind"] == "transfer"
 
     april = {"start": "2026-04-01", "end": "2026-04-30"}
     summary = client.get("/api/categories/summary", params=april).json()
@@ -303,3 +314,16 @@ def test_api_card_payment_counts_the_purchase_once(client):
     listed = _transfer_ids(client, **april)
     assert set(listed) == {"TXN-fragomen", "TXN-card-pay", "TXN-card-paid"}
     assert listed["TXN-fragomen"] is None
+
+
+def test_api_one_pair_shows_both_legs(client):
+    created = client.post(
+        "/api/transfers", json={"transaction_id": "TXN-pay", "counterpart_id": "TXN-paid"}
+    ).json()
+    pair = client.get(f"/api/transfers/{created['id']}").json()
+    assert pair == created
+    assert pair["kind"] == "transfer"
+    assert (pair["debit"]["id"], pair["credit"]["id"]) == ("TXN-pay", "TXN-paid")
+    assert pair["credit"]["account_display_name"] == "liability-2222"
+    assert pair["credit"]["amount_display"] == "$500.00"
+    assert client.get("/api/transfers/999").status_code == 404

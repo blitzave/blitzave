@@ -8,6 +8,10 @@ import httpx
 # happens on the laptop. See CLAUDE.md ("Nothing leaves the machine by default").
 LATEST_RELEASE_URL = "https://api.github.com/repos/blitzave/blitzave/releases/latest"
 
+# Where a release's notes are read (its CHANGELOG.md section). The app only
+# shows this as a link; the user's browser goes there if they click it.
+RELEASE_PAGE_URL = "https://github.com/blitzave/blitzave/releases/tag/v{version}"
+
 _VERSION = re.compile(r"v?(\d+)\.(\d+)\.(\d+)")
 
 

@@ -36,7 +36,7 @@ def test_upgrade_preserves_existing_categories_and_bank_rows(tmp_path):
         assert conn.execute(
             "SELECT id, name, kind, budget_cents FROM categories"
         ).fetchall() == [(1, "Travel", "expense", None)]
-        assert conn.execute("SELECT COUNT(*) FROM refunds").fetchone()[0] == 0
+        assert conn.execute("SELECT COUNT(*) FROM transfers").fetchone()[0] == 0
     finally:
         conn.close()
 
