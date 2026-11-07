@@ -23,6 +23,10 @@ class GoalRuleError(Exception):
     """The database refused a goal's home (migration 009's triggers)."""
 
 
+class GoalOrderError(Exception):
+    """A new order doesn't name each of the account's active goals once."""
+
+
 # A category's amount and its schedule travel together (migration 008):
 #   once       budget_cents by target_on
 #   recurring  budget_cents every period_months, until ends_on if set
@@ -191,6 +195,30 @@ def update_category(
         _raise_refused(e, values["name"])
     conn.commit()
     return get_category(conn, category_id)
+
+
+def reorder_goals(conn: sqlite3.Connection, account_id: str, goal_ids: list[int]) -> None:
+    """Line up an account's active goals in the order given, top first.
+    account_id is the account's public id. The order must name each active
+    goal in the account exactly once, so a page that's out of date can't
+    drop a goal or count one twice."""
+    account = _account_row_id(conn, account_id)
+    active = {
+        row[0]
+        for row in conn.execute(
+            "SELECT id FROM categories WHERE account_id = ? AND completed_on IS NULL",
+            (account,),
+        )
+    }
+    if len(goal_ids) != len(active) or set(goal_ids) != active:
+        raise GoalOrderError(
+            "the new order must list every goal in this account once; refresh and try again"
+        )
+    conn.executemany(
+        "UPDATE categories SET fill_order = ? WHERE id = ?",
+        [(place, goal_id) for place, goal_id in enumerate(goal_ids, start=1)],
+    )
+    conn.commit()
 
 
 def delete_category(conn: sqlite3.Connection, category_id: int) -> None:

@@ -9,6 +9,7 @@ from blitzave import jobs
 from blitzave.api.money import format_cents, parse_amount
 from blitzave.refine.budgets import monthly_budget
 from blitzave.refine.categorize import is_match, match_key
+from blitzave.refine.goals import savings_by_account
 from blitzave.refine.transfers import kind_of
 from blitzave.store import (
     accounts,
@@ -209,6 +210,19 @@ class CategoryUpdate(BaseModel):
                 raise ValueError("send goal_level and account_id together")
             _check_goal_home(self)
         return self
+
+
+class GoalOrder(BaseModel):
+    goal_ids: list[int]  # every active goal in the account, top first
+
+    @field_validator("goal_ids")
+    @classmethod
+    def _each_goal_once(cls, value: list[int]) -> list[int]:
+        if not value:
+            raise ValueError("goal_ids must list the account's goals")
+        if len(set(value)) != len(value):
+            raise ValueError("each goal can appear only once")
+        return value
 
 
 class TagCreate(BaseModel):
@@ -522,6 +536,51 @@ def delete_category(category_id: int) -> None:
             raise HTTPException(status_code=404, detail=str(e)) from e
         except categories.CategoryInUseError as e:
             raise HTTPException(status_code=409, detail=str(e)) from e
+    finally:
+        conn.close()
+
+
+# --- goals --------------------------------------------------------------------
+
+
+def _savings(conn) -> dict:
+    """Every targeted savings account with its goals filled in line, and the
+    completed goals, with display strings added at the edge."""
+    view = savings_by_account(accounts.list_accounts(conn), categories.list_categories(conn))
+    for home in view["accounts"]:
+        balance = home["balance_cents"]
+        home["balance_display"] = None if balance is None else format_cents(balance)
+        home["unassigned_display"] = format_cents(home["unassigned_cents"])
+        for goal in home["goals"]:
+            _category_with_display(goal)
+            goal["saved_display"] = format_cents(goal["saved_cents"])
+    for goal in view["completed"]:
+        _category_with_display(goal)
+    return view
+
+
+@router.get("/goals")
+def list_goals() -> dict:
+    conn = db.connect()
+    try:
+        return _savings(conn)
+    finally:
+        conn.close()
+
+
+@router.put("/accounts/{account_id}/goal-order")
+def reorder_goals(account_id: str, request: GoalOrder) -> dict:
+    """Returns the account as GET /api/goals shows it, so the page can redraw
+    the line, and the money's new split, from the response alone."""
+    conn = db.connect()
+    try:
+        try:
+            categories.reorder_goals(conn, account_id, request.goal_ids)
+        except categories.UnknownAccountError as e:
+            raise HTTPException(status_code=404, detail=str(e)) from e
+        except categories.GoalOrderError as e:
+            raise HTTPException(status_code=409, detail=str(e)) from e
+        return next(a for a in _savings(conn)["accounts"] if a["id"] == account_id)
     finally:
         conn.close()
 
