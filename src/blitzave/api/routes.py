@@ -1,4 +1,5 @@
 import re
+from calendar import monthrange
 from datetime import date, timedelta
 from typing import Literal
 
@@ -8,6 +9,9 @@ from pydantic import BaseModel, StrictBool, field_validator, model_validator
 
 from blitzave import jobs
 from blitzave.api.money import format_cents, parse_amount
+from blitzave.copy import MONTHS
+from blitzave.copy.home import home_words
+from blitzave.copy.savings import pace_line
 from blitzave.refine.budgets import monthly_budget
 from blitzave.refine.categorize import is_match, match_key
 from blitzave.refine.goals import (
@@ -15,7 +19,17 @@ from blitzave.refine.goals import (
     goal_questions,
     savings_by_account,
 )
+from blitzave.refine.home import newly_reached, pick
 from blitzave.refine.rounds import category_rounds
+from blitzave.refine.savings import (
+    account_pace,
+    add_months,
+    goal_trajectories,
+    month_key,
+    monthly_flows,
+    pay_yourself_first,
+    spending_pace,
+)
 from blitzave.refine.transfers import kind_of
 from blitzave.store import (
     accounts,
@@ -594,10 +608,42 @@ def delete_category(category_id: int) -> None:
 # --- goals --------------------------------------------------------------------
 
 
+def _arc(conn, today: date) -> dict:
+    """The rows the Savings arc is computed from: six whole months back,
+    plus this one."""
+    since = f"{add_months(month_key(today), -6)}-01"
+    first = transactions.first_posted_on(conn)
+    return {
+        "first_day": date.fromisoformat(first) if first else None,
+        "flows": monthly_flows(transactions.goal_account_rows(conn, since)),
+        "spending": transactions.spending_rows(conn, since),
+        "history": accounts.goal_balance_history(
+            conn, (today - timedelta(days=60)).isoformat()
+        ),
+    }
+
+
+def _trajectories(homes: list[dict], arc: dict, today: date) -> dict[int, dict]:
+    trajectories = {}
+    for home in homes:
+        pace = account_pace(arc["flows"], home["id"], today, arc["first_day"])
+        trajectories.update(goal_trajectories(home, pace, today))
+    return trajectories
+
+
 def _savings(conn) -> dict:
     """Every targeted savings account with its goals filled in line, and the
     completed goals, with display strings added at the edge."""
+    view, _arc_facts, _trajectory = _savings_with_arc(conn, date.today())
+    return view
+
+
+def _savings_with_arc(conn, today: date) -> tuple[dict, dict, dict[int, dict]]:
+    """The Savings view, plus the arc's rows and each goal's trajectory, so
+    Home can reuse them without asking the database twice."""
     view = savings_by_account(accounts.list_accounts(conn), categories.list_categories(conn))
+    arc = _arc(conn, today)
+    trajectories = _trajectories(view["accounts"], arc, today)
     view["total_display"] = format_cents(view["total_cents"])
     for home in view["accounts"]:
         balance = home["balance_cents"]
@@ -607,13 +653,54 @@ def _savings(conn) -> dict:
             _category_with_display(goal)
             goal["saved_display"] = format_cents(goal["saved_cents"])
             goal["to_go_display"] = format_cents(goal["to_go_cents"])
+            goal["pace_line"] = pace_line(goal, trajectories.get(goal["id"]), today)
     for goal in view["completed"]:
         _category_with_display(goal)
-    since = (date.today() - timedelta(days=QUESTION_WINDOW_DAYS)).isoformat()
+    since = (today - timedelta(days=QUESTION_WINDOW_DAYS)).isoformat()
     view["questions"] = goal_questions(view["accounts"], categories.goal_withdrawals(conn, since))
     for question in view["questions"]:
         question["amount_display"] = format_cents(question["amount_cents"])
-    return view
+    return view, arc, trajectories
+
+
+# --- home -------------------------------------------------------------------------
+
+
+@router.get("/home")
+def home() -> dict:
+    """Home's one card: the first rule that matches (refine/home.py), in fixed
+    words (copy/home.py), with the month ring and three figures beneath it.
+    Read-only: opening Home never changes anything."""
+    today = date.today()
+    conn = db.connect()
+    try:
+        view, arc, trajectories = _savings_with_arc(conn, today)
+    finally:
+        conn.close()
+    pay_first = pay_yourself_first(arc["flows"], arc["spending"], today, arc["first_day"])
+    spending = spending_pace(arc["spending"], today, arc["first_day"])
+    card = pick(
+        today=today,
+        first_posted_on=arc["first_day"].isoformat() if arc["first_day"] else None,
+        reached=newly_reached(view["accounts"], arc["history"], today),
+        spending=spending,
+        homes=view["accounts"],
+        trajectories=trajectories,
+        pay_first=pay_first,
+    )
+    headline, support = home_words(card, today)
+    return {
+        "date": today.isoformat(),
+        "month_label": MONTHS[today.month - 1],
+        "day": today.day,
+        "days_in_month": monthrange(today.year, today.month)[1],
+        "rule": card["rule"],
+        "headline": headline,
+        "support": support,
+        "spent_display": format_cents(spending["spent_cents"]),
+        "set_aside_display": format_cents(pay_first["in_cents"]),
+        "goals_underway": sum(len(h["goals"]) for h in view["accounts"]),
+    }
 
 
 @router.get("/goals")

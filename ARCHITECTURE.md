@@ -116,6 +116,8 @@ flowchart TB
 | `refine/transfers.py` | Finds exactly opposite debit/credit legs and decides what a pair is called (transfer, refund, credit) when it's shown. |
 | `refine/budgets.py` | Monthly budget facts: spent, remaining, pace. |
 | `refine/savings.py` | The Savings arc's facts: money set aside per month (into goal accounts, minus out, interest left out), pay-yourself-first (did it go before the spending, under one switchable rule), spending pace against the usual, and each goal's arrival as a range (3- vs 6-month pace; shared accounts fill in order). |
+| `refine/home.py` | Which one thing Home says: the design's seven rules, top to bottom, first match wins (getting started, goal reached, heavier month, goal close, saved first, not yet, steady). A goal is "reached" news for a week after a recorded balance first covered it. |
+| `copy/` | The fixed words: `copy/home.py` (Home's headline and sentence per rule, with variants so every sentence is true) and `copy/savings.py` (each goal's pace line). Numbers come in as engine figures and go out through `format_cents()`. |
 | `refine/rounds.py` | Rounds for a recurring amount: the calendar-aligned stretch it covers (Oct–Dec for every 3 months), spending and pace in the current round, and what each closed round of the year came to. |
 | `refine/goals.py` | Splits a goal account's balance across its goals, top first, and gives each goal its state. |
 
@@ -298,7 +300,8 @@ All under `/api`. Interactive docs at `http://127.0.0.1:8742/docs` while BlitZav
 | GET | `/categories/summary` | Totals per category for a date range, with monthly pace, and `rounds` for recurring expense budgets (the current round and this year's closed results). |
 | PATCH | `/categories/{id}` | Edits name, kind, plan, goal home, or `completed_on`. |
 | DELETE | `/categories/{id}` | Deletes it. 409 while transactions use it. |
-| GET | `/goals` | Goal accounts with their goals filled in line, the total, completed goals, and any "was that the goal?" questions. |
+| GET | `/home` | Home's one card: `rule`, `headline`, `support`, the month ring (`day`, `days_in_month`), and three figures (spent so far, set aside this month, goals underway). Read-only. |
+| GET | `/goals` | Goal accounts with their goals filled in line (each with a `pace_line`), the total, completed goals, and any "was that the goal?" questions. |
 | PUT | `/accounts/{id}/goal-order` | Reorders an account's goals; returns the new split. |
 | POST | `/goals/questions/{transaction_id}` | Answers a question: `bought` completes the goal on the day the money left; `other` only records it. Never asked again. |
 | GET | `/export` | Every table as one JSON file (a download). No credential, no connection hash. |

@@ -248,8 +248,18 @@ def goal_trajectories(home: dict, pace: dict, today: date) -> dict[int, dict]:
 
         target_month = goal["target_on"][:7] if goal.get("target_on") else None
         soonest, latest = _arrival(need, fast, now), _arrival(need, slow, now)
+        months_left = (
+            (int(target_month[:4]) * 12 + int(target_month[5:]))
+            - (today.year * 12 + today.month)
+            if target_month
+            else 0
+        )
         facts[goal["id"]] = {
             "need_cents": max(need, 0),
+            # What a month would take to make the target date, when there is one.
+            "per_month_for_target_cents": (
+                ceil(need / months_left) if need > 0 and months_left > 0 else None
+            ),
             "rate_cents": avg3 if avg3 is not None else avg6,
             "eta_from": soonest,
             "eta_to": latest,
