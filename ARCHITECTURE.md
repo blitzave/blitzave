@@ -4,7 +4,7 @@ BlitZave is one Python process on your laptop. It keeps one SQLite file and serv
 web page. This document maps the pieces and follows the data through them. The tables
 themselves are in [SCHEMA.md](SCHEMA.md).
 
-Current as of 2026-11-07, schema version 9.
+Current as of 2026-11-08, schema version 10.
 
 - [The whole system](#the-whole-system)
 - [Layers and their rules](#layers-and-their-rules)
@@ -114,6 +114,7 @@ flowchart TB
 | `refine/categorize.py` | `match_key()` normalizes a description; `is_match()` compares keys. |
 | `refine/transfers.py` | Finds exactly opposite debit/credit legs and decides what a pair is called (transfer, refund, credit) when it's shown. |
 | `refine/budgets.py` | Monthly budget facts: spent, remaining, pace. |
+| `refine/rounds.py` | Rounds for a recurring amount: the calendar-aligned stretch it covers (Oct–Dec for every 3 months), spending and pace in the current round, and what each closed round of the year came to. |
 | `refine/goals.py` | Splits a goal account's balance across its goals, top first, and gives each goal its state. |
 
 ### UI (`src/blitzave/web/`)
@@ -269,7 +270,7 @@ sequenceDiagram
 | `#/accounts` (default) | Accounts grouped by job; job picker; goal accounts locked while they hold goals | `GET /accounts`, `GET /goals`, `PATCH /accounts/{id}` |
 | `#/accounts/:id` | One account and its transactions | `/accounts`, `/transactions` |
 | `#/transactions` | The ledger: a month at a time, filters, categorize, tag, link pairs | `/transactions`, `/categories`, `/tags`, `/transfers`, `/sync/month` |
-| `#/categories` | Categories, monthly budgets and pace | `/categories`, `/categories/summary` |
+| `#/categories` | Categories, budgets every 1–12 months, pace for the month or round, and this year's closed rounds | `/categories`, `/categories/summary` |
 
 The UI holds no money logic. Amounts are typed as text and sent as typed; the engine
 parses them. Everything shown is a `*_display` string. Raw cents are used only for
@@ -292,7 +293,7 @@ All under `/api`. Interactive docs at `http://127.0.0.1:8742/docs` while BlitZav
 | PATCH | `/accounts/{id}` | Corrects type and job. 409 if the account holds goals. |
 | GET | `/categories` | Every category with its plan and goal fields. |
 | POST | `/categories` | Creates a category; with `goal_level` and `account_id`, a goal. |
-| GET | `/categories/summary` | Totals per category for a date range, with monthly pace. |
+| GET | `/categories/summary` | Totals per category for a date range, with monthly pace, and `rounds` for recurring expense budgets (the current round and this year's closed results). |
 | PATCH | `/categories/{id}` | Edits name, kind, plan, goal home, or `completed_on`. |
 | DELETE | `/categories/{id}` | Deletes it. 409 while transactions use it. |
 | GET | `/goals` | Goal accounts with their goals filled in line, the total, completed goals, and any "was that the goal?" questions. |

@@ -2,6 +2,7 @@
 recurring. Goals (savings-kind) and expense categories share it."""
 
 import sqlite3
+from datetime import date
 
 import pytest
 from fastapi.testclient import TestClient
@@ -35,10 +36,10 @@ def test_upgrade_makes_existing_budgets_monthly_and_leaves_the_rest_alone(tmp_pa
         assert categories.list_categories(conn) == [
             {"id": 1, "name": "Groceries", "kind": "expense", "budget_cents": 50000,
              "schedule": "recurring", "period_months": 1, "target_on": None, "ends_on": None,
-             **categories.NO_GOAL},
+             **categories.NO_GOAL, "plan_set_on": date.today().isoformat()},
             {"id": 2, "name": "Misc", "kind": "expense", "budget_cents": None,
              "schedule": None, "period_months": None, "target_on": None, "ends_on": None,
-             **categories.NO_GOAL},
+             **categories.NO_GOAL, "plan_set_on": None},
         ]
     finally:
         conn.close()

@@ -1,6 +1,7 @@
 import json
 import sqlite3
 import time
+from datetime import date
 
 
 class CategoryNotFoundError(Exception):
@@ -57,13 +58,13 @@ _GOAL_RULES = (
 _SELECT = (
     "SELECT c.id, c.name, c.kind, "
     + ", ".join(f"c.{f}" for f in PLAN_FIELDS)
-    + ", c.goal_level, a.external_id, c.fill_order, c.completed_on"
+    + ", c.goal_level, a.external_id, c.fill_order, c.completed_on, c.plan_set_on"
     " FROM categories c LEFT JOIN accounts a ON a.id = c.account_id"
 )
 
 
 def _row_to_dict(row: tuple) -> dict:
-    return dict(zip(("id", "name", "kind", *PLAN_FIELDS, *GOAL_FIELDS), row))
+    return dict(zip(("id", "name", "kind", *PLAN_FIELDS, *GOAL_FIELDS, "plan_set_on"), row))
 
 
 def _is_duplicate_name(error: sqlite3.IntegrityError) -> bool:
@@ -98,6 +99,11 @@ def _end_of_line(conn: sqlite3.Connection, account_row_id: int, category_id: int
         " WHERE account_id = ? AND completed_on IS NULL AND id IS NOT ?",
         (account_row_id, category_id),
     ).fetchone()[0]
+
+
+def _plan_set_on(plan: dict) -> str | None:
+    """Today, for a plan with an amount; nothing for no plan."""
+    return date.today().isoformat() if plan["budget_cents"] is not None else None
 
 
 def list_categories(conn: sqlite3.Connection) -> list[dict]:
@@ -136,11 +142,12 @@ def create_category(
         cursor = conn.execute(
             "INSERT INTO categories (user_id, name, kind, "
             + ", ".join(PLAN_FIELDS + GOAL_FIELDS)
-            + ") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            + ", plan_set_on) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             (
                 user_id, name, kind,
                 *(plan[f] for f in PLAN_FIELDS),
                 *(columns[f] for f in GOAL_FIELDS),
+                _plan_set_on(plan),
             ),
         )
     except sqlite3.IntegrityError as e:
@@ -171,6 +178,9 @@ def update_category(
         "kind": kind if kind is not None else current["kind"],
         **(plan if plan is not None else {f: current[f] for f in PLAN_FIELDS}),
     }
+    # A changed plan starts its rounds again (migration 010).
+    if plan is not None and any(plan[f] != current[f] for f in PLAN_FIELDS):
+        values["plan_set_on"] = _plan_set_on(plan)
     if goal is not None:
         if goal["account_id"] is None:
             # Passed on, not dropped: a completed_on here is refused below.
@@ -367,6 +377,25 @@ def apply_rules(conn: sqlite3.Connection, assignments: dict[int, int]) -> int:
         categorized += cursor.rowcount
     conn.commit()
     return categorized
+
+
+def monthly_totals(conn: sqlite3.Connection, start: str, end: str) -> dict[int, dict[str, int]]:
+    """Each category's net amount_cents per calendar month ("YYYY-MM") over
+    activity rows in the date range, weighted by split fractions. What
+    rounds are added up from."""
+    totals: dict[int, dict[str, int]] = {}
+    for category_id, month, total_cents in conn.execute(
+        """
+        SELECT CAST(je.key AS INTEGER), substr(a.posted_on, 1, 7),
+               CAST(ROUND(SUM(a.amount_cents * je.value)) AS INTEGER)
+        FROM activity a, json_each(a.categories) je
+        WHERE a.posted_on >= ? AND a.posted_on <= ?
+        GROUP BY 1, 2
+        """,
+        (start, end),
+    ):
+        totals.setdefault(category_id, {})[month] = total_cents
+    return totals
 
 
 def summary(conn: sqlite3.Connection, start: str, end: str) -> tuple[list[dict], int]:

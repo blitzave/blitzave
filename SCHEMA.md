@@ -9,14 +9,14 @@ database enforces on its own. How the code around it fits together is in
 
 | | |
 |---|---|
-| Schema version | **9** (`PRAGMA user_version`) |
+| Schema version | **10** (`PRAGMA user_version`) |
 | Tables | 12: `users`, `accounts`, `assets`, `liabilities`, `balances`, `transactions`, `transaction_tags`, `tags`, `categories`, `category_rules`, `transfers`, `job_runs` |
 | Views | 1: `activity` |
 | Indexes | 1 of its own (`tx_posted`), plus the ones SQLite makes for primary keys and `UNIQUE` |
 | Triggers | 10 |
 | On `main` | Migrations 001–007 |
-| On branch `goal-schedules` | 008 (schedules) and 009 (goal homes): built, tested and committed, but not merged yet. They can still change until they reach `main`. After that they're frozen, and CI blocks edits. |
-| Last checked | 2026-11-07, on a fresh database built from the migrations |
+| On branch `goal-schedules` | 008 (schedules), 009 (goal homes) and 010 (when a plan was set): built, tested and committed, but not merged yet. They can still change until they reach `main`. After that they're frozen, and CI blocks edits. |
+| Last checked | 2026-11-08, on a fresh database built from the migrations |
 
 Every table is `STRICT`, so a column only ever holds its declared type. Foreign keys are
 on for every connection.
@@ -96,6 +96,7 @@ erDiagram
     INTEGER account_id FK "goal home"
     INTEGER fill_order
     TEXT completed_on
+    TEXT plan_set_on
   }
   category_rules {
     INTEGER id PK
@@ -270,6 +271,7 @@ amount, a level and a home account. There's no separate goals table.
 | `account_id` | INTEGER FK → accounts | 009 | The goal's home, a `targeted` asset account. |
 | `fill_order` | INTEGER | 009 | Place in the account's line, ≥ 1. Gaps are fine; order is what counts. |
 | `completed_on` | TEXT | 009 | ISO date the goal was bought. A completed goal keeps its home for history but no longer holds the account or shares its money. |
+| `plan_set_on` | TEXT | 010 | ISO date the plan (amount and schedule) was last set. A round closes with a result, and only rounds since this date count, so a budget set today never reports rounds from before it existed. Any plan change resets it; a rename doesn't. Plans that existed before 010 count from the day it ran. |
 
 Every budget set before 008 became `recurring`, monthly.
 
@@ -354,6 +356,7 @@ Each one refuses with a plain message, which the API turns into a 409.
 | 007 | `007_one_pairs_table.sql` | 2026-11-02 | Every pair in `transfers`; moved refunds across and dropped `refunds`; pairs can't be edited. |
 | 008 | `008_category_schedules.sql` | 2026-11-06 | One-time or recurring amounts; old budgets became monthly. |
 | 009 | `009_goal_homes.sql` | 2026-11-06 | The `targeted` account job; goals' level, home, place in line and completion, with their rules. |
+| 010 | `010_plan_set_on.sql` | 2026-11-08 | `categories.plan_set_on`, so rounds count only from when a plan was set. |
 
 ## Changing the schema
 
@@ -379,5 +382,4 @@ These wait until they're needed:
 | Planned | Why it isn't here yet |
 |---|---|
 | Export and import (P0.1) | Will read and write every table above. No new table needed. |
-| Rounds and round-end facts | Which round today falls in, and what each closed round saved or spent. Waits on the detectors. |
 | Behavior cards (`insights`) | Arrive with the detectors. |

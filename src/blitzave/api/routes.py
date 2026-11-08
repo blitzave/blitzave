@@ -14,6 +14,7 @@ from blitzave.refine.goals import (
     goal_questions,
     savings_by_account,
 )
+from blitzave.refine.rounds import category_rounds
 from blitzave.refine.transfers import kind_of
 from blitzave.store import (
     accounts,
@@ -434,6 +435,10 @@ def category_summary(start: date | None = None, end: date | None = None) -> dict
         category_totals, uncategorized_cents = categories.summary(
             conn, start.isoformat(), end.isoformat()
         )
+        # Rounds always start in January, so this year's months hold them all.
+        year_totals = categories.monthly_totals(
+            conn, date(today.year, 1, 1).isoformat(), today.isoformat()
+        )
     finally:
         conn.close()
     for row in category_totals:
@@ -443,8 +448,8 @@ def category_summary(start: date | None = None, end: date | None = None) -> dict
             row.update(
                 monthly_budget(
                     row["total_cents"],
-                    # Pace for longer rounds comes with the next step; until
-                    # then only a monthly amount is measured against a month.
+                    # Only a monthly amount is measured against a month;
+                    # longer rounds get their own facts in "rounds" below.
                     row["budget_cents"] if row["period_months"] == 1 else None,
                     start,
                     end,
@@ -463,6 +468,8 @@ def category_summary(start: date | None = None, end: date | None = None) -> dict
             row["projected_display"] = (
                 None if projected is None else format_cents(projected)
             )
+            rounds = category_rounds(row, year_totals.get(row["id"], {}), today)
+            row["rounds"] = None if rounds is None else _rounds_with_display(rounds)
     return {
         "start": start,
         "end": end,
@@ -470,6 +477,25 @@ def category_summary(start: date | None = None, end: date | None = None) -> dict
         "uncategorized_cents": uncategorized_cents,
         "uncategorized_display": format_cents(uncategorized_cents),
     }
+
+
+def _signed(cents: int) -> str:
+    """A round's result: "+$80.00" when money was left, "-$60.00" when it ran over."""
+    return f"+{format_cents(cents)}" if cents > 0 else format_cents(cents)
+
+
+def _rounds_with_display(rounds: dict) -> dict:
+    current = rounds["current_round"]
+    if current is not None:
+        current["spent_display"] = format_cents(current["spent_cents"])
+        current["remaining_display"] = format_cents(current["remaining_cents"])
+        current["remaining_magnitude_display"] = format_cents(abs(current["remaining_cents"]))
+        current["projected_display"] = format_cents(current["projected_cents"])
+    for closed in rounds["closed_rounds"]:
+        closed["spent_display"] = format_cents(closed["spent_cents"])
+        closed["result_display"] = _signed(closed["result_cents"])
+    rounds["closed_this_year_display"] = _signed(rounds["closed_this_year_cents"])
+    return rounds
 
 
 def _updated_plan(conn, category_id: int, request: CategoryUpdate) -> dict | None:

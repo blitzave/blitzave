@@ -70,6 +70,7 @@ def test_category_crud_cycle(client):
         "account_id": None,
         "fill_order": None,
         "completed_on": None,
+        "plan_set_on": None,
     }
 
     assert client.delete(f"/api/categories/{category_id}").status_code == 204
