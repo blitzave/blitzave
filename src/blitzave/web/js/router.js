@@ -8,13 +8,17 @@
 
 const routes = [
   { pattern: "/onboarding", load: () => import("./pages/onboarding.js") },
+  { pattern: "/home", load: () => import("./pages/home.js") },
   { pattern: "/accounts/:id", load: () => import("./pages/account-detail.js") },
   { pattern: "/accounts", load: () => import("./pages/accounts.js") },
   { pattern: "/transactions", load: () => import("./pages/transactions.js") },
   { pattern: "/categories", load: () => import("./pages/categories.js") },
+  { pattern: "/savings/new", load: () => import("./pages/goal-form.js") },
+  { pattern: "/savings/:id", load: () => import("./pages/goal-form.js") },
+  { pattern: "/savings", load: () => import("./pages/savings.js") },
 ];
 
-const DEFAULT_PATH = "/accounts";
+const DEFAULT_PATH = "/home";
 
 let rootEl = null;
 let renderToken = 0;

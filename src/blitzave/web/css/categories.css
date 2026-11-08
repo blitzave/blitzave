@@ -689,3 +689,41 @@
   stroke-width: 1.9;
   stroke-linecap: round;
 }
+
+/* Rounds: what each closed round of this year came to. */
+.category-rounds {
+  margin-top: var(--space-4);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--line-faint);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.category-rounds-total {
+  font-size: var(--text-sm);
+}
+
+.category-rounds-each {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+}
+
+.category-round strong {
+  color: var(--text-primary);
+  font-weight: var(--weight-semibold);
+}
+
+.category-budget-period {
+  max-width: 200px;
+}
+
+.budget-group-link {
+  margin-left: auto;
+  font-size: var(--text-xs);
+  letter-spacing: normal;
+  text-transform: none;
+}

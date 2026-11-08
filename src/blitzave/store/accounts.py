@@ -10,6 +10,11 @@ class AccountConflictError(Exception):
     """The correction would collide with another account's display_name."""
 
 
+class AccountHoldsGoalsError(Exception):
+    """The account is home to active goals, so it stays a targeted savings
+    account until they move or complete (migration 009)."""
+
+
 def list_accounts(conn: sqlite3.Connection) -> list[dict]:
     rows = conn.execute(
         """
@@ -106,9 +111,30 @@ def update_account_type(
             raise AccountConflictError(
                 f"another account already has the display_name this correction would produce: {e}"
             ) from e
+        if "holds goals" in str(e):
+            raise AccountHoldsGoalsError(str(e)) from e
         raise
     except Exception:
         conn.rollback()
         raise
 
     conn.commit()
+
+
+def goal_balance_history(conn: sqlite3.Connection, since: str) -> dict[str, list[tuple[str, int]]]:
+    """Each goal account's recorded balances since `since`, oldest first, by
+    public account id. A goal's funded day is read from these."""
+    history: dict[str, list[tuple[str, int]]] = {}
+    for external_id, as_of, cents in conn.execute(
+        """
+        SELECT a.external_id, b.as_of, b.balance_cents
+        FROM balances b
+        JOIN accounts a ON a.id = b.account_id
+        JOIN assets s ON s.account_id = a.id AND s.asset_type = 'targeted'
+        WHERE b.as_of >= ?
+        ORDER BY b.as_of
+        """,
+        (since,),
+    ):
+        history.setdefault(external_id, []).append((as_of, cents))
+    return history

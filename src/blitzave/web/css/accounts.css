@@ -215,6 +215,96 @@
   gap: var(--space-2);
 }
 
+/* The job picker: one card per asset job, with what that job means. */
+.account-edit-popover:has(.account-jobs:not([hidden])) {
+  width: 320px;
+}
+
+.account-jobs {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  border: 0;
+  min-width: 0;
+}
+
+.account-jobs[hidden],
+.account-edit-popover .field[hidden] {
+  display: none;
+}
+
+.account-jobs > legend {
+  margin-bottom: var(--space-2);
+  padding: 0;
+}
+
+.account-job {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: var(--space-3);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-control);
+  cursor: pointer;
+  transition: border-color var(--t-fast) var(--ease-out), background var(--t-fast) var(--ease-out);
+}
+
+.account-job input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.account-job:hover {
+  background: var(--bg-well);
+}
+
+.account-job:focus-within {
+  box-shadow: var(--focus-ring);
+}
+
+.account-job.is-selected {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.account-job.is-locked {
+  cursor: not-allowed;
+  border-style: dashed;
+  background: transparent;
+}
+
+.account-job.is-locked .account-job-title,
+.account-job.is-locked .account-job-body {
+  color: var(--text-faint);
+}
+
+.account-job-title {
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+}
+
+.account-job-body {
+  font-size: var(--text-xs);
+  line-height: var(--leading-body);
+  color: var(--text-secondary);
+}
+
+.account-jobs-locked {
+  font-size: var(--text-xs);
+  line-height: var(--leading-body);
+  color: var(--text-secondary);
+}
+
+.account-card-goals {
+  margin-top: var(--space-1);
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+}
+
 /* --------------------------- Wallet face (liability) --------------------------- */
 /* The one allowed non-token decorative surface in the whole app: a
    wallet-style card face in the accent's blue family. These two hexes are

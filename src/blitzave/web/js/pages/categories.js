@@ -235,12 +235,17 @@ async function handleBudgetSubmit(form) {
   if (state.budgetSaving !== null) return;
   const myToken = token;
   const value = form.querySelector('[data-role="budget-input"]').value.trim();
+  const period = Number(form.querySelector('[data-role="budget-period"]').value) || 1;
   state.budgetDrafts[id] = value;
   state.budgetErrors[id] = null;
   state.budgetSaving = id;
   paint();
   try {
-    await api.updateCategory(id, { budget_amount: value || null });
+    // An amount comes with its schedule: every `period` months, calendar-aligned.
+    await api.updateCategory(
+      id,
+      value ? { budget_amount: value, schedule: "recurring", period_months: period } : { budget_amount: null }
+    );
   } catch (err) {
     if (stale(myToken)) return;
     state.budgetSaving = null;
@@ -728,7 +733,8 @@ function listSkeleton() {
 //   1. expense with a budget, most of their budget used first;
 //   2. expense with spending but no budget, biggest first;
 //   3. expense with no budget and no spending, folded behind one line;
-//   4. income, then savings — no budget figures, just the manage tools.
+//   0. goals and savings first (pay yourself first), linking to Savings.
+//   4. income — no budget figures, just the manage tools.
 // Membership comes from the categories list; this month's figures are
 // looked up from the summary by id.
 function renderListBody() {
@@ -790,17 +796,29 @@ function renderListBody() {
 
   return `
     <div class="card budget-list">
+      ${savingsGroup(savings)}
       ${group("With a budget", budgeted, renderBudgetRow)}
       ${group("No budget yet", unbudgeted, renderBudgetRow)}
       ${idleBlock}
       ${group("Income", income, renderPlainRow)}
-      ${group("Savings", savings, renderPlainRow)}
       <div class="budget-group budget-group-add">
         ${state.showNewForm ? renderNewCategoryForm(false) : renderCategoryAddRow()}
       </div>
     </div>
     ${uncategorized}
   `;
+}
+
+// Goals come first, then expenses: pay yourself first, in the layout
+// itself. Goals are savings categories; their money and order live on the
+// Savings page, one tap away.
+function savingsGroup(savings) {
+  if (!savings.length) return "";
+  return `<div class="budget-group">
+    <p class="budget-group-label">Goals and savings<span class="u-tabular">${savings.length}</span>
+      <a class="link budget-group-link" href="#/savings">Open Savings</a></p>
+    <ul class="budget-rows">${savings.map(renderPlainRow).join("")}</ul>
+  </div>`;
 }
 
 function percentGeometry(value) {
@@ -834,24 +852,41 @@ function rowHead(category, inner) {
   `;
 }
 
+// A budget that covers more than a month is measured against its round
+// (Oct–Dec, say), not against the month on screen. The engine sends the
+// round's facts in `rounds.current_round`.
+function longRound(category) {
+  return category.period_months > 1 && category.rounds && category.rounds.current_round
+    ? category.rounds.current_round
+    : null;
+}
+
+function everyText(category) {
+  return category.period_months > 1 ? `every ${category.period_months} months` : "a month";
+}
+
 function renderBudgetRow(category) {
   const id = category.id;
   const hasBudget = category.budget_cents != null;
-  const hasPercent = Number.isFinite(category.budget_used_percent);
-  const percent = percentGeometry(category.budget_used_percent);
-  const percentLabel = hasPercent ? `${Math.round(category.budget_used_percent)}%` : "";
+  const round = longRound(category);
+  const used = round ? round.used_percent : category.budget_used_percent;
+  const elapsed = round ? round.elapsed_percent : category.month_elapsed_percent;
+  const hasPercent = Number.isFinite(used);
+  const percent = percentGeometry(used);
+  const percentLabel = hasPercent ? `${Math.round(used)}%` : "";
   const open = isRowOpen(id);
   const meter = hasPercent
     ? `<span class="budget-row-meter" aria-hidden="true">
         <span class="budget-row-meter-fill" style="width:${percent}%"></span>
-        ${Number.isFinite(category.month_elapsed_percent) ? `<span class="budget-row-marker" style="left:${percentGeometry(category.month_elapsed_percent)}%"></span>` : ""}
+        ${Number.isFinite(elapsed) ? `<span class="budget-row-marker" style="left:${percentGeometry(elapsed)}%"></span>` : ""}
       </span>`
     : `<span class="budget-row-meter is-empty" aria-hidden="true"></span>`;
-  const spentHtml = category.spent_display != null
-    ? `<span class="budget-row-spent u-tabular">${escapeHtml(category.spent_display)}</span>`
+  const spent = round ? round.spent_display : category.spent_display;
+  const spentHtml = spent != null
+    ? `<span class="budget-row-spent u-tabular">${escapeHtml(spent)}</span>`
     : "";
   const figure = hasBudget
-    ? `${spentHtml}<span class="budget-row-of u-tabular">of ${escapeHtml(category.budget_display)}</span>`
+    ? `${spentHtml}<span class="budget-row-of u-tabular">of ${escapeHtml(category.budget_display)}${round ? ` · ${escapeHtml(round.label)}` : ""}</span>`
     : `${spentHtml}<span class="budget-row-of">no budget</span>`;
   return `
     <li class="budget-row${open ? " is-open" : ""}" style="--bar-hue:var(--cat-hue-${id % DATA_HUE_COUNT})">
@@ -883,7 +918,24 @@ function renderRowPanel(category) {
   const hasBudget = category.budget_cents != null;
 
   let figuresHtml = "";
-  if (isExpense && category.spent_display != null) {
+  const round = longRound(category);
+  if (isExpense && round) {
+    figuresHtml = `
+      <div class="budget-row-panel-grid">
+        <dl class="category-budget-values">
+          <div><dt>Spent this round (${escapeHtml(round.label)})</dt><dd class="u-tabular">${escapeHtml(round.spent_display)}</dd></div>
+          <div><dt>Budget ${everyText(category)}</dt><dd class="u-tabular">${escapeHtml(category.budget_display)}</dd></div>
+          <div><dt>${round.remaining_cents < 0 ? "Above budget" : "Left this round"}</dt><dd class="u-tabular">${escapeHtml(round.remaining_magnitude_display)}</dd></div>
+        </dl>
+        <div class="category-budget-context">
+          <p class="category-budget-pace">${escapeHtml(round.pace_label)}</p>
+          <p class="category-budget-projection">At this pace: <strong class="u-tabular">${escapeHtml(round.projected_display)}</strong> this round</p>
+          <p class="category-budget-progress-caption">The marker on the bar shows how much of the round has passed.</p>
+        </div>
+      </div>
+      ${closedRoundsHtml(category)}
+    `;
+  } else if (isExpense && category.spent_display != null) {
     const remaining = category.remaining_cents != null
       ? `<div><dt>${escapeHtml(category.remaining_label)}</dt><dd class="u-tabular">${escapeHtml(category.remaining_magnitude_display)}</dd></div>`
       : "";
@@ -900,6 +952,7 @@ function renderRowPanel(category) {
           ${Number.isFinite(category.month_elapsed_percent) && Number.isFinite(category.budget_used_percent) ? `<p class="category-budget-progress-caption">The marker on the bar shows how much of the month has passed.</p>` : ""}
         </div>
       </div>
+      ${closedRoundsHtml(category)}
     `;
   }
 
@@ -964,15 +1017,39 @@ function renderRowError(category) {
   }</p>`;
 }
 
+// What each closed round of this year came to, and the year so far:
+// "Closed this year: +$20.00 · Jan–Mar +$80.00 · Apr–Jun -$60.00".
+function closedRoundsHtml(category) {
+  const rounds = category.rounds;
+  if (!rounds || !rounds.closed_rounds.length) return "";
+  const each = rounds.closed_rounds
+    .map((r) => `<span class="category-round"><span>${escapeHtml(r.label)}</span> <strong class="u-tabular">${escapeHtml(r.result_display)}</strong></span>`)
+    .join("");
+  return `
+    <div class="category-rounds">
+      <p class="category-rounds-total">Closed this year: <strong class="u-tabular">${escapeHtml(rounds.closed_this_year_display)}</strong></p>
+      <p class="category-rounds-each">${each}</p>
+      <p class="category-budget-progress-caption">Each round starts fresh. What's left when one ends, or what it ran over, closes here.</p>
+    </div>
+  `;
+}
+
+const BUDGET_PERIODS = [1, 2, 3, 4, 6, 12];
+
 function renderBudgetForm(category) {
   const id = category.id;
   const saving = state.budgetSaving === id;
   const error = state.budgetErrors[id];
+  const period = category.period_months || 1;
   return `
     <form class="category-budget-form" data-role="budget-form" data-id="${id}">
-      <label class="field-label" for="category-budget-${id}">Monthly budget for ${escapeHtml(category.name)}</label>
+      <label class="field-label" for="category-budget-${id}">Budget for ${escapeHtml(category.name)}</label>
       <input class="input" id="category-budget-${id}" data-role="budget-input" data-id="${id}" type="text" inputmode="decimal" value="${escapeHtml(state.budgetDrafts[id] ?? "")}" placeholder="e.g. 600.00" ${saving ? "disabled" : ""} aria-describedby="category-budget-hint-${id}${error ? ` category-budget-error-${id}` : ""}" ${error ? 'aria-invalid="true"' : ""}>
-      <p class="field-hint" id="category-budget-hint-${id}">Applies each month. Leave blank to remove the budget.</p>
+      <label class="field-label" for="category-period-${id}">Every</label>
+      <select class="select category-budget-period" id="category-period-${id}" data-role="budget-period" ${saving ? "disabled" : ""}>
+        ${BUDGET_PERIODS.map((p) => `<option value="${p}" ${p === period ? "selected" : ""}>${p === 1 ? "month" : `${p} months`}</option>`).join("")}
+      </select>
+      <p class="field-hint" id="category-budget-hint-${id}">Rounds follow the calendar: every 3 months means Jan–Mar, Apr–Jun, and so on. Leave the amount blank to remove the budget.</p>
       ${error ? `<p class="field-error" id="category-budget-error-${id}" role="alert">${escapeHtml(error)}</p>` : ""}
       <div class="category-budget-form-actions">
         <button type="submit" class="btn btn-primary" ${saving ? "disabled" : ""}>${saving ? "Saving…" : "Save budget"}</button>

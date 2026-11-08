@@ -1,19 +1,41 @@
 import re
-from datetime import date
+from calendar import monthrange
+from datetime import date, timedelta
 from typing import Literal
 
 from fastapi import APIRouter, HTTPException, Query
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel, StrictBool, field_validator, model_validator
 
 from blitzave import jobs
 from blitzave.api.money import format_cents, parse_amount
+from blitzave.copy import MONTHS
+from blitzave.copy.home import home_words
+from blitzave.copy.savings import pace_line
 from blitzave.refine.budgets import monthly_budget
 from blitzave.refine.categorize import is_match, match_key
+from blitzave.refine.goals import (
+    QUESTION_WINDOW_DAYS,
+    goal_questions,
+    savings_by_account,
+)
+from blitzave.refine.home import newly_reached, pick
+from blitzave.refine.rounds import category_rounds
+from blitzave.refine.savings import (
+    account_pace,
+    add_months,
+    goal_trajectories,
+    month_key,
+    monthly_flows,
+    pay_yourself_first,
+    spending_pace,
+)
 from blitzave.refine.transfers import kind_of
 from blitzave.store import (
     accounts,
     categories,
     db,
+    export,
     tags,
     transactions,
     transfers,
@@ -49,7 +71,8 @@ class SyncMonthRequest(BaseModel):
 
 class AccountTypeCorrection(BaseModel):
     account_type: Literal["asset", "liability"]
-    asset_type: Literal["checking", "savings"] | None = None
+    # targeted: a savings account that holds goals (migration 009)
+    asset_type: Literal["checking", "savings", "targeted"] | None = None
     liability_type: Literal["credit_card", "loan"] | None = None
 
     @model_validator(mode="after")
@@ -77,12 +100,91 @@ def _validate_budget(value: str | None) -> str | None:
     return value
 
 
+# How a category's amount repeats (migration 008). Rounds are
+# calendar-aligned, so a period has to divide the year evenly.
+Schedule = Literal["once", "recurring"]
+PeriodMonths = Literal[1, 2, 3, 4, 6, 12]
+SCHEDULE_FIELDS = ("schedule", "period_months", "target_on", "ends_on")
+GOAL_REQUEST_FIELDS = ("goal_level", "account_id", "completed_on")
+
+
+def _check_plan(model: "CategoryCreate | CategoryUpdate") -> None:
+    """A plan is an amount plus its schedule, checked as a whole. An amount
+    with no schedule means a monthly one, which is what every budget was
+    before schedules existed (and what the budget editor still sends)."""
+    if model.budget_amount is None:
+        if any(getattr(model, f) is not None for f in SCHEDULE_FIELDS):
+            raise ValueError(
+                "schedule, period_months, target_on and ends_on need a budget_amount"
+            )
+        return
+    if (model.schedule or "recurring") == "once":
+        # target_on may be missing here: a savings goal can go without one
+        # (migration 011). The kind isn't always in the request, so
+        # _check_dated decides once it's known.
+        if model.period_months is not None or model.ends_on is not None:
+            raise ValueError("period_months and ends_on are only for recurring amounts")
+    elif model.target_on is not None:
+        raise ValueError("target_on is only for one-time amounts; use ends_on")
+
+
+# A goal's level (migration 009). account_id is the public account id.
+GoalLevel = Literal["critical", "regular"]
+
+
+def _check_goal_home(model: "CategoryCreate | CategoryUpdate") -> None:
+    if (model.goal_level is None) != (model.account_id is None):
+        raise ValueError("a goal needs both goal_level and account_id")
+
+
+def _check_dated(kind: str, plan: dict) -> None:
+    """A one-time amount needs its date, unless it's a savings goal: an
+    emergency fund is an amount to hold, not one due by a day."""
+    if plan["schedule"] == "once" and plan["target_on"] is None and kind != "savings":
+        raise HTTPException(
+            status_code=422,
+            detail="a one-time amount needs a target_on date; only a savings goal can go without",
+        )
+
+
+def _plan(model: "CategoryCreate | CategoryUpdate") -> dict:
+    """The validated request as the five columns the store saves."""
+    if model.budget_amount is None:
+        return dict(categories.NO_PLAN)
+    schedule = model.schedule or "recurring"
+    recurring = schedule == "recurring"
+    return {
+        "budget_cents": parse_amount(model.budget_amount),
+        "schedule": schedule,
+        "period_months": (model.period_months or 1) if recurring else None,
+        "target_on": None if recurring or model.target_on is None else model.target_on.isoformat(),
+        "ends_on": model.ends_on.isoformat() if recurring and model.ends_on else None,
+    }
+
+
 class CategoryCreate(BaseModel):
     name: str
     kind: Literal["expense", "income", "savings"]
     budget_amount: str | None = None
+    schedule: Schedule | None = None
+    period_months: PeriodMonths | None = None
+    target_on: date | None = None
+    ends_on: date | None = None
+    goal_level: GoalLevel | None = None
+    account_id: str | None = None
 
     _budget = field_validator("budget_amount")(_validate_budget)
+
+    @model_validator(mode="after")
+    def _plan_is_whole(self) -> "CategoryCreate":
+        _check_plan(self)
+        _check_goal_home(self)
+        if self.goal_level is not None:
+            if self.kind != "savings":
+                raise ValueError("only a savings category can be a goal")
+            if self.budget_amount is None:
+                raise ValueError("a goal needs a budget_amount")
+        return self
 
     @field_validator("name")
     @classmethod
@@ -97,6 +199,13 @@ class CategoryUpdate(BaseModel):
     name: str | None = None
     kind: Literal["expense", "income", "savings"] | None = None
     budget_amount: str | None = None
+    schedule: Schedule | None = None
+    period_months: PeriodMonths | None = None
+    target_on: date | None = None
+    ends_on: date | None = None
+    goal_level: GoalLevel | None = None
+    account_id: str | None = None
+    completed_on: date | None = None
 
     _budget = field_validator("budget_amount")(_validate_budget)
 
@@ -112,13 +221,59 @@ class CategoryUpdate(BaseModel):
 
     @model_validator(mode="after")
     def _something_to_change(self) -> "CategoryUpdate":
+        sent = self.model_fields_set
         if (
             self.name is None
             and self.kind is None
-            and "budget_amount" not in self.model_fields_set
+            and not sent & {"budget_amount", *GOAL_REQUEST_FIELDS}
         ):
-            raise ValueError("provide name, kind, and/or budget_amount")
+            raise ValueError(
+                "provide name, kind, budget_amount, goal_level and account_id,"
+                " or completed_on"
+            )
+        # Sending any schedule field means "here is the whole plan", so it is
+        # checked as one. budget_amount alone keeps the current schedule.
+        if sent & set(SCHEDULE_FIELDS):
+            _check_plan(self)
+        # A goal's home is its level and account together; both null means
+        # it's no longer a goal.
+        if sent & {"goal_level", "account_id"}:
+            if not {"goal_level", "account_id"} <= sent:
+                raise ValueError("send goal_level and account_id together")
+            _check_goal_home(self)
         return self
+
+
+class GoalOrder(BaseModel):
+    goal_ids: list[int]  # every active goal in the account, top first
+
+    @field_validator("goal_ids")
+    @classmethod
+    def _each_goal_once(cls, value: list[int]) -> list[int]:
+        if not value:
+            raise ValueError("goal_ids must list the account's goals")
+        if len(set(value)) != len(value):
+            raise ValueError("each goal can appear only once")
+        return value
+
+
+class GoalAnswer(BaseModel):
+    goal_id: int
+    answer: Literal["bought", "other"]  # "Yes, I bought it" / "It was something else"
+
+
+class ExportTable(BaseModel):
+    columns: list[str]
+    rows: list[list[int | float | str | None]]
+
+
+class ExportDocument(BaseModel):
+    """What GET /api/export produces. The store checks the version, that the
+    database is empty, and every row against the schema's own rules."""
+
+    format: str
+    schema_version: int
+    tables: dict[str, ExportTable]
 
 
 class TagCreate(BaseModel):
@@ -254,7 +409,7 @@ def correct_account_type(account_id: str, correction: AccountTypeCorrection) -> 
             )
         except accounts.AccountNotFoundError as e:
             raise HTTPException(status_code=404, detail=str(e)) from e
-        except accounts.AccountConflictError as e:
+        except (accounts.AccountConflictError, accounts.AccountHoldsGoalsError) as e:
             raise HTTPException(status_code=409, detail=str(e)) from e
         # Return the full updated row, same shape as GET /api/accounts,
         # so the UI can refresh the card from the response alone.
@@ -290,19 +445,20 @@ def create_category(request: CategoryCreate) -> dict:
     conn = db.connect()
     try:
         user_id = users.get_or_create_user(conn)
+        goal = (
+            None
+            if request.account_id is None
+            else {"goal_level": request.goal_level, "account_id": request.account_id}
+        )
+        plan = _plan(request)
+        _check_dated(request.kind, plan)
         try:
             return _category_with_display(
-                categories.create_category(
-                    conn,
-                    user_id,
-                    request.name,
-                    request.kind,
-                    None
-                    if request.budget_amount is None
-                    else parse_amount(request.budget_amount),
-                )
+                categories.create_category(conn, user_id, request.name, request.kind, plan, goal)
             )
-        except categories.DuplicateCategoryError as e:
+        except categories.UnknownAccountError as e:
+            raise HTTPException(status_code=422, detail=str(e)) from e
+        except (categories.DuplicateCategoryError, categories.GoalRuleError) as e:
             raise HTTPException(status_code=409, detail=str(e)) from e
     finally:
         conn.close()
@@ -320,6 +476,10 @@ def category_summary(start: date | None = None, end: date | None = None) -> dict
         category_totals, uncategorized_cents = categories.summary(
             conn, start.isoformat(), end.isoformat()
         )
+        # Rounds always start in January, so this year's months hold them all.
+        year_totals = categories.monthly_totals(
+            conn, date(today.year, 1, 1).isoformat(), today.isoformat()
+        )
     finally:
         conn.close()
     for row in category_totals:
@@ -328,7 +488,13 @@ def category_summary(start: date | None = None, end: date | None = None) -> dict
         if row["kind"] == "expense":
             row.update(
                 monthly_budget(
-                    row["total_cents"], row["budget_cents"], start, end, today
+                    row["total_cents"],
+                    # Only a monthly amount is measured against a month;
+                    # longer rounds get their own facts in "rounds" below.
+                    row["budget_cents"] if row["period_months"] == 1 else None,
+                    start,
+                    end,
+                    today,
                 )
             )
             row["spent_display"] = format_cents(row["spent_cents"])
@@ -343,6 +509,8 @@ def category_summary(start: date | None = None, end: date | None = None) -> dict
             row["projected_display"] = (
                 None if projected is None else format_cents(projected)
             )
+            rounds = category_rounds(row, year_totals.get(row["id"], {}), today)
+            row["rounds"] = None if rounds is None else _rounds_with_display(rounds)
     return {
         "start": start,
         "end": end,
@@ -352,26 +520,89 @@ def category_summary(start: date | None = None, end: date | None = None) -> dict
     }
 
 
+def _signed(cents: int) -> str:
+    """A round's result: "+$80.00" when money was left, "-$60.00" when it ran over."""
+    return f"+{format_cents(cents)}" if cents > 0 else format_cents(cents)
+
+
+def _rounds_with_display(rounds: dict) -> dict:
+    current = rounds["current_round"]
+    if current is not None:
+        current["spent_display"] = format_cents(current["spent_cents"])
+        current["remaining_display"] = format_cents(current["remaining_cents"])
+        current["remaining_magnitude_display"] = format_cents(abs(current["remaining_cents"]))
+        current["projected_display"] = format_cents(current["projected_cents"])
+    for closed in rounds["closed_rounds"]:
+        closed["spent_display"] = format_cents(closed["spent_cents"])
+        closed["result_display"] = _signed(closed["result_cents"])
+    rounds["closed_this_year_display"] = _signed(rounds["closed_this_year_cents"])
+    return rounds
+
+
+def _updated_plan(conn, category_id: int, request: CategoryUpdate) -> dict | None:
+    """None leaves the amount and schedule alone. Any schedule field sends a
+    whole new plan. budget_amount on its own changes only the amount (or,
+    when null, removes the plan), keeping the schedule the category had."""
+    sent = request.model_fields_set
+    if sent & set(SCHEDULE_FIELDS):
+        return _plan(request)
+    if "budget_amount" not in sent:
+        return None
+    if request.budget_amount is None:
+        return dict(categories.NO_PLAN)
+    current = categories.get_category(conn, category_id)
+    if current["schedule"] is None:
+        return _plan(request)  # a first amount: monthly
+    kept = {f: current[f] for f in categories.PLAN_FIELDS}
+    return {**kept, "budget_cents": parse_amount(request.budget_amount)}
+
+
+def _updated_goal(conn, category_id: int, request: CategoryUpdate) -> dict | None:
+    """None leaves the goal alone. Otherwise the whole goal as it should be:
+    the current one with what the request sent laid over it."""
+    sent = request.model_fields_set
+    if not sent & set(GOAL_REQUEST_FIELDS):
+        return None
+    current = categories.get_category(conn, category_id)
+    goal = {f: current[f] for f in GOAL_REQUEST_FIELDS}
+    if "account_id" in sent:  # goal_level always comes with it
+        goal["goal_level"] = request.goal_level
+        goal["account_id"] = request.account_id
+        if request.account_id is None:
+            goal["completed_on"] = None  # no longer a goal, so nothing to complete
+    if "completed_on" in sent:
+        goal["completed_on"] = (
+            None if request.completed_on is None else request.completed_on.isoformat()
+        )
+    return goal
+
+
 @router.patch("/categories/{category_id}")
 def update_category(category_id: int, request: CategoryUpdate) -> dict:
     conn = db.connect()
     try:
         try:
+            plan = _updated_plan(conn, category_id, request)
+            current = categories.get_category(conn, category_id)
+            _check_dated(
+                request.kind or current["kind"],
+                plan if plan is not None else {f: current[f] for f in categories.PLAN_FIELDS},
+            )
             return _category_with_display(
                 categories.update_category(
                     conn,
                     category_id,
                     request.name,
                     request.kind,
-                    budget_cents=None
-                    if request.budget_amount is None
-                    else parse_amount(request.budget_amount),
-                    budget_provided="budget_amount" in request.model_fields_set,
+                    plan=plan,
+                    goal=_updated_goal(conn, category_id, request),
                 )
             )
         except categories.CategoryNotFoundError as e:
             raise HTTPException(status_code=404, detail=str(e)) from e
-        except categories.DuplicateCategoryError as e:
+        except categories.UnknownAccountError as e:
+            raise HTTPException(status_code=422, detail=str(e)) from e
+        except (categories.DuplicateCategoryError, categories.GoalRuleError) as e:
             raise HTTPException(status_code=409, detail=str(e)) from e
     finally:
         conn.close()
@@ -387,6 +618,183 @@ def delete_category(category_id: int) -> None:
             raise HTTPException(status_code=404, detail=str(e)) from e
         except categories.CategoryInUseError as e:
             raise HTTPException(status_code=409, detail=str(e)) from e
+    finally:
+        conn.close()
+
+
+# --- goals --------------------------------------------------------------------
+
+
+def _arc(conn, today: date) -> dict:
+    """The rows the Savings arc is computed from: six whole months back,
+    plus this one."""
+    since = f"{add_months(month_key(today), -6)}-01"
+    first = transactions.first_posted_on(conn)
+    return {
+        "first_day": date.fromisoformat(first) if first else None,
+        "flows": monthly_flows(transactions.goal_account_rows(conn, since)),
+        "spending": transactions.spending_rows(conn, since),
+        "history": accounts.goal_balance_history(
+            conn, (today - timedelta(days=60)).isoformat()
+        ),
+    }
+
+
+def _trajectories(homes: list[dict], arc: dict, today: date) -> dict[int, dict]:
+    trajectories = {}
+    for home in homes:
+        pace = account_pace(arc["flows"], home["id"], today, arc["first_day"])
+        trajectories.update(goal_trajectories(home, pace, today))
+    return trajectories
+
+
+def _savings(conn) -> dict:
+    """Every targeted savings account with its goals filled in line, and the
+    completed goals, with display strings added at the edge."""
+    view, _arc_facts, _trajectory = _savings_with_arc(conn, date.today())
+    return view
+
+
+def _savings_with_arc(conn, today: date) -> tuple[dict, dict, dict[int, dict]]:
+    """The Savings view, plus the arc's rows and each goal's trajectory, so
+    Home can reuse them without asking the database twice."""
+    view = savings_by_account(accounts.list_accounts(conn), categories.list_categories(conn))
+    arc = _arc(conn, today)
+    trajectories = _trajectories(view["accounts"], arc, today)
+    view["total_display"] = format_cents(view["total_cents"])
+    for home in view["accounts"]:
+        balance = home["balance_cents"]
+        home["balance_display"] = None if balance is None else format_cents(balance)
+        home["unassigned_display"] = format_cents(home["unassigned_cents"])
+        for goal in home["goals"]:
+            _category_with_display(goal)
+            goal["saved_display"] = format_cents(goal["saved_cents"])
+            goal["to_go_display"] = format_cents(goal["to_go_cents"])
+            goal["pace_line"] = pace_line(goal, trajectories.get(goal["id"]), today)
+    for goal in view["completed"]:
+        _category_with_display(goal)
+    since = (today - timedelta(days=QUESTION_WINDOW_DAYS)).isoformat()
+    view["questions"] = goal_questions(view["accounts"], categories.goal_withdrawals(conn, since))
+    for question in view["questions"]:
+        question["amount_display"] = format_cents(question["amount_cents"])
+    return view, arc, trajectories
+
+
+# --- home -------------------------------------------------------------------------
+
+
+@router.get("/home")
+def home() -> dict:
+    """Home's one card: the first rule that matches (refine/home.py), in fixed
+    words (copy/home.py), with the month ring and three figures beneath it.
+    Read-only: opening Home never changes anything."""
+    today = date.today()
+    conn = db.connect()
+    try:
+        view, arc, trajectories = _savings_with_arc(conn, today)
+    finally:
+        conn.close()
+    pay_first = pay_yourself_first(arc["flows"], arc["spending"], today, arc["first_day"])
+    spending = spending_pace(arc["spending"], today, arc["first_day"])
+    card = pick(
+        today=today,
+        first_posted_on=arc["first_day"].isoformat() if arc["first_day"] else None,
+        reached=newly_reached(view["accounts"], arc["history"], today),
+        spending=spending,
+        homes=view["accounts"],
+        trajectories=trajectories,
+        pay_first=pay_first,
+    )
+    headline, support = home_words(card, today)
+    return {
+        "date": today.isoformat(),
+        "month_label": MONTHS[today.month - 1],
+        "day": today.day,
+        "days_in_month": monthrange(today.year, today.month)[1],
+        "rule": card["rule"],
+        "headline": headline,
+        "support": support,
+        "spent_display": format_cents(spending["spent_cents"]),
+        "set_aside_display": format_cents(pay_first["in_cents"]),
+        "goals_underway": sum(len(h["goals"]) for h in view["accounts"]),
+    }
+
+
+@router.get("/goals")
+def list_goals() -> dict:
+    conn = db.connect()
+    try:
+        return _savings(conn)
+    finally:
+        conn.close()
+
+
+@router.put("/accounts/{account_id}/goal-order")
+def reorder_goals(account_id: str, request: GoalOrder) -> dict:
+    """Returns the account as GET /api/goals shows it, so the page can redraw
+    the line, and the money's new split, from the response alone."""
+    conn = db.connect()
+    try:
+        try:
+            categories.reorder_goals(conn, account_id, request.goal_ids)
+        except categories.UnknownAccountError as e:
+            raise HTTPException(status_code=404, detail=str(e)) from e
+        except categories.GoalOrderError as e:
+            raise HTTPException(status_code=409, detail=str(e)) from e
+        return next(a for a in _savings(conn)["accounts"] if a["id"] == account_id)
+    finally:
+        conn.close()
+
+
+@router.post("/goals/questions/{transaction_id}")
+def answer_goal_question(transaction_id: str, request: GoalAnswer) -> dict:
+    """Answers "was that the goal?" for one withdrawal. "bought" completes the
+    goal on the day the money left; "other" only records the answer. Either
+    way it's never asked again. Returns the whole of GET /api/goals."""
+    conn = db.connect()
+    try:
+        try:
+            categories.answer_goal_question(
+                conn, transaction_id, request.goal_id, request.answer == "bought"
+            )
+        except categories.CategoryNotFoundError as e:
+            raise HTTPException(status_code=404, detail=str(e)) from e
+        except categories.GoalQuestionError as e:
+            raise HTTPException(status_code=409, detail=str(e)) from e
+        return _savings(conn)
+    finally:
+        conn.close()
+
+
+# --- export and import ----------------------------------------------------------
+
+
+@router.get("/export")
+def export_data() -> JSONResponse:
+    """Every table, as one JSON file the browser saves. Holds no credential."""
+    conn = db.connect()
+    try:
+        document = export.export_all(conn)
+    finally:
+        conn.close()
+    filename = f"blitzave-export-{date.today().isoformat()}.json"
+    return JSONResponse(
+        document, headers={"Content-Disposition": f'attachment; filename="{filename}"'}
+    )
+
+
+@router.post("/import")
+def import_data(document: ExportDocument) -> dict:
+    """Loads an export into a fresh install, all of it or none of it."""
+    conn = db.connect()
+    try:
+        try:
+            counts = export.import_all(conn, document.model_dump())
+        except export.NotEmptyError as e:
+            raise HTTPException(status_code=409, detail=str(e)) from e
+        except export.ImportRefusedError as e:
+            raise HTTPException(status_code=422, detail=str(e)) from e
+        return {"imported": counts}
     finally:
         conn.close()
 

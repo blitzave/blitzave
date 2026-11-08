@@ -26,6 +26,21 @@ const ICON_TRANSACTIONS = `
   </svg>
 `;
 
+const ICON_HOME = `
+  <svg class="sidebar-link-icon" viewBox="0 0 24 24" aria-hidden="true">
+    <path d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z" />
+  </svg>
+`;
+
+// A target: Savings is where goals live.
+const ICON_SAVINGS = `
+  <svg class="sidebar-link-icon" viewBox="0 0 24 24" aria-hidden="true">
+    <circle cx="12" cy="12" r="9" />
+    <circle cx="12" cy="12" r="5" />
+    <circle cx="12" cy="12" r="1" />
+  </svg>
+`;
+
 const ICON_CATEGORIES = `
   <svg class="sidebar-link-icon" viewBox="0 0 24 24" aria-hidden="true">
     <rect x="3" y="3" width="18" height="18" rx="2" />
@@ -63,6 +78,8 @@ const UPDATE_DISCLOSURE =
   "BlitZave can ask GitHub once a day whether a newer version exists. It sends nothing about you or your money.";
 
 const NAV_ITEMS = [
+  { label: "Home", path: "/home", icon: ICON_HOME },
+  { label: "Savings", path: "/savings", icon: ICON_SAVINGS },
   { label: "Accounts", path: "/accounts", icon: ICON_ACCOUNTS },
   { label: "Transactions", path: "/transactions", icon: ICON_TRANSACTIONS },
   { label: "Categories", path: "/categories", icon: ICON_CATEGORIES },
@@ -75,6 +92,9 @@ const TOPBAR_COPY = [
   { prefix: "/accounts", title: "Accounts", subtitle: "Balances across everything you've connected." },
   { prefix: "/transactions", title: "Transactions", subtitle: "Review and categorize your recent activity." },
   { prefix: "/categories", title: "Categories", subtitle: "Monthly budgets, with room to adjust." },
+  { prefix: "/home", title: "Home", subtitle: "The one thing worth knowing today." },
+  { prefix: "/savings/", title: "Goal", subtitle: "Something you're saving toward." },
+  { prefix: "/savings", title: "Savings", subtitle: "Your goals, and the accounts they live in." },
   { prefix: "/onboarding", title: "Setup", subtitle: "One token to paste, then you're done." },
 ];
 
@@ -108,7 +128,7 @@ function shellMarkup() {
     <div class="app-shell" id="app-shell">
       <aside class="sidebar">
         <div class="sidebar-top">
-          <a class="sidebar-brand" href="#/accounts">
+          <a class="sidebar-brand" href="#/home">
             ${BRAND_MARK}
             <span class="sidebar-brand-text">
               <span class="sidebar-brand-name">BlitZave</span>
@@ -125,6 +145,7 @@ function shellMarkup() {
         <div class="sidebar-footer">
           <p class="sidebar-footer-note">${ICON_LOCK}<span>Runs on this laptop. Bank access is read-only.</span></p>
           <p class="sidebar-footer-meta">Open source · self-hosted</p>
+          <p class="sidebar-footer-meta"><a class="link" href="${api.exportUrl()}" download>Export your data</a></p>
           <div class="sidebar-updates" id="sidebar-updates" hidden></div>
         </div>
       </aside>
@@ -157,7 +178,9 @@ function shellMarkup() {
 
 function refreshTopbar() {
   if (!topbarTitleEl) return;
-  const path = window.location.hash.slice(1).split("?")[0] || "/accounts";
+  // "#/" is Home, the same way the router reads it.
+  const raw = window.location.hash.slice(1).split("?")[0];
+  const path = !raw || raw === "/" ? "/home" : raw;
   const copy = TOPBAR_COPY.find((c) => path.startsWith(c.prefix)) || TOPBAR_COPY[1];
   topbarTitleEl.textContent = copy.title;
   topbarSubtitleEl.textContent = copy.subtitle;
@@ -330,12 +353,12 @@ function wireShell() {
 
 /** Called by onboarding.js once setup is complete and it has already set
  * localStorage['bz.onboarded'] = '1'. Reveals the sidebar and sends the
- * user into the real app. */
+ * user into the real app, at Home. */
 function refreshShell() {
   if (shellEl) shellEl.classList.remove("is-onboarding");
   refreshSyncHint();
   loadUpdates(); // picks up the choice made in onboarding step 5
-  navigate("/accounts");
+  navigate("/home");
 }
 
 async function boot() {

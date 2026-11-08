@@ -1,7 +1,12 @@
 // BlitZave — accounts overview page (#/accounts, also the default landing
-// page). Calm home: two groups — Assets and Cards — each a grid of account
-// cards. No net-worth math here; there is no total endpoint, so we never
-// invent one.
+// page). Calm home: accounts grouped by the job they do (checking, savings,
+// goal accounts) and then cards, each a grid of account cards. No net-worth
+// math here; there is no total endpoint, so we never invent one.
+//
+// Every asset account does one job, and the menu says what each job means.
+// A goal account that holds goals is locked to its job until they move: the
+// menu shows why before anyone tries, and the engine's 409 is only the
+// backstop.
 //
 // This is the signature screen of the whole app: liability (credit card)
 // accounts render as Apple-Wallet-style dark cards; asset accounts stay
@@ -10,11 +15,37 @@
 //
 // Owned by the accounts agent.
 
-import * as api from "../api.js";
+// Versioned import: a tab left open across an update still holds the old
+// api.js, which lacks the goal and export calls (LESSONS.md 13).
+import * as api from "../api.js?v=goals";
 import { navigate } from "../router.js";
 
-const ASSET_LABELS = { checking: "Checking", savings: "Savings" };
+const ASSET_LABELS = { checking: "Checking", savings: "Savings", targeted: "Goal account" };
 const LIABILITY_LABELS = { credit_card: "Credit card", loan: "Loan" };
+
+// What each asset job means, shown where the job is chosen.
+const ASSET_JOBS = [
+  { value: "checking", body: "Pay comes in. Everyday spending and card payments go out." },
+  { value: "savings", body: "A short buffer. Rent and groceries wait here until they're due." },
+  { value: "targeted", body: "Goals live here. Money for something months or years away." },
+];
+
+// Goal accounts' goals, by account id, from GET /api/goals. Filled on each
+// render; empty if that call fails (the page still works without it).
+let goalsByAccount = new Map();
+
+function joinNames(names) {
+  if (names.length <= 1) return names.join("");
+  return `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`;
+}
+
+// Who lives in a goal account, in a few words.
+function goalsLine(account) {
+  const goals = goalsByAccount.get(account.id) || [];
+  if (!goals.length) return "No goals yet";
+  if (goals.length === 1 && goals[0].goal_level === "critical") return `${goals[0].name}'s own account`;
+  return `Shared by ${joinNames(goals.map((g) => g.name))}`;
+}
 
 // Real inline SVG, 16-20px, currentColor, round caps — see DESIGN.md's
 // iconography rule. Same dot pattern the categories page uses, for a
@@ -90,7 +121,12 @@ export async function render(root) {
 
   let accounts;
   try {
-    accounts = await api.listAccounts();
+    let goalsView;
+    [accounts, goalsView] = await Promise.all([
+      api.listAccounts(),
+      api.listGoals().catch(() => null),
+    ]);
+    goalsByAccount = new Map((goalsView ? goalsView.accounts : []).map((home) => [home.id, home.goals]));
   } catch (err) {
     renderError(root, err, () => render(root));
     return;
@@ -178,7 +214,10 @@ function renderEmpty(root) {
 function renderAccounts(root, accounts) {
   openPopovers = [];
 
-  const assets = accounts.filter((a) => a.account_type === "asset");
+  const byJob = (job) => accounts.filter((a) => a.account_type === "asset" && a.asset_type === job);
+  const unsorted = accounts.filter(
+    (a) => a.account_type === "asset" && !ASSET_LABELS[a.asset_type]
+  );
   const liabilities = accounts.filter((a) => a.account_type === "liability");
 
   root.innerHTML = `
@@ -193,8 +232,15 @@ function renderAccounts(root, accounts) {
   `;
 
   const groupsEl = root.querySelector("#accounts-groups");
-  if (assets.length) groupsEl.appendChild(renderGroup(root, "Assets", assets));
-  if (liabilities.length) groupsEl.appendChild(renderGroup(root, "Cards", liabilities));
+  [
+    ["Checking", byJob("checking")],
+    ["Savings", byJob("savings")],
+    ["Goal accounts", byJob("targeted")],
+    ["Other accounts", unsorted],
+    ["Cards", liabilities],
+  ].forEach(([title, group]) => {
+    if (group.length) groupsEl.appendChild(renderGroup(root, title, group));
+  });
 }
 
 function renderGroup(root, title, accounts) {
@@ -284,6 +330,12 @@ function renderCard(root, account) {
       inst.textContent = instLabel;
       idBlock.appendChild(inst);
     }
+    if (account.asset_type === "targeted") {
+      const goals = document.createElement("p");
+      goals.className = "account-card-goals";
+      goals.textContent = goalsLine(account);
+      idBlock.appendChild(goals);
+    }
 
     const actions = document.createElement("div");
     actions.className = "account-card-actions";
@@ -336,6 +388,11 @@ function buildEditPopover(root, account) {
   popover.hidden = true;
   popover.addEventListener("click", (e) => e.stopPropagation());
 
+  // A goal account that holds goals keeps its job until they move or are
+  // bought (the engine refuses otherwise). Say so here, before Save.
+  const heldGoals = account.asset_type === "targeted" ? goalsByAccount.get(account.id) || [] : [];
+  const locked = heldGoals.length > 0;
+
   const typeField = document.createElement("div");
   typeField.className = "field";
   const typeLabel = document.createElement("span");
@@ -354,8 +411,57 @@ function buildEditPopover(root, account) {
     typeSelect.appendChild(opt);
   });
   typeSelect.value = account.account_type;
+  typeSelect.disabled = locked;
   typeField.appendChild(typeLabel);
   typeField.appendChild(typeSelect);
+
+  // Asset: what's this account for? One job, each with a line on what it
+  // means. Liability: card or loan, a plain select as before.
+  const jobField = document.createElement("fieldset");
+  jobField.className = "account-jobs";
+  const jobLegend = document.createElement("legend");
+  jobLegend.className = "field-label";
+  jobLegend.textContent = "What's this account for?";
+  jobField.appendChild(jobLegend);
+  const jobName = `account-job-${account.id}`;
+  let chosenJob = ASSET_LABELS[account.asset_type] ? account.asset_type : "checking";
+  const jobCards = ASSET_JOBS.map((job) => {
+    const label = document.createElement("label");
+    label.className = "account-job";
+    const input = document.createElement("input");
+    input.type = "radio";
+    input.name = jobName;
+    input.value = job.value;
+    input.checked = job.value === chosenJob;
+    input.disabled = locked && job.value !== "targeted";
+    const title = document.createElement("span");
+    title.className = "account-job-title";
+    title.textContent = ASSET_LABELS[job.value];
+    const body = document.createElement("span");
+    body.className = "account-job-body";
+    body.textContent = job.body;
+    label.append(input, title, body);
+    label.classList.toggle("is-selected", input.checked);
+    label.classList.toggle("is-locked", input.disabled);
+    input.addEventListener("change", () => {
+      chosenJob = input.value;
+      jobCards.forEach((card) =>
+        card.classList.toggle("is-selected", card.querySelector("input").checked)
+      );
+    });
+    jobField.appendChild(label);
+    return label;
+  });
+  if (locked) {
+    const note = document.createElement("p");
+    note.className = "account-jobs-locked";
+    note.textContent = `${joinNames(heldGoals.map((g) => g.name))} ${
+      heldGoals.length === 1 ? "lives" : "live"
+    } here. To give this account a different job, move ${
+      heldGoals.length === 1 ? "it" : "them"
+    } to another goal account first.`;
+    jobField.appendChild(note);
+  }
 
   const subtypeField = document.createElement("div");
   subtypeField.className = "field";
@@ -365,27 +471,22 @@ function buildEditPopover(root, account) {
   const subtypeSelect = document.createElement("select");
   subtypeSelect.className = "select";
   subtypeSelect.setAttribute("aria-label", "Account subtype");
+  Object.entries(LIABILITY_LABELS).forEach(([value, label]) => {
+    const opt = document.createElement("option");
+    opt.value = value;
+    opt.textContent = label;
+    subtypeSelect.appendChild(opt);
+  });
+  if (LIABILITY_LABELS[account.liability_type]) subtypeSelect.value = account.liability_type;
   subtypeField.appendChild(subtypeFieldLabel);
   subtypeField.appendChild(subtypeSelect);
 
-  function populateSubtype(type, preselect) {
-    subtypeSelect.innerHTML = "";
-    const options = type === "asset" ? ASSET_LABELS : LIABILITY_LABELS;
-    Object.entries(options).forEach(([value, label]) => {
-      const opt = document.createElement("option");
-      opt.value = value;
-      opt.textContent = label;
-      subtypeSelect.appendChild(opt);
-    });
-    if (preselect && options[preselect]) subtypeSelect.value = preselect;
+  function showFieldsFor(type) {
+    jobField.hidden = type !== "asset";
+    subtypeField.hidden = type === "asset";
   }
-
-  populateSubtype(
-    account.account_type,
-    account.account_type === "asset" ? account.asset_type : account.liability_type
-  );
-
-  typeSelect.addEventListener("change", () => populateSubtype(typeSelect.value));
+  showFieldsFor(account.account_type);
+  typeSelect.addEventListener("change", () => showFieldsFor(typeSelect.value));
 
   const actionsRow = document.createElement("div");
   actionsRow.className = "account-edit-actions";
@@ -408,7 +509,7 @@ function buildEditPopover(root, account) {
 
     const body = { account_type: typeSelect.value };
     if (typeSelect.value === "asset") {
-      body.asset_type = subtypeSelect.value;
+      body.asset_type = chosenJob;
     } else {
       body.liability_type = subtypeSelect.value;
     }
@@ -418,6 +519,17 @@ function buildEditPopover(root, account) {
       popover.hidden = true;
       await render(root);
     } catch (err) {
+      const holdsGoals =
+        err && err.status === 409 && String(err.detail || "").includes("holds goals");
+      if (holdsGoals) {
+        // The backstop: goals moved in since the page loaded.
+        showToast(
+          "Goals live in this account. Move them to another goal account first, then change its job."
+        );
+        saveBtn.disabled = false;
+        saveBtn.textContent = "Save";
+        return;
+      }
       const message =
         err && err.status === 409
           ? "That account is already set that way."
@@ -432,6 +544,7 @@ function buildEditPopover(root, account) {
   actionsRow.appendChild(saveBtn);
 
   popover.appendChild(typeField);
+  popover.appendChild(jobField);
   popover.appendChild(subtypeField);
   popover.appendChild(actionsRow);
 

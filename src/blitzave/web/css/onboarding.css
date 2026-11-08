@@ -521,3 +521,24 @@
     display: none;
   }
 }
+
+/* "Moving from another laptop?": a quiet way in for an export. */
+.onboarding-import {
+  margin-top: var(--space-5);
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+}
+
+.onboarding-import-status {
+  min-height: 1.5em;
+  margin-top: var(--space-2);
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+}
+
+.onboarding-first-goal {
+  margin-top: var(--space-5);
+  padding: var(--space-4);
+  border-radius: var(--radius-control);
+  background: var(--bg-well);
+}

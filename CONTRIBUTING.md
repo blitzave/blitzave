@@ -61,12 +61,17 @@ src/blitzave/
 ├── __main__.py   # starts the server on 127.0.0.1:8742; syncs on startup
 ├── sources/      # SimpleFIN fetch + normalize
 ├── store/        # SQLite access and numbered migrations
-├── refine/       # pure analysis: categorize, budgets, (soon) behavior detectors
+├── refine/       # pure analysis: categorize, transfers, budgets, goals, (soon) behavior detectors
 ├── api/          # FastAPI routes and money parsing/formatting — the contract
 ├── jobs.py       # the sync pipeline
 └── web/          # the UI: plain HTML/CSS/JS modules, served at /
 tests/            # pytest; synthetic fixtures only
 ```
+
+[ARCHITECTURE.md](ARCHITECTURE.md) has the diagrams: the whole system, the sync
+pipeline, a request end to end, and how goals get their money. [SCHEMA.md](SCHEMA.md)
+lists every table, column and trigger. Update both when you add a migration, an
+endpoint or a module.
 
 There are two zones, and the API is the wall between them:
 

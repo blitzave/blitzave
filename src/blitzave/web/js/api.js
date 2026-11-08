@@ -125,10 +125,12 @@ export function listCategories() {
   return request("/api/categories");
 }
 
-export function createCategory(name, kind) {
+// extra: the rest of a category, e.g. a goal's budget_amount, schedule,
+// target_on / period_months / ends_on, goal_level and account_id.
+export function createCategory(name, kind, extra = {}) {
   return request("/api/categories", {
     method: "POST",
-    body: JSON.stringify({ name, kind }),
+    body: JSON.stringify({ name, kind, ...extra }),
   });
 }
 
@@ -145,6 +147,59 @@ export function deleteCategory(id) {
 
 export function categorySummary(start, end) {
   return request(`/api/categories/summary${query({ start, end })}`);
+}
+
+// -------------------------------- Home --------------------------------
+
+// Home's one card: { rule, headline, support, month_label, day,
+//   days_in_month, spent_display, set_aside_display, goals_underway }.
+export function home() {
+  return request("/api/home");
+}
+
+// -------------------------------- Goals --------------------------------
+// A goal is a savings category that lives in a goal account (asset_type
+// "targeted"). Goals are created and edited through /api/categories; these
+// two read and reorder them.
+
+// { total_display, accounts: [goal accounts, each with goals in line,
+//   saved/to-go/budget displays and a state], completed: [...] }
+export function listGoals() {
+  return request("/api/goals");
+}
+
+// goalIds: every active goal in the account, top first. Returns the account
+// with its new split, the same shape as one entry of listGoals().accounts.
+export function reorderGoals(accountId, goalIds) {
+  return request(`/api/accounts/${encodeURIComponent(accountId)}/goal-order`, {
+    method: "PUT",
+    body: JSON.stringify({ goal_ids: goalIds }),
+  });
+}
+
+// "Was that the PS5?": answer one question from listGoals().questions.
+// answer: "bought" (completes the goal) or "other". Returns the whole of
+// listGoals() so the page can redraw.
+export function answerGoalQuestion(transactionId, goalId, answer) {
+  return request(`/api/goals/questions/${encodeURIComponent(transactionId)}`, {
+    method: "POST",
+    body: JSON.stringify({ goal_id: goalId, answer }),
+  });
+}
+
+// --------------------------- Export and import ---------------------------
+// Export is a plain download: the link points here and the browser saves the
+// file the engine names. Import sends that file back into a fresh install.
+
+export function exportUrl() {
+  return "/api/export";
+}
+
+export function importData(exportDocument) {
+  return request("/api/import", {
+    method: "POST",
+    body: JSON.stringify(exportDocument),
+  });
 }
 
 // -------------------------------- Tags --------------------------------

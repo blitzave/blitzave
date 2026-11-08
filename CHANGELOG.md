@@ -4,7 +4,55 @@ What changed in each BlitZave version, in plain words. Newest first.
 
 To update: `uv tool upgrade blitzave`, then start `blitzave` as usual.
 
-## 0.1.2 (unreleased)
+## 0.1.3 (unreleased)
+
+### New
+
+- **Home: the one thing worth knowing today.** BlitZave now opens on a calm ring
+  that shows how far through the month you are, with one sentence inside it:
+  savings went first, a goal is a quarter, halfway or three-quarters of the
+  way there, almost there or done, a heavier start (that happens), or nothing
+  that needs you. A goal's milestones get a small star. Below it are what you've spent so far,
+  what you've set aside, and your goals underway.
+- **When each goal gets there.** Every goal on Savings shows when it arrives at
+  your recent pace, as a range of months, and what a month would take to make
+  its date.
+- **Savings goals with a home.** Mark the savings accounts you save toward goals
+  in as **Goal account**, then add goals on the new **Savings** page. A critical
+  goal, like an emergency fund, has an account to itself, and all of that
+  account's money counts toward it, even past the goal. Regular goals, like a trip or a new phone, share an
+  account: its money fills them from the top, in the order you choose. Moving a
+  goal up moves the money with it, right away.
+- **Every goal shows where it stands.** Not started, Saving, or Funded, with how
+  much is there and how much is still to go. When you buy it, mark it as bought:
+  it moves to "Completed this year" and its account is free for what's next.
+- **Export your data, and bring it to a new laptop.** "Export your data" at the
+  bottom of the sidebar saves everything in one file, without your bank login.
+  On a fresh install, "Bring in your export" on the first screen puts it all
+  back.
+- **Budgets that repeat every few months.** A budget can cover every 1, 2, 3,
+  4, 6 or 12 months, following the calendar (every 3 months is Jan–Mar,
+  Apr–Jun, …). Each round starts fresh, and Categories shows what each one
+  closed at this year: "Jan–Mar +$80.00".
+- **One-time or recurring amounts.** A goal can be an amount by a date ("$500 by
+  December 20") or an amount every 1, 2, 3, 4, 6 or 12 months. A one-time goal
+  can also have no date at all, like an emergency fund you always want full.
+- **"Was that the PS5?"** When money leaves a goal account and the amount is
+  close to a funded goal's (within 10%, so tax or a sale still counts), Savings
+  asks once whether that was the goal. Yes marks it as bought.
+
+### Changed
+
+- **Goals come first on Categories,** then expenses, with a link to Savings.
+- **Onboarding ends with an optional first goal.**
+- **Accounts are grouped by what they do:** checking, savings, goal accounts,
+  then cards. Each account's menu says what each job means. An account that
+  holds goals keeps its job until its goals move, and the menu says so.
+- This update changes how your database is laid out, so BlitZave saves a safety
+  copy in `~/BlitZave/backups/` first. Budgets you already set carry over as
+  monthly amounts.
+
+## 0.1.2 (2026-11-07)
 
 ### New
 

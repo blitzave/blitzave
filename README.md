@@ -99,9 +99,17 @@ account's ledger, so balances still reconcile.
 </tr>
 </table>
 
-Also included: split a transaction across categories, tags, an accounts overview
-with balances, account-type corrections that survive every sync, and a full
-local API with interactive docs at `/docs`.
+**Home** opens on one sentence: the one thing worth knowing today, inside a ring
+that shows how far through the month you are. It might be "You're in good shape:
+savings went first this month", "Japan: halfway there", "Almost there: the PS5
+is $120 away", or, after
+a heavier start, "That happens. Your three-month average hasn't moved." Below
+it: spent so far, set aside, and goals underway, each one tap from the detail.
+
+Also included: savings goals that live in their own goal accounts, split a
+transaction across categories, tags, an accounts overview with balances,
+account-type corrections that survive every sync, and a full local API with
+interactive docs at `/docs`.
 
 ## Quick start
 
@@ -205,6 +213,12 @@ If you close the tab, open http://127.0.0.1:8742 again while BlitZave is running
   that's wrong: a pair you unlink is never linked automatically again.
 - **Look back.** Use the month arrows to move through history. To pull a month
   older than your first sync, open it and choose **Sync *Month Year***.
+- **Give your goals a home.** On **Accounts**, open the menu of each savings
+  account you save toward goals in and choose **Goal account**. Then add goals on
+  **Savings**. A critical goal, like an emergency fund, gets a goal account to
+  itself. Regular goals, like a trip or a new phone, can share one: its money
+  fills them from the top, in the order you choose, and **Change order** moves
+  the money with them.
 
 ### Day to day
 
@@ -224,6 +238,12 @@ Set `BLITZAVE_HOME` to keep the data folder somewhere else:
 ```bash
 BLITZAVE_HOME=~/Documents/BlitZave blitzave
 ```
+
+**Export** everything with **Export your data** at the bottom of the sidebar. It
+saves one JSON file with every account, transaction, category, goal, rule and
+link, and nothing about your bank login. On a new laptop, install BlitZave and
+choose **Bring in your export** on the first screen. Import only goes into a
+fresh install, and it's all or nothing.
 
 **Back up** by copying the database while BlitZave is stopped, or at any time
 with SQLite's online backup:
@@ -293,7 +313,7 @@ flowchart LR
     SF(["SimpleFIN Bridge<br/>read-only"]) -->|sync| SRC
     subgraph laptop["Your laptop · 127.0.0.1"]
         SRC["sources/<br/>fetch + normalize"] --> STORE[("store/<br/>one SQLite file")]
-        STORE --> REFINE["refine/<br/>categorize · budgets"]
+        STORE --> REFINE["refine/<br/>categorize · budgets · goals"]
         REFINE --> API["api/<br/>FastAPI"]
         STORE --> API
         API --> UI["web/<br/>the app in your browser"]
@@ -311,6 +331,9 @@ show what the API has already decided:
 - **Your corrections always win** over rules.
 
 Explore the full API at **http://127.0.0.1:8742/docs** while BlitZave is running.
+For the full picture, [ARCHITECTURE.md](ARCHITECTURE.md) maps every module and how
+data moves through them, and [SCHEMA.md](SCHEMA.md) describes every table in the
+database and the rules it enforces.
 
 | Stack | |
 |---|---|
@@ -334,15 +357,17 @@ edges.
 - [x] Monthly budgets with pace, never alarms
 - [x] Manual transfer and refund linking
 - [x] Automatic matching for card payments, transfers and refunds
+- [x] Savings goals in goal accounts: critical goals alone, regular goals sharing
+  one in the order you choose
 
-**Next: the BlitZave MVP, the Savings arc**
-- [ ] Local snapshots and one-click export and import
-- [ ] Savings goals, set right alongside your categories
-- [ ] Pay yourself first: how much moved to savings, and did it move before spending?
-- [ ] Goal trajectory: at your usual pace, when is the goal reached? (a range, so one
+**The BlitZave MVP, the Savings arc** (built; running against real accounts before it's called done)
+- [x] Local snapshots and one-click export and import
+- [x] Pay yourself first: how much moved to savings, and did it move before spending?
+- [x] Goal trajectory: at your usual pace, when is the goal reached? (a range, so one
   light month barely moves it)
-- [ ] A home screen with the one thing that matters right now. Wins get celebrated in
+- [x] A home screen with the one thing that matters right now. Wins get celebrated in
   plain words; a light month is absorbed, never a broken streak.
+- [x] Milestone moments at 25, 50, 75 and 100%
 
 **After that**
 - [ ] Ask BlitZave: questions about your own money, answered from your own data. First
