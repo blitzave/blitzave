@@ -4,7 +4,7 @@ What changed in each BlitZave version, in plain words. Newest first.
 
 To update: `uv tool upgrade blitzave`, then start `blitzave` as usual.
 
-## Unreleased
+## 0.1.3 (unreleased)
 
 ### New
 
@@ -52,7 +52,7 @@ To update: `uv tool upgrade blitzave`, then start `blitzave` as usual.
   copy in `~/BlitZave/backups/` first. Budgets you already set carry over as
   monthly amounts.
 
-## 0.1.2 (unreleased)
+## 0.1.2 (2026-11-07)
 
 ### New
 
