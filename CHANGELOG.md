@@ -4,6 +4,31 @@ What changed in each BlitZave version, in plain words. Newest first.
 
 To update: `uv tool upgrade blitzave`, then start `blitzave` as usual.
 
+## Unreleased
+
+### New
+
+- **Savings goals with a home.** Mark the savings accounts you save toward goals
+  in as **Goal account**, then add goals on the new **Savings** page. A critical
+  goal, like an emergency fund, has an account to itself, and all of that
+  account's money counts toward it, even past the goal. Regular goals, like a trip or a new phone, share an
+  account: its money fills them from the top, in the order you choose. Moving a
+  goal up moves the money with it, right away.
+- **Every goal shows where it stands.** Not started, Saving, or Funded, with how
+  much is there and how much is still to go. When you buy it, mark it as bought:
+  it moves to "Completed this year" and its account is free for what's next.
+- **One-time or recurring amounts.** A goal can be an amount by a date ("$500 by
+  December 20") or an amount every 1, 2, 3, 4, 6 or 12 months.
+
+### Changed
+
+- **Accounts are grouped by what they do:** checking, savings, goal accounts,
+  then cards. Each account's menu says what each job means. An account that
+  holds goals keeps its job until its goals move, and the menu says so.
+- This update changes how your database is laid out, so BlitZave saves a safety
+  copy in `~/BlitZave/backups/` first. Budgets you already set carry over as
+  monthly amounts.
+
 ## 0.1.2 (unreleased)
 
 ### New
