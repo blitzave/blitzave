@@ -119,8 +119,9 @@ def _check_plan(model: "CategoryCreate | CategoryUpdate") -> None:
             )
         return
     if (model.schedule or "recurring") == "once":
-        if model.target_on is None:
-            raise ValueError("a one-time amount needs a target_on date")
+        # target_on may be missing here: a savings goal can go without one
+        # (migration 011). The kind isn't always in the request, so
+        # _check_dated decides once it's known.
         if model.period_months is not None or model.ends_on is not None:
             raise ValueError("period_months and ends_on are only for recurring amounts")
     elif model.target_on is not None:
@@ -136,6 +137,16 @@ def _check_goal_home(model: "CategoryCreate | CategoryUpdate") -> None:
         raise ValueError("a goal needs both goal_level and account_id")
 
 
+def _check_dated(kind: str, plan: dict) -> None:
+    """A one-time amount needs its date, unless it's a savings goal: an
+    emergency fund is an amount to hold, not one due by a day."""
+    if plan["schedule"] == "once" and plan["target_on"] is None and kind != "savings":
+        raise HTTPException(
+            status_code=422,
+            detail="a one-time amount needs a target_on date; only a savings goal can go without",
+        )
+
+
 def _plan(model: "CategoryCreate | CategoryUpdate") -> dict:
     """The validated request as the five columns the store saves."""
     if model.budget_amount is None:
@@ -146,7 +157,7 @@ def _plan(model: "CategoryCreate | CategoryUpdate") -> dict:
         "budget_cents": parse_amount(model.budget_amount),
         "schedule": schedule,
         "period_months": (model.period_months or 1) if recurring else None,
-        "target_on": None if recurring else model.target_on.isoformat(),
+        "target_on": None if recurring or model.target_on is None else model.target_on.isoformat(),
         "ends_on": model.ends_on.isoformat() if recurring and model.ends_on else None,
     }
 
@@ -439,11 +450,11 @@ def create_category(request: CategoryCreate) -> dict:
             if request.account_id is None
             else {"goal_level": request.goal_level, "account_id": request.account_id}
         )
+        plan = _plan(request)
+        _check_dated(request.kind, plan)
         try:
             return _category_with_display(
-                categories.create_category(
-                    conn, user_id, request.name, request.kind, _plan(request), goal
-                )
+                categories.create_category(conn, user_id, request.name, request.kind, plan, goal)
             )
         except categories.UnknownAccountError as e:
             raise HTTPException(status_code=422, detail=str(e)) from e
@@ -571,13 +582,19 @@ def update_category(category_id: int, request: CategoryUpdate) -> dict:
     conn = db.connect()
     try:
         try:
+            plan = _updated_plan(conn, category_id, request)
+            current = categories.get_category(conn, category_id)
+            _check_dated(
+                request.kind or current["kind"],
+                plan if plan is not None else {f: current[f] for f in categories.PLAN_FIELDS},
+            )
             return _category_with_display(
                 categories.update_category(
                     conn,
                     category_id,
                     request.name,
                     request.kind,
-                    plan=_updated_plan(conn, category_id, request),
+                    plan=plan,
                     goal=_updated_goal(conn, category_id, request),
                 )
             )

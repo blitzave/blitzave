@@ -156,6 +156,8 @@ function renderForm(root, view, goal, params) {
         account: goal.account_id,
         mode: goal.schedule === "recurring" ? "recurring" : "once",
         target: goal.target_on || sixMonthsOut(),
+        // A one-time goal can go without a date (an emergency fund, say).
+        noDate: goal.schedule === "once" && !goal.target_on,
         period: goal.period_months || 3,
         end: goal.ends_on || "",
       }
@@ -166,6 +168,7 @@ function renderForm(root, view, goal, params) {
         account: params.account || null,
         mode: "once",
         target: sixMonthsOut(),
+        noDate: false,
         period: 3,
         end: "",
       };
@@ -263,11 +266,16 @@ function renderForm(root, view, goal, params) {
             ${
               state.mode === "once"
                 ? `
-              <label class="field goal-form-date">
+              <label class="field goal-form-date"${state.noDate ? " hidden" : ""}>
                 <span class="field-label">Target date</span>
                 <input class="input" type="date" id="goal-target" value="${escapeHtml(state.target)}" />
                 ${editing ? "" : `<span class="field-hint">Starts six months out. Change it to whenever you need it.</span>`}
-              </label>`
+              </label>
+              <label class="goal-no-date">
+                <input type="checkbox" id="goal-no-date" ${state.noDate ? "checked" : ""} />
+                <span>No target date</span>
+              </label>
+              ${state.noDate ? `<p class="field-hint goal-no-date-hint">It's an amount to keep, not one due by a day. Good for an emergency fund.</p>` : ""}`
                 : `
               <div class="field">
                 <span class="field-label">Every</span>
@@ -401,6 +409,11 @@ function renderForm(root, view, goal, params) {
     root.querySelector("#goal-target")?.addEventListener("input", (e) => {
       state.target = e.target.value;
     });
+    root.querySelector("#goal-no-date")?.addEventListener("change", (e) => {
+      state.noDate = e.target.checked;
+      error = "";
+      draw();
+    });
     root.querySelector("#goal-end")?.addEventListener("input", (e) => {
       state.end = e.target.value;
     });
@@ -414,14 +427,14 @@ function renderForm(root, view, goal, params) {
   }
 
   async function save() {
-    if (state.mode === "once" && !state.target) {
-      error = "Pick a target date, or switch to Recurring.";
+    if (state.mode === "once" && !state.noDate && !state.target) {
+      error = "Pick a target date, or tick No target date.";
       draw();
       return;
     }
     const plan =
       state.mode === "once"
-        ? { schedule: "once", target_on: state.target }
+        ? { schedule: "once", target_on: state.noDate ? null : state.target }
         : { schedule: "recurring", period_months: state.period, ...(state.end ? { ends_on: state.end } : {}) };
     const body = {
       budget_amount: state.amount.trim(),

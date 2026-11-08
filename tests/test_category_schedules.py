@@ -85,7 +85,6 @@ def test_an_amount_alone_still_means_monthly(client):
 @pytest.mark.parametrize(
     "plan",
     [
-        {"budget_amount": "500", "schedule": "once"},  # no target date
         {"budget_amount": "500", "schedule": "once", "target_on": "2027-01-01",
          "period_months": 3},
         {"budget_amount": "500", "schedule": "once", "target_on": "2027-01-01",
@@ -153,6 +152,52 @@ def test_the_database_refuses_a_bad_plan_even_without_the_api(tmp_path):
         categories.create_category(conn, user_id, "Loose", "expense")
         with pytest.raises(categories.DuplicateCategoryError):
             categories.create_category(conn, user_id, "Loose", "expense")
+    finally:
+        conn.close()
+
+
+def test_a_goal_can_go_without_a_target_date_but_an_expense_cannot(client):
+    # Migration 011: an emergency fund is an amount to hold, not one due by a day.
+    created = client.post(
+        "/api/categories",
+        json={"name": "Emergency fund", "kind": "savings", "budget_amount": "9000",
+              "schedule": "once"},
+    )
+    assert created.status_code == 201
+    body = created.json()
+    assert (body["schedule"], body["target_on"]) == ("once", None)
+    # A date can come later, and go again.
+    dated = client.patch(f"/api/categories/{body['id']}",
+                         json={"budget_amount": "9000", "schedule": "once",
+                               "target_on": "2027-06-01"})
+    assert dated.json()["target_on"] == "2027-06-01"
+    undated = client.patch(f"/api/categories/{body['id']}",
+                           json={"budget_amount": "9000", "schedule": "once",
+                                 "target_on": None})
+    assert undated.json()["target_on"] is None
+    # Turning it into an expense would leave a one-time expense with no date.
+    as_expense = client.patch(f"/api/categories/{body['id']}", json={"kind": "expense"})
+    assert as_expense.status_code == 422
+    assert "only a savings goal" in as_expense.json()["detail"]
+
+    expense = client.post(
+        "/api/categories",
+        json={"name": "Wedding", "kind": "expense", "budget_amount": "500", "schedule": "once"},
+    )
+    assert expense.status_code == 422
+    assert [c["name"] for c in client.get("/api/categories").json()] == ["Emergency fund"]
+
+
+def test_the_database_lets_only_savings_go_without_a_date(tmp_path):
+    conn = sqlite3.connect(tmp_path / "dateless.db")
+    try:
+        db.migrate(conn)
+        user_id = users.get_or_create_user(conn)
+        dateless = {**categories.NO_PLAN, "budget_cents": 900000, "schedule": "once"}
+        fund = categories.create_category(conn, user_id, "Emergency fund", "savings", dateless)
+        assert fund["target_on"] is None
+        with pytest.raises(sqlite3.IntegrityError, match="one-time amount needs"):
+            categories.create_category(conn, user_id, "Wedding", "expense", dateless)
     finally:
         conn.close()
 

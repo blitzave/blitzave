@@ -81,7 +81,7 @@ function shortDate(iso) {
 }
 
 function scheduleText(goal) {
-  if (goal.schedule === "once" && goal.target_on) return `By ${longDate(goal.target_on)}`;
+  if (goal.schedule === "once") return goal.target_on ? `By ${longDate(goal.target_on)}` : "No target date";
   if (goal.schedule === "recurring") {
     const every = goal.period_months === 1 ? "Every month" : `Every ${goal.period_months} months`;
     return goal.ends_on ? `${every}, until ${longDate(goal.ends_on)}` : every;

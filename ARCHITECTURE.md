@@ -4,7 +4,7 @@ BlitZave is one Python process on your laptop. It keeps one SQLite file and serv
 web page. This document maps the pieces and follows the data through them. The tables
 themselves are in [SCHEMA.md](SCHEMA.md).
 
-Current as of 2026-11-08, schema version 10.
+Current as of 2026-11-08, schema version 11.
 
 - [The whole system](#the-whole-system)
 - [Layers and their rules](#layers-and-their-rules)

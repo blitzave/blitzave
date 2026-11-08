@@ -9,13 +9,13 @@ database enforces on its own. How the code around it fits together is in
 
 | | |
 |---|---|
-| Schema version | **10** (`PRAGMA user_version`) |
+| Schema version | **11** (`PRAGMA user_version`) |
 | Tables | 12: `users`, `accounts`, `assets`, `liabilities`, `balances`, `transactions`, `transaction_tags`, `tags`, `categories`, `category_rules`, `transfers`, `job_runs` |
 | Views | 1: `activity` |
 | Indexes | 1 of its own (`tx_posted`), plus the ones SQLite makes for primary keys and `UNIQUE` |
 | Triggers | 10 |
 | On `main` | Migrations 001–007 |
-| On branch `goal-schedules` | 008 (schedules), 009 (goal homes) and 010 (when a plan was set): built, tested and committed, not merged yet. Treat them as frozen anyway: the maintainer's real database already runs 008 and 009, so a change would never reach it. Fix forward with 011. CI blocks edits once they're on `main`. |
+| On branch `goal-schedules` | 008 (schedules), 009 (goal homes), 010 (when a plan was set) and 011 (goals without a date): built and tested, not merged yet. Treat 008–010 as frozen anyway: the maintainer's real database already runs them, so a change would never reach it. Fix forward with a new number. CI blocks edits once they're on `main`. |
 | Last checked | 2026-11-08, on a fresh database built from the migrations |
 
 Every table is `STRICT`, so a column only ever holds its declared type. Foreign keys are
@@ -263,9 +263,9 @@ amount, a level and a home account. There's no separate goals table.
 | `name` | TEXT | 001 | `UNIQUE (user_id, name)` |
 | `kind` | TEXT | 001 | `expense`, `income` or `savings` |
 | `budget_cents` | INTEGER | 005 | The amount, > 0, or NULL for none. For a goal, its target. |
-| `schedule` | TEXT | 008 | `once` (the amount by `target_on`) or `recurring` (the amount every `period_months`) |
+| `schedule` | TEXT | 008 | `once` (the amount by `target_on`, or whenever for a goal with no date) or `recurring` (the amount every `period_months`) |
 | `period_months` | INTEGER | 008 | 1, 2, 3, 4, 6 or 12. Rounds follow the calendar (a 3-month period is Jan–Mar, Apr–Jun, …), so the period divides the year. |
-| `target_on` | TEXT | 008 | ISO date. Required for `once`; NULL for `recurring`. |
+| `target_on` | TEXT | 008 | ISO date. NULL for `recurring`. Required for `once`, except on a `savings` category (011): a goal like an emergency fund is an amount to hold, with no date it's due by. |
 | `ends_on` | TEXT | 008 | ISO date. Optional end of a recurring amount. |
 | `goal_level` | TEXT | 009 | `critical` or `regular`. NULL: not a goal. |
 | `account_id` | INTEGER FK → accounts | 009 | The goal's home, a `targeted` asset account. |
@@ -281,6 +281,7 @@ Every budget set before 008 became `recurring`, monthly.
 |---|---|---|---|---|---|
 | No amount | NULL | NULL | NULL | NULL | NULL |
 | One time | set | `once` | NULL | set | NULL |
+| One time, no date (`kind = 'savings'` only, 011) | set | `once` | NULL | NULL | NULL |
 | Recurring | set | `recurring` | set | NULL | optional |
 
 **Goal shapes** (trigger `categories_goal_rules_*`):
@@ -357,6 +358,7 @@ Each one refuses with a plain message, which the API turns into a 409.
 | 008 | `008_category_schedules.sql` | 2026-11-06 | One-time or recurring amounts; old budgets became monthly. |
 | 009 | `009_goal_homes.sql` | 2026-11-06 | The `targeted` account job; goals' level, home, place in line and completion, with their rules. |
 | 010 | `010_plan_set_on.sql` | 2026-11-08 | `categories.plan_set_on`, so rounds count only from when a plan was set. |
+| 011 | `011_goals_without_a_date.sql` | 2026-11-08 | Remade the `categories_schedule_*` triggers so a one-time savings goal may have no `target_on`. |
 
 ## Export and import
 
@@ -371,7 +373,7 @@ round-trip test fails until it is.
 
 ## Changing the schema
 
-1. **Add a numbered file** to `store/migrations/` (`010_…sql`). Never edit one that has
+1. **Add a numbered file** to `store/migrations/` (`012_…sql`). Never edit one that has
    reached `main`; CI blocks it.
 2. **Write it to run once, as a script.** `db.migrate` runs each pending file and bumps
    `user_version`.

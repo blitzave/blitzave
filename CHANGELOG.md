@@ -34,7 +34,8 @@ To update: `uv tool upgrade blitzave`, then start `blitzave` as usual.
   Apr–Jun, …). Each round starts fresh, and Categories shows what each one
   closed at this year: "Jan–Mar +$80.00".
 - **One-time or recurring amounts.** A goal can be an amount by a date ("$500 by
-  December 20") or an amount every 1, 2, 3, 4, 6 or 12 months.
+  December 20") or an amount every 1, 2, 3, 4, 6 or 12 months. A one-time goal
+  can also have no date at all, like an emergency fund you always want full.
 - **"Was that the PS5?"** When money leaves a goal account and the amount is
   close to a funded goal's (within 10%, so tax or a sale still counts), Savings
   asks once whether that was the goal. Yes marks it as bought.

@@ -827,6 +827,29 @@ a.goal-row-name:hover {
   max-width: 340px;
 }
 
+.goal-form-date[hidden] {
+  display: none;
+}
+
+.goal-no-date {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--text-sm);
+  color: var(--text-primary);
+  cursor: pointer;
+  width: fit-content;
+}
+
+.goal-no-date input {
+  accent-color: var(--accent);
+  margin: 0;
+}
+
+.goal-no-date-hint {
+  margin: 0;
+}
+
 .goal-periods {
   display: flex;
   gap: var(--space-2);
