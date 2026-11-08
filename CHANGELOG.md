@@ -4,7 +4,7 @@ What changed in each BlitZave version, in plain words. Newest first.
 
 To update: `uv tool upgrade blitzave`, then start `blitzave` as usual.
 
-## 0.1.3 (unreleased)
+## 0.1.3 (2026-11-08)
 
 ### New
 
