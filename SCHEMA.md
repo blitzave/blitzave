@@ -15,7 +15,7 @@ database enforces on its own. How the code around it fits together is in
 | Indexes | 1 of its own (`tx_posted`), plus the ones SQLite makes for primary keys and `UNIQUE` |
 | Triggers | 10 |
 | On `main` | Migrations 001–007 |
-| On branch `goal-schedules` | 008 (schedules), 009 (goal homes) and 010 (when a plan was set): built, tested and committed, but not merged yet. They can still change until they reach `main`. After that they're frozen, and CI blocks edits. |
+| On branch `goal-schedules` | 008 (schedules), 009 (goal homes) and 010 (when a plan was set): built, tested and committed, not merged yet. Treat them as frozen anyway: the maintainer's real database already runs 008 and 009, so a change would never reach it. Fix forward with 011. CI blocks edits once they're on `main`. |
 | Last checked | 2026-11-08, on a fresh database built from the migrations |
 
 Every table is `STRICT`, so a column only ever holds its declared type. Foreign keys are
