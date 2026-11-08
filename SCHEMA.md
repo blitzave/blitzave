@@ -222,7 +222,7 @@ description and account are fixed. Only metadata changes.
 | `description`, `merchant_name` | TEXT | As the bank sent them. |
 | `categories` | TEXT JSON | `{category_id: fraction}`, so one purchase can be split across categories. `{}` means uncategorized. |
 | `categories_set_by` | TEXT | `rule` or `user`. A sync never overwrites a row that's already set. |
-| `meta` | TEXT JSON | `no_auto_transfer: true` after you unlink a pair, so the matcher leaves it alone. |
+| `meta` | TEXT JSON | `no_auto_transfer: true` after you unlink a pair, so the matcher leaves it alone. `goal_question: {goal_id, answer}` once "was that the goal?" is answered (`bought` or `other`), so it's never asked again. |
 | `created_at` | INTEGER | unix seconds |
 
 ### `transfers`

@@ -27,6 +27,11 @@ class GoalOrderError(Exception):
     """A new order doesn't name each of the account's active goals once."""
 
 
+class GoalQuestionError(Exception):
+    """A "was that the goal?" answer that no longer fits: the withdrawal was
+    already answered, isn't from the goal's account, or doesn't match it."""
+
+
 # A category's amount and its schedule travel together (migration 008):
 #   once       budget_cents by target_on
 #   recurring  budget_cents every period_months, until ends_on if set
@@ -218,6 +223,71 @@ def reorder_goals(conn: sqlite3.Connection, account_id: str, goal_ids: list[int]
         "UPDATE categories SET fill_order = ? WHERE id = ?",
         [(place, goal_id) for place, goal_id in enumerate(goal_ids, start=1)],
     )
+    conn.commit()
+
+
+def goal_withdrawals(conn: sqlite3.Connection, since: str) -> list[dict]:
+    """Money that left a goal account on or after `since` and hasn't been
+    asked about yet, newest first. Ids are public: SimpleFIN's transaction
+    and account ids."""
+    rows = conn.execute(
+        """
+        SELECT t.external_id, a.external_id, t.posted_on, t.amount_cents
+        FROM transactions t
+        JOIN accounts a ON a.id = t.account_id
+        JOIN assets s ON s.account_id = a.id AND s.asset_type = 'targeted'
+        WHERE t.amount_cents < 0 AND t.posted_on >= ?
+          AND json_extract(t.meta, '$.goal_question') IS NULL
+        ORDER BY t.posted_on DESC, t.id DESC
+        """,
+        (since,),
+    ).fetchall()
+    return [
+        {"transaction_id": r[0], "account_id": r[1], "posted_on": r[2], "amount_cents": r[3]}
+        for r in rows
+    ]
+
+
+def answer_goal_question(
+    conn: sqlite3.Connection, transaction_id: str, goal_id: int, bought: bool
+) -> None:
+    """Record the answer to "was that the goal?" on the withdrawal, so it's
+    never asked again. Yes also completes the goal, on the day the money
+    left. Both happen together or not at all."""
+    rows = conn.execute(
+        "SELECT id, account_id, amount_cents, posted_on,"
+        " json_extract(meta, '$.goal_question') IS NOT NULL"
+        " FROM transactions WHERE external_id = ?",
+        (transaction_id,),
+    ).fetchall()
+    if len(rows) != 1:
+        raise GoalQuestionError(f"no single transaction with id {transaction_id}")
+    tx_id, account, amount, posted_on, answered = rows[0]
+    goal = conn.execute(
+        "SELECT account_id, budget_cents, completed_on FROM categories"
+        " WHERE id = ? AND goal_level IS NOT NULL",
+        (goal_id,),
+    ).fetchone()
+    if goal is None:
+        raise CategoryNotFoundError(f"no goal with id {goal_id}")
+    if answered:
+        raise GoalQuestionError("that withdrawal was already answered")
+    if amount >= 0 or goal[0] != account or goal[1] != -amount or goal[2] is not None:
+        raise GoalQuestionError("that withdrawal doesn't match this goal anymore")
+    answer = json.dumps({"goal_id": goal_id, "answer": "bought" if bought else "other"})
+    try:
+        conn.execute(
+            "UPDATE transactions SET meta = json_set(meta, '$.goal_question', json(?))"
+            " WHERE id = ?",
+            (answer, tx_id),
+        )
+        if bought:
+            conn.execute(
+                "UPDATE categories SET completed_on = ? WHERE id = ?", (posted_on, goal_id)
+            )
+    except sqlite3.Error:
+        conn.rollback()
+        raise
     conn.commit()
 
 

@@ -169,6 +169,16 @@ export function reorderGoals(accountId, goalIds) {
   });
 }
 
+// "Was that the PS5?": answer one question from listGoals().questions.
+// answer: "bought" (completes the goal) or "other". Returns the whole of
+// listGoals() so the page can redraw.
+export function answerGoalQuestion(transactionId, goalId, answer) {
+  return request(`/api/goals/questions/${encodeURIComponent(transactionId)}`, {
+    method: "POST",
+    body: JSON.stringify({ goal_id: goalId, answer }),
+  });
+}
+
 // -------------------------------- Tags --------------------------------
 
 export function listTags() {

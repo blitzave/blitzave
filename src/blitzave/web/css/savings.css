@@ -868,3 +868,30 @@ a.goal-row-name:hover {
 .goal-delete {
   color: var(--text-secondary);
 }
+
+/* "Was that the PS5?": one calm question, asked once. */
+.goal-question {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-5);
+}
+
+.goal-question-where {
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semibold);
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+}
+
+.goal-question-text {
+  font-size: var(--text-lg);
+  line-height: var(--leading-body);
+}
+
+.goal-question-actions {
+  display: flex;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}

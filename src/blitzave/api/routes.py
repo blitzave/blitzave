@@ -1,5 +1,5 @@
 import re
-from datetime import date
+from datetime import date, timedelta
 from typing import Literal
 
 from fastapi import APIRouter, HTTPException, Query
@@ -9,7 +9,11 @@ from blitzave import jobs
 from blitzave.api.money import format_cents, parse_amount
 from blitzave.refine.budgets import monthly_budget
 from blitzave.refine.categorize import is_match, match_key
-from blitzave.refine.goals import savings_by_account
+from blitzave.refine.goals import (
+    QUESTION_WINDOW_DAYS,
+    goal_questions,
+    savings_by_account,
+)
 from blitzave.refine.transfers import kind_of
 from blitzave.store import (
     accounts,
@@ -223,6 +227,11 @@ class GoalOrder(BaseModel):
         if len(set(value)) != len(value):
             raise ValueError("each goal can appear only once")
         return value
+
+
+class GoalAnswer(BaseModel):
+    goal_id: int
+    answer: Literal["bought", "other"]  # "Yes, I bought it" / "It was something else"
 
 
 class TagCreate(BaseModel):
@@ -558,6 +567,10 @@ def _savings(conn) -> dict:
             goal["to_go_display"] = format_cents(goal["to_go_cents"])
     for goal in view["completed"]:
         _category_with_display(goal)
+    since = (date.today() - timedelta(days=QUESTION_WINDOW_DAYS)).isoformat()
+    view["questions"] = goal_questions(view["accounts"], categories.goal_withdrawals(conn, since))
+    for question in view["questions"]:
+        question["amount_display"] = format_cents(question["amount_cents"])
     return view
 
 
@@ -583,6 +596,26 @@ def reorder_goals(account_id: str, request: GoalOrder) -> dict:
         except categories.GoalOrderError as e:
             raise HTTPException(status_code=409, detail=str(e)) from e
         return next(a for a in _savings(conn)["accounts"] if a["id"] == account_id)
+    finally:
+        conn.close()
+
+
+@router.post("/goals/questions/{transaction_id}")
+def answer_goal_question(transaction_id: str, request: GoalAnswer) -> dict:
+    """Answers "was that the goal?" for one withdrawal. "bought" completes the
+    goal on the day the money left; "other" only records the answer. Either
+    way it's never asked again. Returns the whole of GET /api/goals."""
+    conn = db.connect()
+    try:
+        try:
+            categories.answer_goal_question(
+                conn, transaction_id, request.goal_id, request.answer == "bought"
+            )
+        except categories.CategoryNotFoundError as e:
+            raise HTTPException(status_code=404, detail=str(e)) from e
+        except categories.GoalQuestionError as e:
+            raise HTTPException(status_code=409, detail=str(e)) from e
+        return _savings(conn)
     finally:
         conn.close()
 

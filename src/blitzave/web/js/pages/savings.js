@@ -7,6 +7,10 @@
 //             fills them, top first, with a rail showing how far it reaches.
 //   Free      goal accounts with no goal yet, ready for one.
 //
+// Above them, a question card when money left a goal account and the amount
+// is exactly what a funded goal needed: "Was that the PS5?". Each is asked
+// once; the engine decides which (refine/goals.goal_questions).
+//
 // The engine decides every number: who gets what (refine/goals.py), the
 // percentages, every *_display string. This page only lays them out. Cents
 // are used only for geometry (how far a rail runs). Reordering asks the
@@ -200,6 +204,7 @@ function renderSavings(root, view) {
     </div>
   `;
   const sections = root.querySelector(".savings-sections");
+  (view.questions || []).forEach((question) => sections.appendChild(questionCard(root, question)));
 
   if (!critical.length && !shared.length) {
     const hint = document.createElement("p");
@@ -452,6 +457,54 @@ function lineRowMarkup(home, goal, i, ordering) {
       </div>
     </li>
   `;
+}
+
+// --- "Was that the PS5?" ---------------------------------------------------------
+
+function questionCard(root, question) {
+  const card = document.createElement("section");
+  card.className = "card goal-question";
+  card.setAttribute("aria-label", `Was that the ${question.goal_name}?`);
+  card.innerHTML = `
+    <p class="goal-question-where">${escapeHtml(question.account_name)} · ${escapeHtml(longDate(question.posted_on))}</p>
+    <p class="goal-question-text">
+      <span class="u-tabular">${escapeHtml(question.amount_display)}</span> left this account.
+      Was that the ${escapeHtml(question.goal_name)}?
+    </p>
+    <div class="goal-question-actions">
+      <button type="button" class="btn btn-primary" data-answer="bought">Yes, I bought it</button>
+      <button type="button" class="btn btn-ghost" data-answer="other">It was something else</button>
+    </div>
+  `;
+  card.querySelectorAll("[data-answer]").forEach((btn) =>
+    btn.addEventListener("click", async () => {
+      card.querySelectorAll("[data-answer]").forEach((b) => {
+        b.disabled = true;
+      });
+      try {
+        const view = await api.answerGoalQuestion(
+          question.transaction_id, question.goal_id, btn.dataset.answer
+        );
+        showToast(
+          btn.dataset.answer === "bought"
+            ? `Enjoy the ${question.goal_name}. It's under Completed this year, and the goals below it move up.`
+            : "Got it. That money comes off the bottom of the line."
+        );
+        renderSavings(root, view);
+      } catch (err) {
+        // A 409 means it was answered elsewhere or the goal changed: show
+        // the page as it is now.
+        showToast(
+          err && err.status === 409
+            ? "That one's already settled. Here's where things stand."
+            : (err && err.detail) || "Couldn't save that answer. Try again.",
+          err && err.status === 409 ? "default" : "danger"
+        );
+        render(root);
+      }
+    })
+  );
+  return card;
 }
 
 // --- free accounts and completed goals ---------------------------------------------

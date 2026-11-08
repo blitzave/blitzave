@@ -247,12 +247,24 @@ sequenceDiagram
 - **Withdrawals:** money that leaves the account lowers the balance, so it comes off
   the bottom of the line.
 
+**"Was that the PS5?"** (`refine/goals.goal_questions`):
+
+- **When it asks.** Money left a goal account in the last 30 days, and the amount is
+  exactly what a goal in that account needed. The goal must also have been funded just
+  before the money left: the split is worked out with that withdrawal added back.
+- **How often.** One question per goal, about the newest such withdrawal.
+- **Yes.** Completes the goal on the day the money left.
+- **Either answer.** It's stored on the transaction (`meta.goal_question`), so it's
+  never asked again.
+- **When nothing matches.** A withdrawal that matches no funded goal just lowers the
+  balance. No question.
+
 ## The UI
 
 | Route | Page | Endpoints it calls |
 |---|---|---|
 | `#/onboarding` | Connect SimpleFIN, first sync, accounts, update-check choice | `/connect`, `/sync`, `/accounts`, `/updates` |
-| `#/savings` | The total in goal accounts; critical goals, shared lines, free goal accounts, completed this year; reorder | `GET /goals`, `PUT /accounts/{id}/goal-order` |
+| `#/savings` | The total in goal accounts; "was that the goal?" questions; critical goals, shared lines, free goal accounts, completed this year; reorder | `GET /goals`, `PUT /accounts/{id}/goal-order`, `POST /goals/questions/{id}` |
 | `#/savings/new`, `#/savings/:id` | Goal form: name and amount, level, home, when; mark as bought; delete | `GET /goals`, `POST/PATCH/DELETE /categories` |
 | `#/accounts` (default) | Accounts grouped by job; job picker; goal accounts locked while they hold goals | `GET /accounts`, `GET /goals`, `PATCH /accounts/{id}` |
 | `#/accounts/:id` | One account and its transactions | `/accounts`, `/transactions` |
@@ -283,8 +295,9 @@ All under `/api`. Interactive docs at `http://127.0.0.1:8742/docs` while BlitZav
 | GET | `/categories/summary` | Totals per category for a date range, with monthly pace. |
 | PATCH | `/categories/{id}` | Edits name, kind, plan, goal home, or `completed_on`. |
 | DELETE | `/categories/{id}` | Deletes it. 409 while transactions use it. |
-| GET | `/goals` | Goal accounts with their goals filled in line, the total, and completed goals. |
+| GET | `/goals` | Goal accounts with their goals filled in line, the total, completed goals, and any "was that the goal?" questions. |
 | PUT | `/accounts/{id}/goal-order` | Reorders an account's goals; returns the new split. |
+| POST | `/goals/questions/{transaction_id}` | Answers a question: `bought` completes the goal on the day the money left; `other` only records it. Never asked again. |
 | GET / POST / DELETE | `/tags`, `/tags/{id}` | Tags. |
 | GET | `/transactions` | The ledger: account, dates, search, category, tag, kind, sort, paging, pair grouping. |
 | PATCH | `/transactions/{id}` | Sets split categories and tags; `apply_to_all` saves a rule. |

@@ -85,3 +85,56 @@ def savings_by_account(accounts: list[dict], categories: list[dict]) -> dict:
     )
     total = sum(home["balance_cents"] or 0 for home in homes)
     return {"total_cents": total, "accounts": homes, "completed": completed}
+
+
+# "Was that the PS5?" (TODOS.md P0.3). When money leaves a goal account and
+# the amount is exactly what a funded goal needed, BlitZave asks once whether
+# that was the goal being bought. Only recent withdrawals count, so a goal set
+# up today isn't asked about money that left months ago.
+QUESTION_WINDOW_DAYS = 30
+
+
+def goal_questions(homes: list[dict], withdrawals: list[dict]) -> list[dict]:
+    """Which recent withdrawals to ask about, and which goal each might be.
+
+    homes: savings_by_account(...)["accounts"]. withdrawals: unanswered
+    debits from goal accounts in the window, newest first, each with
+    transaction_id, account_id, posted_on and amount_cents (negative).
+
+    The balance already reflects the withdrawal, so a goal it paid for no
+    longer looks funded. Each withdrawal is checked against the split as it
+    was just before it left: the money added back. A goal that was funded
+    then, whose amount is exactly what left, is the question. One question
+    per goal, the newest withdrawal first."""
+    by_account = {home["id"]: home for home in homes}
+    questions = []
+    asked = set()
+    for withdrawal in withdrawals:
+        home = by_account.get(withdrawal["account_id"])
+        if home is None or not home["goals"]:
+            continue
+        spent = -withdrawal["amount_cents"]
+        before, _ = fill((home["balance_cents"] or 0) + spent, home["goals"])
+        goal = next(
+            (
+                g
+                for g in before
+                if g["state"] == "done" and g["budget_cents"] == spent and g["id"] not in asked
+            ),
+            None,
+        )
+        if goal is None:
+            continue
+        asked.add(goal["id"])
+        questions.append(
+            {
+                "transaction_id": withdrawal["transaction_id"],
+                "account_id": home["id"],
+                "account_name": home["name"],
+                "posted_on": withdrawal["posted_on"],
+                "amount_cents": spent,
+                "goal_id": goal["id"],
+                "goal_name": goal["name"],
+            }
+        )
+    return questions
