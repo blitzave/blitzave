@@ -99,6 +99,12 @@ account's ledger, so balances still reconcile.
 </tr>
 </table>
 
+**Home** opens on one sentence: the one thing worth knowing today, inside a ring
+that shows how far through the month you are. It might be "You're in good shape:
+savings went first this month", "Almost there: the PS5 is $120 away", or, after
+a heavier start, "That happens. Your three-month average hasn't moved." Below
+it: spent so far, set aside, and goals underway, each one tap from the detail.
+
 Also included: savings goals that live in their own goal accounts, split a
 transaction across categories, tags, an accounts overview with balances,
 account-type corrections that survive every sync, and a full local API with
@@ -353,13 +359,14 @@ edges.
 - [x] Savings goals in goal accounts: critical goals alone, regular goals sharing
   one in the order you choose
 
-**Next: the BlitZave MVP, the Savings arc**
-- [ ] Local snapshots and one-click export and import
-- [ ] Pay yourself first: how much moved to savings, and did it move before spending?
-- [ ] Goal trajectory: at your usual pace, when is the goal reached? (a range, so one
+**The BlitZave MVP, the Savings arc** (built; running against real accounts before it's called done)
+- [x] Local snapshots and one-click export and import
+- [x] Pay yourself first: how much moved to savings, and did it move before spending?
+- [x] Goal trajectory: at your usual pace, when is the goal reached? (a range, so one
   light month barely moves it)
-- [ ] A home screen with the one thing that matters right now. Wins get celebrated in
+- [x] A home screen with the one thing that matters right now. Wins get celebrated in
   plain words; a light month is absorbed, never a broken streak.
+- [ ] Milestone moments at 25, 50, 75 and 100%
 
 **After that**
 - [ ] Ask BlitZave: questions about your own money, answered from your own data. First

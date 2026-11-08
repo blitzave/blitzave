@@ -8,6 +8,7 @@
 
 const routes = [
   { pattern: "/onboarding", load: () => import("./pages/onboarding.js") },
+  { pattern: "/home", load: () => import("./pages/home.js") },
   { pattern: "/accounts/:id", load: () => import("./pages/account-detail.js") },
   { pattern: "/accounts", load: () => import("./pages/accounts.js") },
   { pattern: "/transactions", load: () => import("./pages/transactions.js") },
@@ -17,7 +18,7 @@ const routes = [
   { pattern: "/savings", load: () => import("./pages/savings.js") },
 ];
 
-const DEFAULT_PATH = "/accounts";
+const DEFAULT_PATH = "/home";
 
 let rootEl = null;
 let renderToken = 0;

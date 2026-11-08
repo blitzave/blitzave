@@ -8,6 +8,14 @@ To update: `uv tool upgrade blitzave`, then start `blitzave` as usual.
 
 ### New
 
+- **Home: the one thing worth knowing today.** BlitZave now opens on a calm ring
+  that shows how far through the month you are, with one sentence inside it:
+  savings went first, a goal is almost there or done, a heavier start (that
+  happens), or nothing that needs you. Below it are what you've spent so far,
+  what you've set aside, and your goals underway.
+- **When each goal gets there.** Every goal on Savings shows when it arrives at
+  your recent pace, as a range of months, and what a month would take to make
+  its date.
 - **Savings goals with a home.** Mark the savings accounts you save toward goals
   in as **Goal account**, then add goals on the new **Savings** page. A critical
   goal, like an emergency fund, has an account to itself, and all of that
@@ -30,6 +38,8 @@ To update: `uv tool upgrade blitzave`, then start `blitzave` as usual.
 
 ### Changed
 
+- **Goals come first on Categories,** then expenses, with a link to Savings.
+- **Onboarding ends with an optional first goal.**
 - **Accounts are grouped by what they do:** checking, savings, goal accounts,
   then cards. Each account's menu says what each job means. An account that
   holds goals keeps its job until its goals move, and the menu says so.

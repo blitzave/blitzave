@@ -149,6 +149,14 @@ export function categorySummary(start, end) {
   return request(`/api/categories/summary${query({ start, end })}`);
 }
 
+// -------------------------------- Home --------------------------------
+
+// Home's one card: { rule, headline, support, month_label, day,
+//   days_in_month, spent_display, set_aside_display, goals_underway }.
+export function home() {
+  return request("/api/home");
+}
+
 // -------------------------------- Goals --------------------------------
 // A goal is a savings category that lives in a goal account (asset_type
 // "targeted"). Goals are created and edited through /api/categories; these

@@ -895,3 +895,10 @@ a.goal-row-name:hover {
   gap: var(--space-2);
   flex-wrap: wrap;
 }
+
+/* A goal's pace line: when it gets there at the recent pace (copy/savings.py). */
+.goal-pace {
+  font-size: var(--text-sm);
+  line-height: var(--leading-body);
+  color: var(--text-secondary);
+}

@@ -164,8 +164,8 @@ filter — the accounts page's detail view is expected to call this instead of
 building its own table.
 
 **Routes** (owned by `js/router.js`, don't edit): `#/onboarding`,
-`#/accounts` (also the default, `#/` → `/accounts`), `#/accounts/:id`,
-`#/transactions`, `#/categories`.
+`#/home` (also the default, `#/` → `/home`), `#/savings`, `#/savings/new`,
+`#/savings/:id`, `#/accounts`, `#/accounts/:id`, `#/transactions`, `#/categories`.
 
 **Query params:** a route may carry `?key=value` after the path; the router
 merges them into `params` (path params win). The transactions page uses this

@@ -565,12 +565,24 @@ function renderFinish(panel, _ctx) {
           <button type="button" class="btn btn-quiet" data-update-choice="no">No thanks</button>
         </div>
       </div>
+      <div class="onboarding-first-goal">
+        <p class="onboarding-pointer-title">Set your first goal?</p>
+        <p class="onboarding-pointer-body">An emergency fund, a trip, a new phone. Give it a home in
+          one of your savings accounts, and BlitZave shows when you'll get there. Any time is fine.</p>
+      </div>
       <div class="onboarding-actions">
         <button type="button" class="btn btn-primary onboarding-cta" data-action="finish">Take me in</button>
+        <button type="button" class="btn btn-ghost" data-action="first-goal">Set my first goal</button>
       </div>
     </div>
   `;
   panel.querySelector('[data-action="finish"]').addEventListener("click", finishOnboarding);
+  // Optional: the same finish, then straight to Savings, which walks through
+  // picking a goal account first if there isn't one yet.
+  panel.querySelector('[data-action="first-goal"]').addEventListener("click", () => {
+    finishOnboarding();
+    window.location.hash = "/savings";
+  });
   wireUpdateChoice(panel.querySelector("#update-choices"));
 }
 

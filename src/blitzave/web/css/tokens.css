@@ -74,6 +74,7 @@
   --progress: #3d6a99;
   --progress-soft: rgba(61, 106, 153, 0.16);
   --line-dashed: #b8c7d9;
+  --progress-month: #7fa3cc; /* Home's ring: how far through the month it is */
 
   /* ----- Type -----
      Manrope for everything: interface, headings, and every numeral. */

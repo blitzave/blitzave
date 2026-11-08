@@ -129,7 +129,7 @@ flowchart TB
 | `js/main.js` | The sidebar (with "Export your data"), top bar, Sync button, update note, and the onboarding gate. |
 | `js/router.js` | Hash routes → page modules. |
 | `js/api.js` | The only file that knows API URLs. Passes `*_display` strings through untouched. Pages that use calls added after a release import it as `api.js?v=…`, so a tab left open across an update loads the new one (LESSONS.md 13). |
-| `js/pages/*.js` | One module per page: `onboarding`, `savings`, `goal-form`, `accounts`, `account-detail`, `transactions`, `categories`. |
+| `js/pages/*.js` | One module per page: `onboarding`, `home`, `savings`, `goal-form`, `accounts`, `account-detail`, `transactions`, `categories`. |
 | `js/components/*.js` | The shared transactions table, and the adjustments (pairs) panel. |
 
 ## Starting up
@@ -268,13 +268,14 @@ sequenceDiagram
 
 | Route | Page | Endpoints it calls |
 |---|---|---|
-| `#/onboarding` | Bring in an export (optional), connect SimpleFIN, first sync, accounts, update-check choice | `/import`, `/connect`, `/sync`, `/accounts`, `/updates` |
+| `#/onboarding` | Bring in an export (optional), connect SimpleFIN, first sync, accounts, update-check choice, an optional first goal | `/import`, `/connect`, `/sync`, `/accounts`, `/updates` |
+| `#/home` (default) | The ring: how far through the month, one headline and sentence, and three figures | `GET /home` |
 | `#/savings` | The total in goal accounts; "was that the goal?" questions; critical goals, shared lines, free goal accounts, completed this year; reorder | `GET /goals`, `PUT /accounts/{id}/goal-order`, `POST /goals/questions/{id}` |
 | `#/savings/new`, `#/savings/:id` | Goal form: name and amount, level, home, when; mark as bought; delete | `GET /goals`, `POST/PATCH/DELETE /categories` |
-| `#/accounts` (default) | Accounts grouped by job; job picker; goal accounts locked while they hold goals | `GET /accounts`, `GET /goals`, `PATCH /accounts/{id}` |
+| `#/accounts` | Accounts grouped by job; job picker; goal accounts locked while they hold goals | `GET /accounts`, `GET /goals`, `PATCH /accounts/{id}` |
 | `#/accounts/:id` | One account and its transactions | `/accounts`, `/transactions` |
 | `#/transactions` | The ledger: a month at a time, filters, categorize, tag, link pairs | `/transactions`, `/categories`, `/tags`, `/transfers`, `/sync/month` |
-| `#/categories` | Categories, budgets every 1–12 months, pace for the month or round, and this year's closed rounds | `/categories`, `/categories/summary` |
+| `#/categories` | Goals and savings first, then expenses: budgets every 1–12 months, pace for the month or round, and this year's closed rounds | `/categories`, `/categories/summary` |
 
 The UI holds no money logic. Amounts are typed as text and sent as typed; the engine
 parses them. Everything shown is a `*_display` string. Raw cents are used only for

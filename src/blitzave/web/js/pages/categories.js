@@ -733,7 +733,8 @@ function listSkeleton() {
 //   1. expense with a budget, most of their budget used first;
 //   2. expense with spending but no budget, biggest first;
 //   3. expense with no budget and no spending, folded behind one line;
-//   4. income, then savings — no budget figures, just the manage tools.
+//   0. goals and savings first (pay yourself first), linking to Savings.
+//   4. income — no budget figures, just the manage tools.
 // Membership comes from the categories list; this month's figures are
 // looked up from the summary by id.
 function renderListBody() {
@@ -795,17 +796,29 @@ function renderListBody() {
 
   return `
     <div class="card budget-list">
+      ${savingsGroup(savings)}
       ${group("With a budget", budgeted, renderBudgetRow)}
       ${group("No budget yet", unbudgeted, renderBudgetRow)}
       ${idleBlock}
       ${group("Income", income, renderPlainRow)}
-      ${group("Savings", savings, renderPlainRow)}
       <div class="budget-group budget-group-add">
         ${state.showNewForm ? renderNewCategoryForm(false) : renderCategoryAddRow()}
       </div>
     </div>
     ${uncategorized}
   `;
+}
+
+// Goals come first, then expenses: pay yourself first, in the layout
+// itself. Goals are savings categories; their money and order live on the
+// Savings page, one tap away.
+function savingsGroup(savings) {
+  if (!savings.length) return "";
+  return `<div class="budget-group">
+    <p class="budget-group-label">Goals and savings<span class="u-tabular">${savings.length}</span>
+      <a class="link budget-group-link" href="#/savings">Open Savings</a></p>
+    <ul class="budget-rows">${savings.map(renderPlainRow).join("")}</ul>
+  </div>`;
 }
 
 function percentGeometry(value) {

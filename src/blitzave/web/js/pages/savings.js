@@ -295,6 +295,7 @@ function criticalCardMarkup(home) {
             <span class="goal-amounts-of">of ${escapeHtml(goal.budget_display)}</span>
           </p>
           <p class="goal-vault-line">${escapeHtml(criticalLine(goal))}${when ? ` <span class="goal-when">${escapeHtml(when)}</span>` : ""}</p>
+          ${goal.pace_line ? `<p class="goal-pace">${escapeHtml(goal.pace_line)}</p>` : ""}
         </div>
       </div>
       <div class="goal-vault-account">${ICON_BANK}<span>${escapeHtml(accountLine(home))}</span></div>
@@ -456,6 +457,7 @@ function lineRowMarkup(home, goal, i, ordering) {
           <span class="goal-row-hint">${escapeHtml(regularHint(goal, above))}</span>
           ${when ? `<span class="goal-when">${escapeHtml(when)}</span>` : ""}
         </div>
+        ${goal.pace_line && !ordering ? `<p class="goal-pace">${escapeHtml(goal.pace_line)}</p>` : ""}
       </div>
     </li>
   `;

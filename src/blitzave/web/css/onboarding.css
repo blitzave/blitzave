@@ -535,3 +535,10 @@
   font-size: var(--text-sm);
   color: var(--text-secondary);
 }
+
+.onboarding-first-goal {
+  margin-top: var(--space-5);
+  padding: var(--space-4);
+  border-radius: var(--radius-control);
+  background: var(--bg-well);
+}

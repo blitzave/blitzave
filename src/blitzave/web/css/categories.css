@@ -720,3 +720,10 @@
 .category-budget-period {
   max-width: 200px;
 }
+
+.budget-group-link {
+  margin-left: auto;
+  font-size: var(--text-xs);
+  letter-spacing: normal;
+  text-transform: none;
+}
