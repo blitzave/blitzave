@@ -119,3 +119,22 @@ def update_account_type(
         raise
 
     conn.commit()
+
+
+def goal_balance_history(conn: sqlite3.Connection, since: str) -> dict[str, list[tuple[str, int]]]:
+    """Each goal account's recorded balances since `since`, oldest first, by
+    public account id. A goal's funded day is read from these."""
+    history: dict[str, list[tuple[str, int]]] = {}
+    for external_id, as_of, cents in conn.execute(
+        """
+        SELECT a.external_id, b.as_of, b.balance_cents
+        FROM balances b
+        JOIN accounts a ON a.id = b.account_id
+        JOIN assets s ON s.account_id = a.id AND s.asset_type = 'targeted'
+        WHERE b.as_of >= ?
+        ORDER BY b.as_of
+        """,
+        (since,),
+    ):
+        history.setdefault(external_id, []).append((as_of, cents))
+    return history

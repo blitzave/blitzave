@@ -416,3 +416,53 @@ def update_metadata(
 
     conn.commit()
     return applied_to_count
+
+
+def goal_account_rows(conn: sqlite3.Connection, since: str) -> list[dict]:
+    """Every transaction in a goal account (asset_type 'targeted') posted on
+    or after `since`, transfer legs included: a transfer in is exactly how
+    money gets set aside. account_id is the public id."""
+    rows = conn.execute(
+        """
+        SELECT a.external_id, t.posted_on, t.amount_cents, t.description
+        FROM transactions t
+        JOIN accounts a ON a.id = t.account_id
+        JOIN assets s ON s.account_id = a.id AND s.asset_type = 'targeted'
+        WHERE t.posted_on >= ?
+        ORDER BY t.posted_on, t.id
+        """,
+        (since,),
+    ).fetchall()
+    return [
+        {"account_id": r[0], "posted_on": r[1], "amount_cents": r[2], "description": r[3]}
+        for r in rows
+    ]
+
+
+def spending_rows(conn: sqlite3.Connection, since: str) -> list[dict]:
+    """Spending since `since`: debits in activity (never a transfer leg),
+    outside goal accounts, and not filed under a savings category (money
+    moved to an account BlitZave can't see). amount_cents is positive."""
+    rows = conn.execute(
+        """
+        SELECT t.posted_on, -t.amount_cents, t.description
+        FROM activity t
+        WHERE t.amount_cents < 0 AND t.posted_on >= ?
+          AND NOT EXISTS (
+            SELECT 1 FROM assets s WHERE s.account_id = t.account_id AND s.asset_type = 'targeted'
+          )
+          AND NOT EXISTS (
+            SELECT 1 FROM json_each(t.categories) je
+            JOIN categories c ON c.id = CAST(je.key AS INTEGER)
+            WHERE c.kind = 'savings'
+          )
+        ORDER BY t.posted_on, t.id
+        """,
+        (since,),
+    ).fetchall()
+    return [{"posted_on": r[0], "amount_cents": r[1], "description": r[2]} for r in rows]
+
+
+def first_posted_on(conn: sqlite3.Connection) -> str | None:
+    """The date the data starts: the oldest transaction BlitZave has."""
+    return conn.execute("SELECT MIN(posted_on) FROM transactions").fetchone()[0]

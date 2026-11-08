@@ -115,6 +115,7 @@ flowchart TB
 | `refine/categorize.py` | `match_key()` normalizes a description; `is_match()` compares keys. |
 | `refine/transfers.py` | Finds exactly opposite debit/credit legs and decides what a pair is called (transfer, refund, credit) when it's shown. |
 | `refine/budgets.py` | Monthly budget facts: spent, remaining, pace. |
+| `refine/savings.py` | The Savings arc's facts: money set aside per month (into goal accounts, minus out, interest left out), pay-yourself-first (did it go before the spending, under one switchable rule), spending pace against the usual, and each goal's arrival as a range (3- vs 6-month pace; shared accounts fill in order). |
 | `refine/rounds.py` | Rounds for a recurring amount: the calendar-aligned stretch it covers (Oct–Dec for every 3 months), spending and pace in the current round, and what each closed round of the year came to. |
 | `refine/goals.py` | Splits a goal account's balance across its goals, top first, and gives each goal its state. |
 
