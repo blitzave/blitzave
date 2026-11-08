@@ -51,6 +51,29 @@ def test_no_question_when_the_amount_matches_no_funded_goal():
     assert goal_questions([waiting], [_withdrawal("T2", 30000)]) == []
 
 
+def test_near_amounts_count_so_tax_and_sales_still_match():
+    # $500 PS5: $541.25 with tax, $479.99 on sale. Both within 10%.
+    for spent in (54125, 47999, 55000, 45000):
+        home = _home(30000, [_goal(1, "PS5", 50000), _goal(2, "Japan", 1200000)])
+        [question] = goal_questions([home], [_withdrawal("T1", spent)])
+        assert (question["goal_name"], question["amount_cents"]) == ("PS5", spent)
+    # 11% off is something else.
+    home = _home(30000, [_goal(1, "PS5", 50000), _goal(2, "Japan", 1200000)])
+    assert goal_questions([home], [_withdrawal("T1", 44500)]) == []
+    assert goal_questions([home], [_withdrawal("T1", 55500)]) == []
+
+
+def test_the_closest_funded_goal_is_the_question():
+    # Both funded; $295 is nearer the $300 PS5 than the $280 headset.
+    home = _home(100000, [_goal(1, "Headset", 28000), _goal(2, "PS5", 30000)])
+    [question] = goal_questions([home], [_withdrawal("T1", 29500)])
+    assert question["goal_name"] == "PS5"
+    # A tie goes to the goal higher in line.
+    tie = _home(100000, [_goal(1, "Headset", 28000), _goal(2, "PS5", 30000)])
+    [question] = goal_questions([tie], [_withdrawal("T1", 29000)])
+    assert question["goal_name"] == "Headset"
+
+
 def test_a_goal_lower_in_line_that_was_funded_counts_too():
     home = _home(30000, [_goal(1, "PS5", 30000), _goal(2, "GTA 6", 7000)])
     [question] = goal_questions([home], [_withdrawal("T1", 7000)])

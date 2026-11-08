@@ -8,7 +8,7 @@
 //   Free      goal accounts with no goal yet, ready for one.
 //
 // Above them, a question card when money left a goal account and the amount
-// is exactly what a funded goal needed: "Was that the PS5?". Each is asked
+// is close to what a funded goal needed: "Was that the PS5?". Each is asked
 // once; the engine decides which (refine/goals.goal_questions).
 //
 // The engine decides every number: who gets what (refine/goals.py), the

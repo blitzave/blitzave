@@ -255,8 +255,10 @@ sequenceDiagram
 **"Was that the PS5?"** (`refine/goals.goal_questions`):
 
 - **When it asks.** Money left a goal account in the last 30 days, and the amount is
-  exactly what a goal in that account needed. The goal must also have been funded just
-  before the money left: the split is worked out with that withdrawal added back.
+  within 10% of what a goal in that account needed (`QUESTION_NEAR_SHARE`), so sales tax
+  or a sale price still matches. The goal must also have been funded just before the
+  money left: the split is worked out with that withdrawal added back. If more than one
+  goal is near, the closest is asked about (a tie goes to the one higher in line).
 - **How often.** One question per goal, about the newest such withdrawal.
 - **Yes.** Completes the goal on the day the money left.
 - **Either answer.** It's stored on the transaction (`meta.goal_question`), so it's

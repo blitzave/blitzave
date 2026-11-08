@@ -88,10 +88,20 @@ def savings_by_account(accounts: list[dict], categories: list[dict]) -> dict:
 
 
 # "Was that the PS5?" (TODOS.md P0.3). When money leaves a goal account and
-# the amount is exactly what a funded goal needed, BlitZave asks once whether
+# the amount is close to what a funded goal needed, BlitZave asks once whether
 # that was the goal being bought. Only recent withdrawals count, so a goal set
 # up today isn't asked about money that left months ago.
 QUESTION_WINDOW_DAYS = 30
+
+# How close counts (maintainer call, 2026-11-08: accept near-matches). Within
+# 10% of the goal's amount either way, so a $500 PS5 still matches at $541.25
+# with sales tax, or at $479.99 on sale. A wrong guess costs one tap on "It was
+# something else".
+QUESTION_NEAR_SHARE = 0.10
+
+
+def _near(spent: int, amount: int) -> bool:
+    return abs(spent - amount) <= amount * QUESTION_NEAR_SHARE
 
 
 def goal_questions(homes: list[dict], withdrawals: list[dict]) -> list[dict]:
@@ -104,8 +114,9 @@ def goal_questions(homes: list[dict], withdrawals: list[dict]) -> list[dict]:
     The balance already reflects the withdrawal, so a goal it paid for no
     longer looks funded. Each withdrawal is checked against the split as it
     was just before it left: the money added back. A goal that was funded
-    then, whose amount is exactly what left, is the question. One question
-    per goal, the newest withdrawal first."""
+    then, whose amount is near what left, is the question; when more than one
+    is near, the closest (then the one higher in line). One question per goal,
+    the newest withdrawal first."""
     by_account = {home["id"]: home for home in homes}
     questions = []
     asked = set()
@@ -115,16 +126,15 @@ def goal_questions(homes: list[dict], withdrawals: list[dict]) -> list[dict]:
             continue
         spent = -withdrawal["amount_cents"]
         before, _ = fill((home["balance_cents"] or 0) + spent, home["goals"])
-        goal = next(
-            (
-                g
-                for g in before
-                if g["state"] == "done" and g["budget_cents"] == spent and g["id"] not in asked
-            ),
-            None,
-        )
-        if goal is None:
+        near = [
+            g
+            for g in before
+            if g["state"] == "done" and _near(spent, g["budget_cents"]) and g["id"] not in asked
+        ]
+        if not near:
             continue
+        # min() keeps the first of equals, so a tie goes to the goal higher in line.
+        goal = min(near, key=lambda g: abs(spent - g["budget_cents"]))
         asked.add(goal["id"])
         questions.append(
             {
