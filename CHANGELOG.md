@@ -10,8 +10,9 @@ To update: `uv tool upgrade blitzave`, then start `blitzave` as usual.
 
 - **Home: the one thing worth knowing today.** BlitZave now opens on a calm ring
   that shows how far through the month you are, with one sentence inside it:
-  savings went first, a goal is almost there or done, a heavier start (that
-  happens), or nothing that needs you. Below it are what you've spent so far,
+  savings went first, a goal is a quarter, halfway or three-quarters of the
+  way there, almost there or done, a heavier start (that happens), or nothing
+  that needs you. A goal's milestones get a small star. Below it are what you've spent so far,
   what you've set aside, and your goals underway.
 - **When each goal gets there.** Every goal on Savings shows when it arrives at
   your recent pace, as a range of months, and what a month would take to make

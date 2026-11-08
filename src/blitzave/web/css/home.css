@@ -68,6 +68,21 @@
   color: var(--text-secondary);
 }
 
+/* The milestone star: tiny, in the progress blue, shimmering three times and
+   then still. Reduced motion (base.css) leaves it still from the start. */
+.home-star {
+  width: 18px;
+  height: 18px;
+  margin-bottom: calc(-1 * var(--space-1));
+  fill: var(--progress);
+  animation: home-star-shimmer 1.6s var(--ease-out) 3;
+}
+
+@keyframes home-star-shimmer {
+  0%, 100% { opacity: 1; transform: scale(1) rotate(0deg); }
+  50% { opacity: 0.45; transform: scale(0.8) rotate(20deg); }
+}
+
 .home-headline {
   margin: 0;
   font-size: 2rem;

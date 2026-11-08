@@ -101,7 +101,8 @@ account's ledger, so balances still reconcile.
 
 **Home** opens on one sentence: the one thing worth knowing today, inside a ring
 that shows how far through the month you are. It might be "You're in good shape:
-savings went first this month", "Almost there: the PS5 is $120 away", or, after
+savings went first this month", "Japan: halfway there", "Almost there: the PS5
+is $120 away", or, after
 a heavier start, "That happens. Your three-month average hasn't moved." Below
 it: spent so far, set aside, and goals underway, each one tap from the detail.
 
@@ -366,7 +367,7 @@ edges.
   light month barely moves it)
 - [x] A home screen with the one thing that matters right now. Wins get celebrated in
   plain words; a light month is absorbed, never a broken streak.
-- [ ] Milestone moments at 25, 50, 75 and 100%
+- [x] Milestone moments at 25, 50, 75 and 100%
 
 **After that**
 - [ ] Ask BlitZave: questions about your own money, answered from your own data. First

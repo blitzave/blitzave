@@ -14,6 +14,15 @@ import * as api from "../api.js?v=goals";
 const R = 190;
 const C = 2 * Math.PI * R;
 
+// A goal reached a milestone (25/50/75%) or its whole amount: the words say
+// it, and a tiny star shimmers a few times beside them. Never confetti,
+// badges or counts (TODOS.md: celebrations are words only, plus this star).
+const STAR_RULES = new Set(["milestone", "goal_reached"]);
+const STAR = `
+  <svg class="home-star" viewBox="0 0 24 24" aria-hidden="true">
+    <path d="M12 2 L13.8 10.2 L22 12 L13.8 13.8 L12 22 L10.2 13.8 L2 12 L10.2 10.2 Z" />
+  </svg>`;
+
 function escapeHtml(value) {
   return String(value ?? "")
     .replace(/&/g, "&amp;")
@@ -66,6 +75,7 @@ export async function render(root) {
         </svg>
         <div class="home-ring-text">
           <span class="home-ring-date">${escapeHtml(home.month_label)}, day ${home.day}</span>
+          ${STAR_RULES.has(home.rule) ? STAR : ""}
           <h1 class="home-headline" id="home-today">${escapeHtml(home.headline)}</h1>
         </div>
       </div>

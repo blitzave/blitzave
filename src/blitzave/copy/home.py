@@ -8,6 +8,12 @@ from datetime import date
 from blitzave.api.money import format_cents
 from blitzave.copy import day_of, month_name, ordinal
 
+MILESTONE_WORDS = {
+    25: "a quarter of the way there",
+    50: "halfway there",
+    75: "three-quarters of the way there",
+}
+
 
 def _spending_phrase(spending: dict) -> str | None:
     if not spending.get("usual_to_date_cents"):
@@ -33,6 +39,22 @@ def home_words(card: dict, today: date) -> tuple[str, str]:
             "It's ready when you are."
         )
         return f"{goal['name']}: done.", support
+
+    if rule == "milestone":
+        goal, trajectory = card["goal"], card["trajectory"] or {}
+        support = (
+            f"{format_cents(goal['saved_cents'])} of {format_cents(goal['budget_cents'])} "
+            "is set aside"
+        )
+        rate = trajectory.get("rate_cents")
+        if rate and rate > 0 and trajectory.get("eta_from"):
+            support += (
+                f". At {format_cents(rate)} a month, the rest is there around "
+                f"{month_name(trajectory['eta_from'], today.year)}."
+            )
+        else:
+            support += ", a bit at a time."
+        return f"{goal['name']}: {MILESTONE_WORDS[goal['milestone']]}.", support
 
     if rule == "heavier_month":
         spending = card["spending"]

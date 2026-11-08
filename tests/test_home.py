@@ -67,7 +67,7 @@ def test_less_than_a_month_of_history_is_getting_started():
 
 
 def test_a_win_shows_before_a_heavy_month():
-    ps5 = _goal(1, "PS5", 30000, saved=30000)
+    ps5 = _goal(1, "PS5", 30000, saved=30000) | {"milestone": 100}
     card = _pick(reached=[ps5], spending=HEAVY_SPENDING)
     assert card["rule"] == "goal_reached"
     assert home_words(card, TODAY) == (
@@ -149,6 +149,73 @@ def test_a_goal_is_news_for_a_week_after_its_balance_covered_it():
     assert newly_reached([home], long_ago, TODAY) == []
     always_full = {"MARCUS": [("2026-11-02", 31000), ("2026-11-07", 31000)]}
     assert newly_reached([home], always_full, TODAY) == []
+
+
+# --- milestones ------------------------------------------------------------------------
+
+
+def _line(*goals):
+    return [{"id": i, "name": name, "budget_cents": amount, "goal_level": "regular",
+             "schedule": schedule} for i, (name, amount, schedule) in enumerate(goals, 1)]
+
+
+def _account(balance, goals):
+    filled, _ = fill(balance, goals)
+    return {"id": "MARCUS", "goals": filled}
+
+
+def test_each_quarter_is_news_for_a_week_and_only_the_highest_shows():
+    goals = _line(("PS5", 40000, "once"))
+    history = {"MARCUS": [("2026-10-20", 5000), ("2026-11-05", 12000)]}
+    [moment] = newly_reached([_account(12000, goals)], history, TODAY)
+    assert (moment["milestone"], moment["reached_on"]) == (25, "2026-11-05")
+    # 10% to 60% in one deposit: halfway, not a quarter.
+    history = {"MARCUS": [("2026-10-20", 4000), ("2026-11-06", 24000)]}
+    [moment] = newly_reached([_account(24000, goals)], history, TODAY)
+    assert (moment["milestone"], moment["reached_on"]) == (50, "2026-11-06")
+    # Halfway in October, a dip below it now: nothing to say, nothing lost.
+    history = {"MARCUS": [("2026-10-01", 4000), ("2026-10-10", 22000), ("2026-11-07", 18000)]}
+    assert newly_reached([_account(18000, goals)], history, TODAY) == []
+
+
+def test_a_goal_lower_in_line_counts_only_its_own_share():
+    goals = _line(("Japan", 100000, "once"), ("PS5", 40000, "once"))
+    # $1,000 fills Japan; the next $100 is the PS5's first quarter.
+    history = {"MARCUS": [("2026-10-01", 90000), ("2026-11-04", 110000)]}
+    moments = newly_reached([_account(110000, goals)], history, TODAY)
+    assert [(m["name"], m["milestone"]) for m in moments] == [("Japan", 100), ("PS5", 25)]
+
+
+def test_recurring_goals_have_rounds_not_milestones():
+    goals = _line(("Fund top-up", 30000, "recurring"))
+    history = {"MARCUS": [("2026-10-01", 0), ("2026-11-05", 20000)]}
+    assert newly_reached([_account(20000, goals)], history, TODAY) == []
+
+
+def test_done_comes_before_part_way_and_part_way_before_a_heavy_month():
+    ps5 = _goal(1, "PS5", 30000, saved=30000) | {"milestone": 100, "reached_on": "2026-11-02"}
+    japan = _goal(2, "Japan", 1200000, saved=600000) | {"milestone": 50,
+                                                         "reached_on": "2026-11-07"}
+    assert _pick(reached=[japan, ps5])["rule"] == "goal_reached"
+    card = _pick(reached=[japan], spending=HEAVY_SPENDING,
+                 trajectories={2: {"rate_cents": 60000, "eta_from": "2027-08"}})
+    assert card["rule"] == "milestone"
+    support = ("$6,000.00 of $12,000.00 is set aside. At $600.00 a month, the rest is there "
+               "around August 2027.")
+    assert home_words(card, TODAY) == ("Japan: halfway there.", support)
+
+
+@pytest.mark.parametrize("milestone, words", [
+    (25, "a quarter of the way there"), (50, "halfway there"),
+    (75, "three-quarters of the way there")])
+def test_milestone_words_without_a_pace(milestone, words):
+    fund = _goal(1, "Emergency fund", 900000, level="critical",
+                 saved=900000 * milestone // 100) | {"milestone": milestone}
+    headline, support = home_words({"rule": "milestone", "goal": fund, "trajectory": None},
+                                   TODAY)
+    assert headline == f"Emergency fund: {words}."
+    assert support.endswith("is set aside, a bit at a time.")
+    _assert_ally(headline, support)
 
 
 # --- pace lines on Savings ------------------------------------------------------------
