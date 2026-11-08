@@ -232,6 +232,12 @@ Set `BLITZAVE_HOME` to keep the data folder somewhere else:
 BLITZAVE_HOME=~/Documents/BlitZave blitzave
 ```
 
+**Export** everything with **Export your data** at the bottom of the sidebar. It
+saves one JSON file with every account, transaction, category, goal, rule and
+link, and nothing about your bank login. On a new laptop, install BlitZave and
+choose **Bring in your export** on the first screen. Import only goes into a
+fresh install, and it's all or nothing.
+
 **Back up** by copying the database while BlitZave is stopped, or at any time
 with SQLite's online backup:
 

@@ -3,6 +3,7 @@ from datetime import date, timedelta
 from typing import Literal
 
 from fastapi import APIRouter, HTTPException, Query
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel, StrictBool, field_validator, model_validator
 
 from blitzave import jobs
@@ -20,6 +21,7 @@ from blitzave.store import (
     accounts,
     categories,
     db,
+    export,
     tags,
     transactions,
     transfers,
@@ -233,6 +235,20 @@ class GoalOrder(BaseModel):
 class GoalAnswer(BaseModel):
     goal_id: int
     answer: Literal["bought", "other"]  # "Yes, I bought it" / "It was something else"
+
+
+class ExportTable(BaseModel):
+    columns: list[str]
+    rows: list[list[int | float | str | None]]
+
+
+class ExportDocument(BaseModel):
+    """What GET /api/export produces. The store checks the version, that the
+    database is empty, and every row against the schema's own rules."""
+
+    format: str
+    schema_version: int
+    tables: dict[str, ExportTable]
 
 
 class TagCreate(BaseModel):
@@ -642,6 +658,39 @@ def answer_goal_question(transaction_id: str, request: GoalAnswer) -> dict:
         except categories.GoalQuestionError as e:
             raise HTTPException(status_code=409, detail=str(e)) from e
         return _savings(conn)
+    finally:
+        conn.close()
+
+
+# --- export and import ----------------------------------------------------------
+
+
+@router.get("/export")
+def export_data() -> JSONResponse:
+    """Every table, as one JSON file the browser saves. Holds no credential."""
+    conn = db.connect()
+    try:
+        document = export.export_all(conn)
+    finally:
+        conn.close()
+    filename = f"blitzave-export-{date.today().isoformat()}.json"
+    return JSONResponse(
+        document, headers={"Content-Disposition": f'attachment; filename="{filename}"'}
+    )
+
+
+@router.post("/import")
+def import_data(document: ExportDocument) -> dict:
+    """Loads an export into a fresh install, all of it or none of it."""
+    conn = db.connect()
+    try:
+        try:
+            counts = export.import_all(conn, document.model_dump())
+        except export.NotEmptyError as e:
+            raise HTTPException(status_code=409, detail=str(e)) from e
+        except export.ImportRefusedError as e:
+            raise HTTPException(status_code=422, detail=str(e)) from e
+        return {"imported": counts}
     finally:
         conn.close()
 

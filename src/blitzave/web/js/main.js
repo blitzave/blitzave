@@ -137,6 +137,7 @@ function shellMarkup() {
         <div class="sidebar-footer">
           <p class="sidebar-footer-note">${ICON_LOCK}<span>Runs on this laptop. Bank access is read-only.</span></p>
           <p class="sidebar-footer-meta">Open source · self-hosted</p>
+          <p class="sidebar-footer-meta"><a class="link" href="${api.exportUrl()}" download>Export your data</a></p>
           <div class="sidebar-updates" id="sidebar-updates" hidden></div>
         </div>
       </aside>

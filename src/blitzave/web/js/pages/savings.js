@@ -17,7 +17,9 @@
 // engine and redraws from its answer, so the split on screen is always the
 // one the engine computed.
 
-import * as api from "../api.js";
+// Versioned import: a tab left open across an update still holds the old
+// api.js, which lacks the goal and export calls (LESSONS.md 13).
+import * as api from "../api.js?v=goals";
 
 const STATE_LABELS = { backlog: "Not started", in_progress: "Saving", done: "Funded" };
 

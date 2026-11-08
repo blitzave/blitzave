@@ -15,7 +15,9 @@
 //
 // Owned by the accounts agent.
 
-import * as api from "../api.js";
+// Versioned import: a tab left open across an update still holds the old
+// api.js, which lacks the goal and export calls (LESSONS.md 13).
+import * as api from "../api.js?v=goals";
 import { navigate } from "../router.js";
 
 const ASSET_LABELS = { checking: "Checking", savings: "Savings", targeted: "Goal account" };

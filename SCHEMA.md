@@ -358,6 +358,17 @@ Each one refuses with a plain message, which the API turns into a 409.
 | 009 | `009_goal_homes.sql` | 2026-11-06 | The `targeted` account job; goals' level, home, place in line and completion, with their rules. |
 | 010 | `010_plan_set_on.sql` | 2026-11-08 | `categories.plan_set_on`, so rounds count only from when a plan was set. |
 
+## Export and import
+
+`GET /api/export` writes every table above, in the order foreign keys need, as
+`{format, schema_version, tables: {name: {columns, rows}}}`. It leaves out
+`users.simplefin_hash` and the generated `accounts.display_name`.
+`POST /api/import` loads that document into an install with no data, in one
+transaction. Every row goes through the same CHECKs and triggers, so an export
+that was edited into something the schema forbids is refused whole. A new
+generated column must be added to `LEFT_OUT` in `store/export.py`; the
+round-trip test fails until it is.
+
 ## Changing the schema
 
 1. **Add a numbered file** to `store/migrations/` (`010_…sql`). Never edit one that has
@@ -381,5 +392,4 @@ These wait until they're needed:
 
 | Planned | Why it isn't here yet |
 |---|---|
-| Export and import (P0.1) | Will read and write every table above. No new table needed. |
 | Behavior cards (`insights`) | Arrive with the detectors. |

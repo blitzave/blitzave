@@ -179,6 +179,21 @@ export function answerGoalQuestion(transactionId, goalId, answer) {
   });
 }
 
+// --------------------------- Export and import ---------------------------
+// Export is a plain download: the link points here and the browser saves the
+// file the engine names. Import sends that file back into a fresh install.
+
+export function exportUrl() {
+  return "/api/export";
+}
+
+export function importData(exportDocument) {
+  return request("/api/import", {
+    method: "POST",
+    body: JSON.stringify(exportDocument),
+  });
+}
+
 // -------------------------------- Tags --------------------------------
 
 export function listTags() {

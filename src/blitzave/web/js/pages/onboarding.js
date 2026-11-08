@@ -10,8 +10,8 @@
 // refreshShell() reveals the sidebar and navigates to #/accounts itself.
 
 // Versioned import: a tab left open across an upgrade still holds the old
-// api.js, which has no setUpdateCheck (see LESSONS.md 13).
-import * as api from "../api.js?updates=1";
+// api.js, which has no setUpdateCheck or importData (see LESSONS.md 13).
+import * as api from "../api.js?v=goals";
 
 const TOTAL_STEPS = 5;
 const STEP_TRANSITION_MS = 240; // matches onboarding.css's bespoke page-turn duration
@@ -218,9 +218,43 @@ function renderWelcome(panel, ctx) {
       <div class="onboarding-actions onboarding-actions-center">
         <button type="button" class="btn btn-primary onboarding-cta" data-action="next">Get started</button>
       </div>
+      <p class="onboarding-import">
+        Moving from another laptop?
+        <button type="button" class="link-button" data-action="import">Bring in your export</button>
+        <input type="file" accept="application/json,.json" data-role="import-file" hidden />
+      </p>
+      <p class="onboarding-import-status" aria-live="polite"></p>
     </div>
   `;
   panel.querySelector('[data-action="next"]').addEventListener("click", () => ctx.goTo(2));
+
+  // Import: a file saved by "Export your data" goes into this fresh install,
+  // all of it or none of it. The bank still needs connecting afterwards, so
+  // new transactions keep coming in.
+  const fileInput = panel.querySelector('[data-role="import-file"]');
+  const status = panel.querySelector(".onboarding-import-status");
+  panel.querySelector('[data-action="import"]').addEventListener("click", () => fileInput.click());
+  fileInput.addEventListener("change", async () => {
+    const file = fileInput.files && fileInput.files[0];
+    if (!file) return;
+    status.textContent = "Bringing it in…";
+    let documentJson;
+    try {
+      documentJson = JSON.parse(await file.text());
+    } catch {
+      status.textContent = "That file isn't a BlitZave export. It should be the .json file Export saved.";
+      return;
+    }
+    try {
+      await api.importData(documentJson);
+      status.textContent = "Everything's in. Next, connect your bank so new transactions keep arriving.";
+      window.setTimeout(() => ctx.goTo(2), 1200);
+    } catch (err) {
+      status.textContent = asSentence(err && err.detail) || "That didn't go in. Nothing was changed.";
+    } finally {
+      fileInput.value = "";
+    }
+  });
 }
 
 // -------------------------------- Step 2 --------------------------------

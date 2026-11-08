@@ -17,6 +17,14 @@ To update: `uv tool upgrade blitzave`, then start `blitzave` as usual.
 - **Every goal shows where it stands.** Not started, Saving, or Funded, with how
   much is there and how much is still to go. When you buy it, mark it as bought:
   it moves to "Completed this year" and its account is free for what's next.
+- **Export your data, and bring it to a new laptop.** "Export your data" at the
+  bottom of the sidebar saves everything in one file, without your bank login.
+  On a fresh install, "Bring in your export" on the first screen puts it all
+  back.
+- **Budgets that repeat every few months.** A budget can cover every 1, 2, 3,
+  4, 6 or 12 months, following the calendar (every 3 months is Jan–Mar,
+  Apr–Jun, …). Each round starts fresh, and Categories shows what each one
+  closed at this year: "Jan–Mar +$80.00".
 - **One-time or recurring amounts.** A goal can be an amount by a date ("$500 by
   December 20") or an amount every 1, 2, 3, 4, 6 or 12 months.
 

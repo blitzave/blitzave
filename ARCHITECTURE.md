@@ -109,6 +109,7 @@ flowchart TB
 | `store/categories.py` | Categories, their plans (amount and schedule), goals (level, home, place in line), goal reordering, and "apply to all" rules. |
 | `store/transactions.py` | The transaction list (filters, sort, paging), split categories, tags, and the category summary. |
 | `store/transfers.py` | Matched pairs: list, link, unlink, and the unlinked legs the matcher looks at. |
+| `store/export.py` | Export every table to one JSON document; import one into an empty database, all or nothing. Leaves out the connection hash and generated columns. |
 | `store/tags.py`, `store/users.py` | Tags, and the single local user (with its `meta` settings). |
 | `store/migrations/` | `001` … `009`, numbered SQL files. The only way the schema changes. |
 | `refine/categorize.py` | `match_key()` normalizes a description; `is_match()` compares keys. |
@@ -122,9 +123,9 @@ flowchart TB
 | File | Job |
 |---|---|
 | `index.html`, `css/*.css` | The shell and the "Clarity blue" design system (`tokens.css`, `base.css`, one stylesheet per page). Rules in `DESIGN.md`. |
-| `js/main.js` | The sidebar, top bar, Sync button, update note, and the onboarding gate. |
+| `js/main.js` | The sidebar (with "Export your data"), top bar, Sync button, update note, and the onboarding gate. |
 | `js/router.js` | Hash routes → page modules. |
-| `js/api.js` | The only file that knows API URLs. Passes `*_display` strings through untouched. |
+| `js/api.js` | The only file that knows API URLs. Passes `*_display` strings through untouched. Pages that use calls added after a release import it as `api.js?v=…`, so a tab left open across an update loads the new one (LESSONS.md 13). |
 | `js/pages/*.js` | One module per page: `onboarding`, `savings`, `goal-form`, `accounts`, `account-detail`, `transactions`, `categories`. |
 | `js/components/*.js` | The shared transactions table, and the adjustments (pairs) panel. |
 
@@ -264,7 +265,7 @@ sequenceDiagram
 
 | Route | Page | Endpoints it calls |
 |---|---|---|
-| `#/onboarding` | Connect SimpleFIN, first sync, accounts, update-check choice | `/connect`, `/sync`, `/accounts`, `/updates` |
+| `#/onboarding` | Bring in an export (optional), connect SimpleFIN, first sync, accounts, update-check choice | `/import`, `/connect`, `/sync`, `/accounts`, `/updates` |
 | `#/savings` | The total in goal accounts; "was that the goal?" questions; critical goals, shared lines, free goal accounts, completed this year; reorder | `GET /goals`, `PUT /accounts/{id}/goal-order`, `POST /goals/questions/{id}` |
 | `#/savings/new`, `#/savings/:id` | Goal form: name and amount, level, home, when; mark as bought; delete | `GET /goals`, `POST/PATCH/DELETE /categories` |
 | `#/accounts` (default) | Accounts grouped by job; job picker; goal accounts locked while they hold goals | `GET /accounts`, `GET /goals`, `PATCH /accounts/{id}` |
@@ -299,6 +300,8 @@ All under `/api`. Interactive docs at `http://127.0.0.1:8742/docs` while BlitZav
 | GET | `/goals` | Goal accounts with their goals filled in line, the total, completed goals, and any "was that the goal?" questions. |
 | PUT | `/accounts/{id}/goal-order` | Reorders an account's goals; returns the new split. |
 | POST | `/goals/questions/{transaction_id}` | Answers a question: `bought` completes the goal on the day the money left; `other` only records it. Never asked again. |
+| GET | `/export` | Every table as one JSON file (a download). No credential, no connection hash. |
+| POST | `/import` | Loads an export into a fresh install, all or nothing. 409 if the install has data; 422 for another schema version or a row the database refuses. |
 | GET / POST / DELETE | `/tags`, `/tags/{id}` | Tags. |
 | GET | `/transactions` | The ledger: account, dates, search, category, tag, kind, sort, paging, pair grouping. |
 | PATCH | `/transactions/{id}` | Sets split categories and tags; `apply_to_all` saves a rule. |
