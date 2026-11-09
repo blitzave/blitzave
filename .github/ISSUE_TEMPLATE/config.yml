@@ -1,7 +1,7 @@
 blank_issues_enabled: false
 contact_links:
   - name: Questions and help
-    url: https://discord.com/invite/VerUYP67
+    url: https://discord.gg/akSZ794XxG
     about: Ask on the BlitZave Discord. Setup questions get answered fastest there.
   - name: Report a security vulnerability
     url: https://github.com/blitzave/blitzave/security/advisories/new

@@ -5,7 +5,7 @@ laptop and **has your back**: it reflects what you're doing with money, calmly,
 and never keeps score. Every contribution, from a typo fix to a new detector,
 helps more people feel in control of their money.
 
-- **Chat first** on [Discord](https://discord.com/invite/VerUYP67) if you're
+- **Chat first** on [Discord](https://discord.gg/akSZ794XxG) if you're
   unsure whether an idea fits. A five-minute conversation saves a rewritten PR.
 - **Small PRs win.** One focused change, with tests, that a reviewer can read
   end to end.
