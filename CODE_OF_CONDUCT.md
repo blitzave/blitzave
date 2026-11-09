@@ -11,6 +11,6 @@ anyone to share their real financial details, and never share someone else's.
 ## Reporting
 
 If you experience or witness unacceptable behavior, message a maintainer
-privately on [Discord](https://discord.com/invite/VerUYP67). Reports are
+privately on [Discord](https://discord.gg/akSZ794XxG). Reports are
 handled confidentially. Maintainers follow the Contributor Covenant's
 [enforcement guidelines](https://www.contributor-covenant.org/version/2/1/code_of_conduct/#enforcement-guidelines).

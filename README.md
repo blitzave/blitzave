@@ -12,9 +12,9 @@ A calm, open-source personal finance app that runs on your own laptop.
 [![CI](https://img.shields.io/github/actions/workflow/status/blitzave/blitzave/ci.yml?branch=main&style=flat-square&label=CI)](https://github.com/blitzave/blitzave/actions/workflows/ci.yml)
 [![Local-first](https://img.shields.io/badge/local--first-127.0.0.1-10161F?style=flat-square)](#privacy-by-design)
 [![Status: alpha](https://img.shields.io/badge/status-alpha-8792A3?style=flat-square)](#roadmap)
-[![Discord](https://img.shields.io/badge/discord-join%20us-5865F2?style=flat-square&logo=discord&logoColor=white)](https://discord.com/invite/VerUYP67)
+[![Discord](https://img.shields.io/badge/discord-join%20us-5865F2?style=flat-square&logo=discord&logoColor=white)](https://discord.gg/akSZ794XxG)
 
-[Website](https://blitzave.github.io/blitzave/) · [Guide](https://blitzave.github.io/blitzave/guide/) · [Quick start](#quick-start) · [Setup guide](#setup-guide) · [Roadmap](#roadmap) · [Contributing](CONTRIBUTING.md) · [Discord](https://discord.com/invite/VerUYP67)
+[Website](https://blitzave.github.io/blitzave/) · [Guide](https://blitzave.github.io/blitzave/guide/) · [Quick start](#quick-start) · [Setup guide](#setup-guide) · [Roadmap](#roadmap) · [Contributing](CONTRIBUTING.md) · [Discord](https://discord.gg/akSZ794XxG)
 
 <br>
 
@@ -319,7 +319,7 @@ uvx keyring del blitzave simplefin_access_url
 | An account shows the wrong type | Open the account's `⋯` menu and correct it. |
 | Keychain errors on Linux | Make sure a Secret Service provider (GNOME Keyring or KWallet) is running. |
 
-Still stuck? Ask on [Discord](https://discord.com/invite/VerUYP67).
+Still stuck? Ask on [Discord](https://discord.gg/akSZ794XxG).
 
 ## Privacy by design
 
@@ -410,7 +410,7 @@ come later; self-hosting will always be first-class.
 
 ## Community
 
-- **[Discord](https://discord.com/invite/VerUYP67)**: questions, ideas, and the people building BlitZave
+- **[Discord](https://discord.gg/akSZ794XxG)**: questions, ideas, and the people building BlitZave
 - **[Issues](https://github.com/blitzave/blitzave/issues)**: bugs and feature ideas
 - **[Contributing](CONTRIBUTING.md)**: how we build, and the rules that never bend
 - **[Security](SECURITY.md)**: report vulnerabilities privately
