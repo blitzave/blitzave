@@ -107,6 +107,8 @@
     .icon-link:active { transform: scale(0.96); }
     .icon-link svg { width: 20px; height: 20px; fill: currentColor; }
     .icon-link:focus-visible { border-radius: 50%; }
+    .nav-text { display: inline-flex; align-items: center; min-height: 44px; padding: 0 12px; margin-right: 2px; font-size: 15px; font-weight: 600; color: var(--text-secondary); text-decoration: none; border-radius: var(--radius-control); }
+    .nav-text:hover { color: var(--accent); }
     .icon-link-lg { width: 60px; height: 60px; }
     .icon-link-lg svg { width: 26px; height: 26px; }
     .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
@@ -191,9 +193,20 @@
     .feature-copy p { color: var(--text-secondary); }
     .feature .frame { border-radius: 18px; box-shadow: 0 24px 48px -28px rgba(15, 23, 42, 0.3), 0 1px 3px rgba(15, 23, 42, 0.06); }
     .ticks { list-style: none; padding: 0; display: grid; gap: 10px; margin-top: 4px; }
+    .feature-link { justify-self: start; margin-top: 4px; font-size: 15px; font-weight: 600; color: var(--accent); text-decoration: none; }
+    .feature-link:hover { text-decoration: underline; }
     .ticks li { display: flex; gap: 12px; font-size: 15px; color: var(--text-secondary); }
     .ticks svg { flex: none; width: 18px; height: 18px; margin-top: 4px; stroke: var(--success); fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
 
+    /* Home's sentences, as the app words them. */
+    .says { display: grid; gap: 14px; }
+    .say { padding: 24px 28px; border-radius: var(--radius-card); background: var(--bg-raised); border: 1px solid var(--line-faint); box-shadow: var(--shadow-card); display: grid; gap: 6px; }
+    .say:first-child { box-shadow: 0 24px 48px -28px rgba(15, 23, 42, 0.3), 0 1px 3px rgba(15, 23, 42, 0.06); }
+    .say:not(:first-child) { margin-left: 40px; }
+    .say-when { font-size: 13px; font-weight: 600; color: var(--text-faint); }
+    .say-head { font-size: clamp(1.35rem, 2.2vw, 1.7rem); font-weight: 600; letter-spacing: -0.02em; line-height: 1.2; }
+    .say-sub { font-size: 15.5px; color: var(--text-secondary); line-height: 1.55; }
+    @media (max-width: 600px) { .say:not(:first-child) { margin-left: 0; } .say { padding: 20px; } }
     /* ---------- Tour ---------- */
     .tour { max-width: 1040px; margin: 0 auto; }
     .tour figcaption { margin-top: 18px; text-align: center; font-size: 14px; color: var(--text-faint); }
@@ -229,10 +242,13 @@
     .needs a { color: var(--accent); text-decoration: none; font-weight: 600; }
     .needs a:hover { text-decoration: underline; }
 
+    .guide-cta { margin-top: 36px; display: grid; justify-items: center; gap: 12px; text-align: center; }
+    .guide-cta p { font-size: 15px; color: var(--text-faint); }
     /* ---------- Roadmap ---------- */
     .vital { display: grid; grid-template-columns: repeat(5, 1fr); gap: 16px; }
     .vital li { list-style: none; display: grid; gap: 10px; align-content: start; padding: 24px; border-radius: var(--radius-card); background: var(--bg-raised); border: 1px solid var(--line-faint); box-shadow: var(--shadow-card); }
     .vital ol { padding: 0; }
+    .vital-state { display: inline-block; margin-left: 6px; padding: 1px 8px; border-radius: 999px; background: rgba(11, 138, 90, 0.1); color: var(--success); font-size: 11.5px; font-weight: 700; vertical-align: 1px; }
     .vital-num { font-size: 13px; font-weight: 700; color: var(--accent); font-variant-numeric: tabular-nums; }
     .vital h3 { font-size: 1.0625rem; font-weight: 600; line-height: 1.3; }
     .vital p { font-size: 14.5px; color: var(--text-secondary); line-height: 1.55; }
@@ -298,6 +314,7 @@
         </span>
       </a>
       <nav class="social" aria-label="Community">
+        <a class="nav-text" href="guide/">Guide</a>
         <a class="icon-link" href="https://github.com/blitzave/blitzave" target="_blank" rel="noopener noreferrer" aria-label="BlitZave on GitHub" title="GitHub">
           <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 0c4.42 0 8 3.58 8 8a8.013 8.013 0 0 1-5.45 7.59c-.4.08-.55-.17-.55-.38 0-.27.01-1.13.01-2.2 0-.75-.25-1.23-.54-1.48 1.78-.2 3.65-.88 3.65-3.95 0-.88-.31-1.59-.82-2.15.08-.2.36-1.02-.08-2.12 0 0-.67-.22-2.2.82-.64-.18-1.32-.27-2-.27-.68 0-1.36.09-2 .27-1.53-1.03-2.2-.82-2.2-.82-.44 1.1-.16 1.92-.08 2.12-.51.56-.82 1.28-.82 2.15 0 3.06 1.86 3.75 3.64 3.95-.23.2-.44.55-.51 1.07-.46.21-1.61.55-2.33-.66-.15-.24-.6-.83-1.23-.82-.67.01-.27.38.01.53.34.19.73.9.82 1.13.16.45.68 1.31 2.69.94 0 .67.01 1.3.01 1.49 0 .21-.15.45-.55.38A7.995 7.995 0 0 1 0 8c0-4.42 3.58-8 8-8Z"/></svg>
         </a>
@@ -327,7 +344,7 @@
         </div>
         <figure class="frame hero-shot">
           <div class="frame-bar" aria-hidden="true"><span class="frame-url"><svg viewBox="0 0 24 24"><path d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/></svg>127.0.0.1:8742</span></div>
-          <img src="assets/accounts.webp" width="2560" height="1600" alt="BlitZave's Accounts page: checking and savings balances, and two credit cards shown as clarity-blue card faces" fetchpriority="high">
+          <img src="assets/guide/home.webp" width="2560" height="1600" alt="BlitZave's Home: a ring showing November, day 8, with the words Japan trip: halfway there, one sentence about the pace, and three figures: spent so far, set aside and goals underway" fetchpriority="high">
         </figure>
       </section>
 
@@ -397,6 +414,50 @@
 
         <div class="feature">
           <div class="feature-copy">
+            <p class="kicker">Home</p>
+            <h3 class="h3">One thing worth knowing</h3>
+            <p>BlitZave opens on one sentence, inside a ring that shows how far through the month you are. A goal passed halfway? Savings went first? A heavier start? It says the one that matters, and leaves the rest one tap down.</p>
+            <ul class="ticks">
+              <li><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg>Wins first; a heavier month gets context, not a warning</li>
+              <li><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg>Milestones at 25, 50, 75 and 100%, in words</li>
+            </ul>
+            <a class="feature-link" href="guide/#home">How Home decides</a>
+          </div>
+          <figure class="says" aria-label="Three things Home might say, word for word">
+            <div class="say">
+              <p class="say-when">The week a goal passes halfway</p>
+              <p class="say-head">Japan trip: halfway there.</p>
+              <p class="say-sub">$4,644.10 of $8,500.00 is set aside. At $500.00 a month, the rest is there around June 2027.</p>
+            </div>
+            <div class="say">
+              <p class="say-when">When savings moved before the spending</p>
+              <p class="say-head">You're in good shape.</p>
+              <p class="say-sub">Savings went first this month, $1,100.00 on the 1st, and spending is right where it usually is.</p>
+            </div>
+            <div class="say">
+              <p class="say-when">After a big charge early in the month</p>
+              <p class="say-head">A heavier start. That happens.</p>
+              <p class="say-sub">Most of it is one $640.00 charge on the 3rd. Your three-month average hasn't moved.</p>
+            </div>
+          </figure>
+        </div>
+
+        <div class="feature flip">
+          <div class="feature-copy">
+            <p class="kicker">Savings</p>
+            <h3 class="h3">Goals with a home</h3>
+            <p>Each goal lives in a real savings account, so its progress is that account's balance. An emergency fund gets an account to itself; a trip and a new phone can share one, filling from the top in the order you choose.</p>
+            <ul class="ticks">
+              <li><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg>When it gets there, as a range of months at your pace</li>
+              <li><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg>Money left the account? It asks once: was that the PS5?</li>
+            </ul>
+            <a class="feature-link" href="guide/#goals">Set up your first goal</a>
+          </div>
+          <figure class="frame"><img src="assets/guide/savings-line.webp" width="2560" height="1600" loading="lazy" decoding="async" alt="A shared goal account with three goals in order: PS5 funded, Japan trip saving with a pace line, and New bike not started"></figure>
+        </div>
+
+        <div class="feature">
+          <div class="feature-copy">
             <p class="kicker">Transactions</p>
             <h3 class="h3">One calm month at a time</h3>
             <p>Every account, every transaction, a month per page. Search, filter, and re-sync any single month from your bank with one click.</p>
@@ -405,7 +466,7 @@
               <li><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg>Splits and tags when one category isn't enough</li>
             </ul>
           </div>
-          <figure class="frame"><img src="assets/transactions.webp" width="2560" height="1600" loading="lazy" decoding="async" alt="The ledger for October 2026, with a month stepper, a Sync October 2026 button, search and filters"></figure>
+          <figure class="frame"><img src="assets/guide/transactions.webp" width="2560" height="1600" loading="lazy" decoding="async" alt="The ledger for November 2026, with a month stepper, a Sync November 2026 button, search and filters"></figure>
         </div>
 
         <div class="feature flip">
@@ -418,25 +479,26 @@
               <li><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg>The bank's record is never rewritten</li>
             </ul>
           </div>
-          <figure class="frame"><img src="assets/editor.webp" width="2560" height="1600" loading="lazy" decoding="async" alt="A transaction opened to choose its category and tags, and to link it to its other side"></figure>
+          <figure class="frame"><img src="assets/guide/editor.webp" width="2560" height="1600" loading="lazy" decoding="async" alt="A transaction opened: Shopping chosen, All transactions like BOOKSHOP CORNER selected, with tags and Link to its other side"></figure>
         </div>
 
         <div class="feature">
           <div class="feature-copy">
             <p class="kicker">Budgets</p>
             <h3 class="h3">Context, not alarms</h3>
-            <p>Monthly budgets carry forward. A marker shows how much of the month has passed, and the pace is told in plain words. Going over is information, not a failure state.</p>
+            <p>A budget can cover a month, or every 2, 3, 4, 6 or 12 months for gifts and insurance. A marker shows how much of the round has passed, the pace is told in plain words, and each closed round says how it ended. Going over is information, not a failure state.</p>
+            <a class="feature-link" href="guide/#categories">Budgets, step by step</a>
           </div>
-          <figure class="frame"><img src="assets/categories-open.webp" width="2560" height="1600" loading="lazy" decoding="async" alt="Category budgets with progress bars; Dining out is open, showing what's been spent, what's left, and the month's pace"></figure>
+          <figure class="frame"><img src="assets/guide/categories-open.webp" width="2560" height="1600" loading="lazy" decoding="async" alt="The Gifts budget, every 3 months, opened to show this round's spending, its pace, and the two rounds that closed this year"></figure>
         </div>
 
         <div class="feature flip">
           <div class="feature-copy">
             <p class="kicker">Adjustments</p>
             <h3 class="h3">Every dollar counted once</h3>
-            <p>Link a card payment or a transfer between your accounts so it never counts as spending, and link a refund to the charge it reverses. Every balance still reconciles.</p>
+            <p>Card payments, transfers between your accounts, and refunds are linked on every sync, so they never count as spending. Link anything else by hand, unlink anything that's wrong, and every balance still reconciles.</p>
           </div>
-          <figure class="frame"><img src="assets/adjustments.webp" width="2560" height="1600" loading="lazy" decoding="async" alt="The Adjustments panel listing transfers from checking to a credit card and to savings"></figure>
+          <figure class="frame"><img src="assets/guide/adjustments.webp" width="2560" height="1600" loading="lazy" decoding="async" alt="The Adjustments panel listing transfers from checking to savings, a goal account and the cards, each linked automatically"></figure>
         </div>
       </section>
 
@@ -444,12 +506,12 @@
       <section class="block" id="tour" aria-labelledby="tour-title">
         <div class="section-head center">
           <p class="eyebrow">See it in motion</p>
-          <h2 class="h2" id="tour-title">A month, start to finish.</h2>
+          <h2 class="h2" id="tour-title">Every page, in under two minutes.</h2>
         </div>
         <figure class="tour">
           <div class="frame">
             <div class="frame-bar" aria-hidden="true"><span class="frame-url"><svg viewBox="0 0 24 24"><path d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/></svg>127.0.0.1:8742</span></div>
-            <video controls muted playsinline preload="none" poster="assets/tour-poster.jpg" width="1600" height="1000" aria-label="A 36-second tour of BlitZave">
+            <video controls muted playsinline preload="none" poster="assets/tour-poster.jpg" width="1600" height="1000" aria-label="A 100-second tour of BlitZave: Home, goals, transactions, budgets and accounts">
               <source src="assets/tour.mp4" type="video/mp4">
             </video>
           </div>
@@ -486,13 +548,19 @@ blitzave</code></pre><button class="copy" type="button" aria-label="Copy command
             <span class="step-num">3</span>
             <div class="step-text">
               <h3>Connect, once</h3>
-              <p>BlitZave opens <strong>127.0.0.1:8742</strong> in your browser. Paste a setup token from <a href="https://bridge.simplefin.org/" target="_blank" rel="noopener noreferrer">SimpleFIN Bridge</a>. Your accounts arrive with the last 90 days.</p>
+              <p>BlitZave opens <strong>127.0.0.1:8742</strong> in your browser. Paste a setup token from <a href="https://bridge.simplefin.org/" target="_blank" rel="noopener noreferrer">SimpleFIN Bridge</a>. Your accounts arrive with the last 90 days. New to SimpleFIN? <a href="guide/#connect">Here's how to get a token</a>.</p>
             </div>
             <div class="code"><pre><code><span class="c"># then, any day</span>
 blitzave</code></pre><button class="copy" type="button" aria-label="Copy command"><svg class="idle" viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg><svg class="done" viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg></button></div>
           </li>
         </ol>
         <p class="needs">You'll need a <a href="https://bridge.simplefin.org/" target="_blank" rel="noopener noreferrer">SimpleFIN Bridge</a> account (a small subscription, paid to SimpleFIN) and a Mac. Linux should work too.</p>
+        <div class="guide-cta">
+          <a class="btn btn-ghost" href="guide/">Read the setup guide
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+          </a>
+          <p>Install, SimpleFIN, accounts, budgets, goals and Home, one short chapter each.</p>
+        </div>
       </section>
 
       <!-- Roadmap -->
@@ -503,13 +571,13 @@ blitzave</code></pre><button class="copy" type="button" aria-label="Copy command
           <p class="lede">A few behaviors drive most financial outcomes. BlitZave is learning to notice five of them, and reflect each back as one calm sentence tied to a goal you chose.</p>
         </div>
         <ol class="vital" style="padding: 0;">
-          <li><span class="vital-num">01</span><h3>Pay yourself first</h3><p>Did savings move before the spending did?</p></li>
+          <li class="is-live"><span class="vital-num">01 <span class="vital-state">Live</span></span><h3>Pay yourself first</h3><p>Did savings move before the spending did?</p></li>
           <li><span class="vital-num">02</span><h3>Lifestyle creep</h3><p>Is spending quietly rising as income rises?</p></li>
           <li><span class="vital-num">03</span><h3>Mindful or impulse</h3><p>The gap between planned and reactive spending.</p></li>
           <li><span class="vital-num">04</span><h3>Consistency</h3><p>Steady beats strict. Are expenses even, or spiky?</p></li>
-          <li><span class="vital-num">05</span><h3>Goal trajectory</h3><p>At this pace, when does the goal actually land?</p></li>
+          <li class="is-live"><span class="vital-num">05 <span class="vital-state">Live</span></span><h3>Goal trajectory</h3><p>At this pace, when does the goal actually land?</p></li>
         </ol>
-        <p class="roadmap-note">In the works. Follow along, or help build them.</p>
+        <p class="roadmap-note">Two are live today and drive Home. The other three are next. Follow along, or help build them.</p>
       </section>
 
       <!-- Closing -->

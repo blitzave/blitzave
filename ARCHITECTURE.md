@@ -132,6 +132,13 @@ flowchart TB
 | `js/pages/*.js` | One module per page: `onboarding`, `home`, `savings`, `goal-form`, `accounts`, `account-detail`, `transactions`, `categories`. |
 | `js/components/*.js` | The shared transactions table, and the adjustments (pairs) panel. |
 
+### Outside the package
+
+| Path | Job |
+|---|---|
+| `dev/` | A throwaway debug page at `/dev`, served only from a source checkout. |
+| `docs/` | The website on GitHub Pages: `index.html`, the setup guide at `guide/`, and their images and video in `assets/`. |
+
 ## Starting up
 
 ```mermaid
@@ -345,3 +352,5 @@ All under `/api`. Interactive docs at `http://127.0.0.1:8742/docs` while BlitZav
 | OS keychain, service `blitzave` | The SimpleFIN access URL. |
 
 `BLITZAVE_HOME` moves the data folder. The tests use it to get a fresh folder each.
+It doesn't move the keychain entry, so a fresh folder still syncs the real bank;
+the tests replace the keychain to avoid that.

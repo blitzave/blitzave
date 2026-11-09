@@ -126,6 +126,11 @@ your real `~/BlitZave`:
 BLITZAVE_HOME=/tmp/bz-dev uv run blitzave
 ```
 
+A scratch folder still uses your real SimpleFIN connection: the credential lives
+in the keychain, not the data folder, so the first start syncs your real
+accounts into it. The tests use a fake keychain (`tests/conftest.py`) for that
+reason.
+
 **Never commit real financial data.** Fixtures, issues, screenshots and logs
 use synthetic or scrubbed data only.
 
