@@ -14,13 +14,13 @@ A calm, open-source personal finance app that runs on your own laptop.
 [![Status: alpha](https://img.shields.io/badge/status-alpha-8792A3?style=flat-square)](#roadmap)
 [![Discord](https://img.shields.io/badge/discord-join%20us-5865F2?style=flat-square&logo=discord&logoColor=white)](https://discord.com/invite/VerUYP67)
 
-[Website](https://blitzave.github.io/blitzave/) · [Quick start](#quick-start) · [Setup guide](#setup-guide) · [Roadmap](#roadmap) · [Contributing](CONTRIBUTING.md) · [Discord](https://discord.com/invite/VerUYP67)
+[Website](https://blitzave.github.io/blitzave/) · [Guide](https://blitzave.github.io/blitzave/guide/) · [Quick start](#quick-start) · [Setup guide](#setup-guide) · [Roadmap](#roadmap) · [Contributing](CONTRIBUTING.md) · [Discord](https://discord.com/invite/VerUYP67)
 
 <br>
 
-<img src="docs/assets/tour.gif" alt="A tour of BlitZave: accounts, a month of transactions, categorizing a purchase, syncing a month, and budgets" width="880">
+<a href="https://blitzave.github.io/blitzave/#tour"><img src="docs/assets/tour.gif" alt="A tour of BlitZave: Home's one sentence, a goal account's line of goals, reordering them so the money follows, and answering “Was that the PS5?”" width="880"></a>
 
-<sub>Every screenshot uses made-up data from fictional banks.</sub>
+<sub>Every screenshot uses made-up data from fictional banks. [Watch the full tour](https://blitzave.github.io/blitzave/#tour) (under two minutes).</sub>
 
 </div>
 
@@ -56,13 +56,39 @@ No account to create, no company server holding your data, no subscription.
 <tr>
 <td width="50%" valign="top">
 
+**Home: one thing worth knowing**<br>
+BlitZave opens on one sentence, inside a ring that shows how far through the
+month you are: "Japan trip: halfway there", "You're in good shape: savings went
+first", or, after a heavier start, "That happens. Your three-month average
+hasn't moved." Below it: spent so far, set aside, and goals underway, each one
+tap from the detail.
+
+</td>
+<td width="50%"><img src="docs/assets/guide/home.webp" alt="Home: a ring for November with the words Japan trip: halfway there, and three figures below"></td>
+</tr>
+<tr>
+<td width="50%" valign="top">
+
+**Goals with a home**<br>
+Each goal lives in a real savings account, a **goal account**, so its progress
+is that account's balance. An emergency fund gets one to itself; a trip and a
+new phone can share one, filling from the top in the order you choose. Every
+goal says when it gets there at your recent pace, as a range of months. When
+money leaves, BlitZave asks once: "Was that the PS5?"
+
+</td>
+<td width="50%"><img src="docs/assets/guide/savings-line.webp" alt="A shared goal account with three goals in order: PS5 funded, Japan trip saving with its pace line, New bike not started"></td>
+</tr>
+<tr>
+<td width="50%" valign="top">
+
 **A calm month, one page at a time**<br>
 Every transaction across checking, savings and cards, one month per page.
 Search, filter by category, tag or account, and re-sync any single month from
 your bank with one click.
 
 </td>
-<td width="50%"><img src="docs/assets/transactions.webp" alt="The transactions ledger for October 2026"></td>
+<td width="50%"><img src="docs/assets/guide/transactions.webp" alt="The transactions ledger for November 2026"></td>
 </tr>
 <tr>
 <td width="50%" valign="top">
@@ -73,43 +99,37 @@ store numbers, reference codes, wallet prefixes like Apple Pay, and small
 typos, and every future sync follows. Your own corrections always win.
 
 </td>
-<td width="50%"><img src="docs/assets/editor.webp" alt="The row editor: choosing a category and tags for a purchase"></td>
+<td width="50%"><img src="docs/assets/guide/editor.webp" alt="The row editor: choosing a category for a purchase and applying it to all like it"></td>
 </tr>
 <tr>
 <td width="50%" valign="top">
 
 **Budgets with context, not alarms**<br>
-Monthly budgets carry forward. A marker shows how much of the month has passed,
-and the pace is described in plain words. Going over is information, never a
-red failure state.
+A budget covers a month, or every 2, 3, 4, 6 or 12 months for things like gifts
+and insurance. A marker shows how much of the round has passed, the pace is
+described in plain words, and each closed round says how it ended. Going over
+is information, never a red failure state.
 
 </td>
-<td width="50%"><img src="docs/assets/categories-open.webp" alt="Category budgets, with one category opened to show its pace"></td>
+<td width="50%"><img src="docs/assets/guide/categories-open.webp" alt="A gifts budget every three months, opened to show this round's pace and the rounds that closed this year"></td>
 </tr>
 <tr>
 <td width="50%" valign="top">
 
 **Every dollar counted once**<br>
-Link a card payment or a transfer between your accounts so it never counts as
-spending, and link a refund to the charge it reverses. Both sides stay in each
-account's ledger, so balances still reconcile.
+Card payments, transfers between your accounts, and refunds are linked on every
+sync, so they never count as spending. Link anything else by hand, and unlink
+anything that's wrong. Both sides stay in each account's ledger, so balances
+still reconcile.
 
 </td>
-<td width="50%"><img src="docs/assets/adjustments.webp" alt="The Adjustments panel listing linked transfers between accounts"></td>
+<td width="50%"><img src="docs/assets/guide/adjustments.webp" alt="The Adjustments panel listing linked transfers between accounts"></td>
 </tr>
 </table>
 
-**Home** opens on one sentence: the one thing worth knowing today, inside a ring
-that shows how far through the month you are. It might be "You're in good shape:
-savings went first this month", "Japan: halfway there", "Almost there: the PS5
-is $120 away", or, after
-a heavier start, "That happens. Your three-month average hasn't moved." Below
-it: spent so far, set aside, and goals underway, each one tap from the detail.
-
-Also included: savings goals that live in their own goal accounts, split a
-transaction across categories, tags, an accounts overview with balances,
-account-type corrections that survive every sync, and a full local API with
-interactive docs at `/docs`.
+Also included: split a transaction across categories, tags, an accounts
+overview with balances, account jobs that survive every sync, one-click export
+and import, and a full local API with interactive docs at `/docs`.
 
 ## Quick start
 
@@ -131,7 +151,9 @@ to open it.
 ## Setup guide
 
 A complete walkthrough, from nothing to your first calm month. It takes about
-ten minutes, most of it in SimpleFIN.
+ten minutes, most of it in SimpleFIN. The [online guide](https://blitzave.github.io/blitzave/guide/)
+has the same steps with a screenshot for each, plus a chapter on every page of
+the app.
 
 ### 1. Install uv
 
@@ -184,8 +206,8 @@ If you close the tab, open http://127.0.0.1:8742 again while BlitZave is running
 
 <table>
 <tr>
-<td width="50%"><img src="docs/assets/onboarding-welcome.webp" alt="The BlitZave welcome screen"></td>
-<td width="50%"><img src="docs/assets/onboarding-connect.webp" alt="The Connect your bank step, asking for a SimpleFIN setup token"></td>
+<td width="50%"><img src="docs/assets/guide/onboarding-welcome.webp" alt="The BlitZave welcome screen"></td>
+<td width="50%"><img src="docs/assets/guide/onboarding-connect.webp" alt="The Connect your bank step, asking for a SimpleFIN setup token"></td>
 </tr>
 </table>
 
@@ -193,10 +215,11 @@ If you close the tab, open http://127.0.0.1:8742 again while BlitZave is running
 2. Paste your setup token and choose **Connect**. BlitZave runs its first sync,
    pulling the last 90 days. Checking, savings and credit card accounts are
    supported today; investment and loan accounts are skipped for now.
-3. Check your accounts. BlitZave guesses each account's type (checking, savings
-   or credit card) from its name.
-   Your correction survives every future sync. (It's on the **Accounts** page,
-   under each account's `⋯` menu, any time later too.)
+3. Meet your accounts. BlitZave guesses each one's type (checking, savings or
+   credit card) from its name. Correct it any time on the **Accounts** page,
+   under each account's `⋯` menu; your correction survives every sync.
+4. Choose whether BlitZave may check GitHub for new versions (it's off unless
+   you say yes), then **Take me in**, or **Set my first goal**.
 
 ### 6. Make it yours
 
@@ -354,7 +377,7 @@ edges.
 - [x] Accounts with type corrections that survive syncs
 - [x] Month-by-month ledger with search and filters
 - [x] Categories, splits, tags, and "apply to all" rules
-- [x] Monthly budgets with pace, never alarms
+- [x] Budgets with pace, never alarms: monthly, or every 2 to 12 months in calendar rounds
 - [x] Manual transfer and refund linking
 - [x] Automatic matching for card payments, transfers and refunds
 - [x] Savings goals in goal accounts: critical goals alone, regular goals sharing

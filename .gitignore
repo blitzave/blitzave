@@ -180,3 +180,6 @@ cython_debug/
 .cursorignore
 .cursorindexingignore
 .gstack/
+
+# Local demo data and capture scripts (fictional data, for screenshots and the tour)
+dev/demo/

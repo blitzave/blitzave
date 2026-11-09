@@ -1,0 +1,833 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>The BlitZave guide</title>
+  <meta name="description" content="Set up BlitZave step by step: install it, connect your bank through SimpleFIN, give each account its job, sort your spending, set budgets and goals, and read Home.">
+  <meta name="theme-color" content="#f7faff">
+  <meta property="og:type" content="article">
+  <meta property="og:title" content="The BlitZave guide">
+  <meta property="og:description" content="From install to your first calm month: SimpleFIN, accounts, categories, budgets, goals and Home, step by step.">
+  <meta property="og:url" content="https://blitzave.github.io/blitzave/guide/">
+  <meta property="og:image" content="https://blitzave.github.io/blitzave/assets/og.png">
+  <meta name="twitter:card" content="summary_large_image">
+  <link rel="icon" href="../assets/mark.svg" type="image/svg+xml">
+  <link rel="preload" href="../assets/fonts/manrope-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
+  <style>
+    /* Manrope (SIL OFL, assets/fonts/OFL.txt), served from this site. The page
+       makes no request to any other server. */
+    @font-face {
+      font-family: "Manrope";
+      font-style: normal;
+      font-display: swap;
+      font-weight: 200 800;
+      src: url("../assets/fonts/manrope-latin-wght-normal.woff2") format("woff2-variations"),
+        url("../assets/fonts/manrope-latin-wght-normal.woff2") format("woff2");
+    }
+
+    /* The app's "Clarity blue" tokens, as on the landing page. */
+    :root {
+      color-scheme: light;
+      --bg-page: #f7faff;
+      --bg-raised: #fcfdff;
+      --bg-well: #eef3fa;
+      --bg-lift: #e2ecf9;
+      --line-faint: rgba(212, 223, 235, 0.7);
+      --line-strong: #d4dfeb;
+      --text-primary: #10161f;
+      --text-secondary: #677283;
+      --text-faint: #8792a3;
+      --accent: #1072cb;
+      --accent-rgb: 16, 114, 203;
+      --accent-hover: #1a7fdb;
+      --accent-ink: #f4f9ff;
+      --accent-soft: rgba(16, 114, 203, 0.1);
+      --success: #0b8a5a;
+      --glow-blue: rgba(74, 128, 255, 0.2);
+      --glow-teal: rgba(45, 212, 191, 0.16);
+      --font: "Manrope", ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      --mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, monospace;
+      --radius-card: 20px;
+      --radius-control: 14px;
+      --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.05);
+      --shadow-shot: 0 24px 48px -28px rgba(15, 23, 42, 0.3), 0 1px 3px rgba(15, 23, 42, 0.06);
+      --ease-out: cubic-bezier(0.25, 0.46, 0.45, 0.94);
+      --gutter: 24px;
+      --rail: 248px;
+      --measure: 680px;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; }
+    html { -webkit-text-size-adjust: 100%; scroll-behavior: smooth; scroll-padding-top: 88px; }
+    @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+    body {
+      margin: 0; background: var(--bg-page); color: var(--text-primary);
+      font-family: var(--font); font-size: 17px; line-height: 1.65;
+      -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility;
+      overflow-x: hidden; position: relative;
+    }
+    img { display: block; max-width: 100%; height: auto; }
+    a { color: var(--accent); text-decoration: none; font-weight: 600; }
+    a:hover { text-decoration: underline; }
+    h1, h2, h3, p, ul, ol, figure, table { margin: 0; }
+    :focus-visible { outline: none; box-shadow: 0 0 0 2px var(--bg-page), 0 0 0 4px rgba(77, 137, 204, 0.6); border-radius: 8px; }
+    code { font-family: var(--mono); font-size: 0.86em; padding: 1px 6px; border-radius: 6px; background: var(--bg-well); color: var(--text-primary); }
+    kbd { font-family: var(--font); font-size: 0.86em; font-weight: 600; padding: 1px 7px; border-radius: 6px; border: 1px solid var(--line-strong); background: var(--bg-raised); box-shadow: 0 1px 0 var(--line-strong); }
+    strong { font-weight: 650; }
+
+    .glows { position: absolute; inset: 0 0 auto; height: 1400px; overflow: hidden; z-index: 0; pointer-events: none; }
+    .glow { position: absolute; border-radius: 50%; filter: blur(10px); }
+    .glow-blue { width: 900px; height: 700px; left: -360px; top: -300px; background: radial-gradient(closest-side, var(--glow-blue), transparent); }
+    .glow-teal { width: 760px; height: 760px; right: -380px; top: 360px; background: radial-gradient(closest-side, var(--glow-teal), transparent); }
+
+    /* ---------- Header ---------- */
+    .top {
+      position: sticky; top: 0; z-index: 10;
+      background: rgba(247, 250, 255, 0.82); border-bottom: 1px solid var(--line-faint);
+      -webkit-backdrop-filter: saturate(160%) blur(14px); backdrop-filter: saturate(160%) blur(14px);
+    }
+    .top-in { display: flex; align-items: center; justify-content: space-between; gap: 16px; max-width: 1180px; margin: 0 auto; padding: 14px var(--gutter); }
+    .brand { display: flex; align-items: center; gap: 12px; color: var(--text-primary); font-weight: 600; }
+    .brand:hover { text-decoration: none; }
+    .brand img { width: 34px; height: 34px; }
+    .brand span { font-size: 15px; }
+    .brand span b { font-weight: 700; }
+    .brand span i { font-style: normal; color: var(--text-secondary); font-weight: 500; }
+    .top-links { display: flex; align-items: center; gap: 22px; font-size: 15px; }
+    .top-links a { color: var(--text-secondary); font-weight: 600; }
+    .top-links a:hover { color: var(--accent); text-decoration: none; }
+
+    /* ---------- Layout ---------- */
+    .layout {
+      position: relative; z-index: 1; display: grid; grid-template-columns: var(--rail) minmax(0, 1fr);
+      gap: 64px; max-width: 1180px; margin: 0 auto; padding: 0 var(--gutter) 120px;
+    }
+
+    /* The chapter rail. Same shape as a shared goal account's line on the
+       Savings page: numbered stops on one line, filled up to where you are. */
+    .rail { position: sticky; top: 88px; align-self: start; padding-top: 72px; }
+    .rail-title { font-size: 13px; font-weight: 600; color: var(--text-faint); margin-bottom: 18px; padding-left: 2px; }
+    .rail-line { position: relative; }
+    .rail ol { list-style: none; padding: 0; position: relative; }
+    .rail-line::before, .rail-fill {
+      content: ""; position: absolute; left: 15px; top: 22px; bottom: 22px; width: 2px; border-radius: 2px; background: var(--line-strong);
+    }
+    .rail-fill { z-index: 0; background: var(--accent); bottom: auto; height: 0; transition: height 260ms var(--ease-out); }
+    @media (prefers-reduced-motion: reduce) { .rail-fill { transition: none; } }
+    .rail a { z-index: 1; }
+    .rail li + li { margin-top: 6px; }
+    .rail a {
+      position: relative; display: grid; grid-template-columns: 32px 1fr; align-items: center; gap: 12px;
+      padding: 6px 10px 6px 0; border-radius: 12px; color: var(--text-secondary); font-size: 15px; font-weight: 600; line-height: 1.3;
+    }
+    .rail a:hover { color: var(--text-primary); text-decoration: none; }
+    .stop {
+      width: 32px; height: 32px; border-radius: 50%; display: grid; place-items: center;
+      background: var(--bg-raised); border: 2px solid var(--line-strong); color: var(--text-faint);
+      font-size: 13px; font-weight: 700; font-variant-numeric: tabular-nums;
+      transition: background 200ms var(--ease-out), border-color 200ms var(--ease-out), color 200ms var(--ease-out);
+    }
+    .rail a.is-past .stop { border-color: var(--accent); color: var(--accent); }
+    .rail a[aria-current="true"] { color: var(--text-primary); }
+    .rail a[aria-current="true"] .stop { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+    .rail-note { margin-top: 28px; padding-left: 2px; font-size: 13.5px; color: var(--text-faint); line-height: 1.55; }
+
+    /* ---------- Content ---------- */
+    .content { min-width: 0; padding-top: 72px; }
+    .intro { max-width: var(--measure); display: grid; gap: 18px; padding-bottom: 8px; }
+    .intro h1 { font-size: clamp(2.5rem, 5.4vw, 3.6rem); font-weight: 600; line-height: 1.04; letter-spacing: -0.035em; }
+    .lede { font-size: clamp(1.06rem, 1.5vw, 1.22rem); color: var(--text-secondary); line-height: 1.6; }
+    .needs { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin-top: 18px; max-width: 760px; }
+    .need { padding: 16px 18px; border-radius: var(--radius-control); background: var(--bg-raised); border: 1px solid var(--line-faint); box-shadow: var(--shadow-xs); }
+    .need b { display: block; font-size: 15px; font-weight: 650; }
+    .need span { display: block; font-size: 14px; color: var(--text-secondary); line-height: 1.5; margin-top: 2px; }
+
+    .chapter { padding-top: 112px; }
+    .chapter-head { display: grid; grid-template-columns: 48px minmax(0, 1fr); gap: 4px 18px; align-items: start; max-width: 760px; margin-bottom: 30px; }
+    .chapter-num {
+      grid-row: span 2; width: 48px; height: 48px; border-radius: 50%; display: grid; place-items: center; margin-top: 2px;
+      background: var(--accent-soft); color: var(--accent); font-size: 18px; font-weight: 700; font-variant-numeric: tabular-nums;
+    }
+    .chapter h2 { font-size: clamp(1.8rem, 3.4vw, 2.35rem); font-weight: 600; line-height: 1.12; letter-spacing: -0.025em; }
+    .chapter-head p { color: var(--text-secondary); font-size: 1.06rem; }
+    .chapter h3 { font-size: 1.25rem; font-weight: 600; letter-spacing: -0.01em; line-height: 1.3; margin: 44px 0 12px; max-width: var(--measure); }
+    .prose { max-width: var(--measure); }
+    .prose > * + * { margin-top: 14px; }
+    .prose p, .prose li { color: #3b4655; }
+    .prose ul, .prose ol { padding-left: 1.3em; }
+    .prose li + li { margin-top: 8px; }
+    .prose li::marker { color: var(--text-faint); }
+
+    /* Steps are a real sequence, so they're numbered. */
+    ol.steps { list-style: none; padding: 0; counter-reset: step; max-width: var(--measure); margin-top: 16px; }
+    ol.steps > li { counter-increment: step; position: relative; padding-left: 44px; color: #3b4655; }
+    ol.steps > li + li { margin-top: 16px; }
+    ol.steps > li::before {
+      content: counter(step); position: absolute; left: 0; top: 1px; width: 28px; height: 28px; border-radius: 50%;
+      display: grid; place-items: center; background: var(--bg-raised); border: 1px solid var(--line-strong);
+      font-size: 13px; font-weight: 700; color: var(--text-secondary); font-variant-numeric: tabular-nums;
+    }
+    ol.steps > li > b:first-child { color: var(--text-primary); }
+    .ui { font-weight: 650; color: var(--text-primary); white-space: nowrap; }
+
+    .note {
+      max-width: var(--measure); margin-top: 22px; padding: 16px 20px; border-radius: var(--radius-control);
+      background: var(--bg-well); color: #3b4655; font-size: 15.5px; line-height: 1.6;
+    }
+    .note b:first-child { color: var(--text-primary); }
+
+    /* Code with a copy button, as on the landing page. */
+    .code { position: relative; max-width: var(--measure); margin-top: 14px; }
+    .code pre {
+      margin: 0; padding: 16px 52px 16px 18px; border-radius: var(--radius-control);
+      background: #10161f; color: #e8eef7; font-family: var(--mono); font-size: 13.5px; line-height: 1.7;
+      overflow-x: auto; white-space: pre;
+    }
+    .code pre code { padding: 0; border-radius: 0; background: none; color: inherit; font-size: inherit; }
+    .code pre .c { color: #8792a3; }
+    .copy {
+      position: absolute; top: 8px; right: 8px; width: 34px; height: 34px; display: grid; place-items: center;
+      border: 0; border-radius: 10px; background: rgba(255, 255, 255, 0.08); color: #c5cfdc; cursor: pointer;
+      transition: background 150ms var(--ease-out), color 150ms var(--ease-out);
+    }
+    .copy:hover { background: rgba(255, 255, 255, 0.16); color: #fff; }
+    .copy svg { width: 16px; height: 16px; stroke: currentColor; fill: none; stroke-width: 1.9; stroke-linecap: round; stroke-linejoin: round; }
+    .copy .done { display: none; }
+    .copy.is-done .done { display: block; }
+    .copy.is-done .idle { display: none; }
+
+    /* Screenshots sit in the same quiet window as on the landing page. */
+    .shot { margin: 30px 0 8px; max-width: 920px; }
+    .frame { border-radius: 16px; background: var(--bg-raised); border: 1px solid var(--line-faint); box-shadow: var(--shadow-shot); overflow: hidden; }
+    .frame-bar { display: flex; align-items: center; justify-content: center; height: 34px; border-bottom: 1px solid var(--line-faint); background: rgba(247, 250, 255, 0.9); }
+    .frame-url { display: inline-flex; align-items: center; gap: 6px; padding: 3px 12px; border-radius: 999px; background: var(--bg-well); font-size: 12px; font-weight: 500; color: var(--text-secondary); }
+    .frame-url svg { width: 11px; height: 11px; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+    .shot figcaption { margin-top: 12px; font-size: 14px; color: var(--text-faint); max-width: var(--measure); }
+    .pair { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; max-width: 920px; margin: 30px 0 8px; }
+    .pair .shot { margin: 0; }
+
+    table.plain { width: 100%; max-width: 760px; border-collapse: collapse; margin-top: 16px; font-size: 15.5px; }
+    table.plain th { text-align: left; font-size: 13px; font-weight: 600; color: var(--text-faint); padding: 0 16px 10px 0; border-bottom: 1px solid var(--line-strong); }
+    table.plain td { padding: 14px 16px 14px 0; border-bottom: 1px solid var(--line-faint); vertical-align: top; color: #3b4655; }
+    table.plain td:first-child { color: var(--text-primary); font-weight: 600; }
+    table.plain td.said { font-weight: 600; color: var(--text-primary); }
+    .table-scroll { overflow-x: auto; max-width: 760px; }
+
+    .next {
+      display: flex; align-items: center; justify-content: space-between; gap: 16px; max-width: var(--measure);
+      margin-top: 40px; padding-top: 22px; border-top: 1px solid var(--line-faint); font-size: 15px; color: var(--text-faint);
+    }
+    .next a { display: inline-flex; align-items: center; gap: 8px; }
+    .next svg { width: 16px; height: 16px; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+
+    .end { margin-top: 120px; max-width: var(--measure); display: grid; gap: 12px; }
+    .end h2 { font-size: 1.6rem; font-weight: 600; letter-spacing: -0.02em; }
+    .end p { color: var(--text-secondary); }
+    footer { position: relative; z-index: 1; border-top: 1px solid var(--line-faint); }
+    .foot { max-width: 1180px; margin: 0 auto; padding: 26px var(--gutter) 36px; display: flex; flex-wrap: wrap; justify-content: space-between; gap: 12px; font-size: 14px; color: var(--text-faint); }
+    .foot a { color: var(--text-secondary); }
+
+    /* The rail becomes a menu at the top on narrow screens. */
+    .toc-mobile { display: none; }
+    @media (max-width: 960px) {
+      .layout { grid-template-columns: minmax(0, 1fr); gap: 0; }
+      .rail { display: none; }
+      .content { padding-top: 40px; }
+      .toc-mobile {
+        display: block; margin-top: 28px; border-radius: var(--radius-control); background: var(--bg-raised);
+        border: 1px solid var(--line-faint); box-shadow: var(--shadow-xs);
+      }
+      .toc-mobile summary { cursor: pointer; padding: 14px 18px; font-weight: 600; font-size: 15px; list-style: none; display: flex; justify-content: space-between; align-items: center; }
+      .toc-mobile summary::-webkit-details-marker { display: none; }
+      .toc-mobile summary::after { content: ""; width: 8px; height: 8px; border-right: 2px solid var(--text-faint); border-bottom: 2px solid var(--text-faint); transform: rotate(45deg) translateY(-3px); transition: transform 150ms var(--ease-out); }
+      .toc-mobile[open] summary::after { transform: rotate(-135deg) translateY(-1px); }
+      .toc-mobile ol { padding: 0 18px 14px 40px; margin: 0; }
+      .toc-mobile li { padding: 5px 0; }
+      .chapter { padding-top: 88px; }
+      .needs { grid-template-columns: 1fr; }
+    }
+    @media (max-width: 600px) {
+      :root { --gutter: 16px; }
+      body { font-size: 16px; }
+      .top-links { gap: 14px; font-size: 14px; }
+      .brand span i { display: none; }
+      .chapter-head { grid-template-columns: 40px minmax(0, 1fr); gap: 4px 14px; }
+      .chapter-num { width: 40px; height: 40px; font-size: 16px; }
+      .pair { grid-template-columns: 1fr; }
+      .frame { border-radius: 12px; }
+      .frame-bar { height: 26px; }
+      .frame-url { font-size: 10.5px; padding: 1px 9px; }
+      ol.steps > li { padding-left: 40px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="glows" aria-hidden="true"><div class="glow glow-blue"></div><div class="glow glow-teal"></div></div>
+
+  <header class="top">
+    <div class="top-in">
+      <a class="brand" href="../">
+        <img src="../assets/mark.svg" alt="" width="34" height="34">
+        <span><b>BlitZave</b> <i>guide</i></span>
+      </a>
+      <nav class="top-links" aria-label="Site">
+        <a href="../">Home</a>
+        <a href="../#tour">Tour</a>
+        <a href="https://github.com/blitzave/blitzave" target="_blank" rel="noopener noreferrer">GitHub</a>
+        <a href="https://discord.com/invite/VerUYP67" target="_blank" rel="noopener noreferrer">Discord</a>
+      </nav>
+    </div>
+  </header>
+
+  <div class="layout">
+    <nav class="rail" aria-label="Chapters">
+      <p class="rail-title">Eight short chapters</p>
+      <div class="rail-line">
+      <span class="rail-fill" aria-hidden="true"></span>
+      <ol>
+        <li><a href="#install"><span class="stop">1</span>Install</a></li>
+        <li><a href="#connect"><span class="stop">2</span>Connect your bank</a></li>
+        <li><a href="#accounts"><span class="stop">3</span>Accounts</a></li>
+        <li><a href="#transactions"><span class="stop">4</span>Transactions</a></li>
+        <li><a href="#categories"><span class="stop">5</span>Categories and budgets</a></li>
+        <li><a href="#goals"><span class="stop">6</span>Goals and Savings</a></li>
+        <li><a href="#home"><span class="stop">7</span>Home</a></li>
+        <li><a href="#data"><span class="stop">8</span>Your data</a></li>
+      </ol>
+      </div>
+      <p class="rail-note">Every screen here uses made-up data from fictional banks.</p>
+    </nav>
+
+    <main class="content" id="top">
+      <section class="intro" aria-labelledby="guide-title">
+        <h1 id="guide-title">The BlitZave guide</h1>
+        <p class="lede">From nothing to your first calm month. Setup takes about ten minutes, most of it in SimpleFIN. After that, each chapter walks through one page of the app: what it shows, and the few things worth doing there.</p>
+        <div class="needs" role="list">
+          <div class="need" role="listitem"><b>A Mac</b><span>Linux should work. Windows is untested.</span></div>
+          <div class="need" role="listitem"><b>A SimpleFIN account</b><span>Read-only bank access, a small subscription paid to SimpleFIN.</span></div>
+          <div class="need" role="listitem"><b>Ten minutes</b><span>One command to install, one token to paste.</span></div>
+        </div>
+        <details class="toc-mobile">
+          <summary>Chapters</summary>
+          <ol>
+            <li><a href="#install">Install</a></li>
+            <li><a href="#connect">Connect your bank</a></li>
+            <li><a href="#accounts">Accounts</a></li>
+            <li><a href="#transactions">Transactions</a></li>
+            <li><a href="#categories">Categories and budgets</a></li>
+            <li><a href="#goals">Goals and Savings</a></li>
+            <li><a href="#home">Home</a></li>
+            <li><a href="#data">Your data</a></li>
+          </ol>
+        </details>
+      </section>
+
+      <!-- 1 -->
+      <section class="chapter" id="install" aria-labelledby="install-title">
+        <div class="chapter-head">
+          <span class="chapter-num" aria-hidden="true">1</span>
+          <h2 id="install-title">Install BlitZave</h2>
+          <p>Two commands, and BlitZave opens in your browser.</p>
+        </div>
+
+        <ol class="steps">
+          <li>
+            <b>Install uv.</b> uv runs Python apps and installs Python 3.12 for you if you need it. On a Mac you can also run <code>brew install uv</code>.
+            <div class="code"><pre><code>curl -LsSf https://astral.sh/uv/install.sh | sh</code></pre><button class="copy" type="button" aria-label="Copy command"><svg class="idle" viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg><svg class="done" viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg></button></div>
+          </li>
+          <li>
+            <b>Install BlitZave.</b> This gives you a <code>blitzave</code> command that works from any folder. There's nothing to clone.
+            <div class="code"><pre><code>uv tool install git+https://github.com/blitzave/blitzave</code></pre><button class="copy" type="button" aria-label="Copy command"><svg class="idle" viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg><svg class="done" viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg></button></div>
+          </li>
+          <li>
+            <b>Start it.</b> The first run creates your data folder at <code>~/BlitZave</code> and opens <strong>127.0.0.1:8742</strong> in your browser. Keep the terminal open while you use it; <kbd>Ctrl</kbd>&nbsp;+&nbsp;<kbd>C</kbd> stops it.
+            <div class="code"><pre><code>blitzave</code></pre><button class="copy" type="button" aria-label="Copy command"><svg class="idle" viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg><svg class="done" viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg></button></div>
+          </li>
+        </ol>
+
+        <figure class="shot">
+          <div class="frame"><div class="frame-bar" aria-hidden="true"><span class="frame-url"><svg viewBox="0 0 24 24"><path d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/></svg>127.0.0.1:8742</span></div>
+            <img src="../assets/guide/onboarding-welcome.webp" width="2560" height="1600" loading="lazy" decoding="async" alt="BlitZave's welcome screen: the name, the line 'Clarity over money', a Get started button, and a link to bring in an export from another laptop."></div>
+          <figcaption>The first thing you see. The next chapter starts from <span class="ui">Get started</span>.</figcaption>
+        </figure>
+
+        <h3>Day to day</h3>
+        <div class="prose">
+          <p>Run <code>blitzave</code> whenever you want to look. It syncs with your bank as it starts, so the latest is already there when the page opens. <span class="ui">Sync now</span> in the top bar fetches again any time.</p>
+        </div>
+
+        <h3>Updating</h3>
+        <div class="prose">
+          <p>Stop BlitZave, then upgrade and start it again. If the new version changes how your data is stored, BlitZave copies your database first and keeps the last three copies in <code>~/BlitZave/backups</code>. It never touches your transactions.</p>
+        </div>
+        <div class="code"><pre><code>uv tool upgrade blitzave
+blitzave</code></pre><button class="copy" type="button" aria-label="Copy commands"><svg class="idle" viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg><svg class="done" viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg></button></div>
+
+        <h3>If something's off</h3>
+        <div class="table-scroll">
+          <table class="plain">
+            <thead><tr><th scope="col">What you see</th><th scope="col">What to do</th></tr></thead>
+            <tbody>
+              <tr><td><code>command not found: blitzave</code></td><td>Run <code>uv tool update-shell</code>, then open a new terminal.</td></tr>
+              <tr><td><code>Git operation failed</code></td><td>uv needs Git. Run <code>xcode-select --install</code>, then install again.</td></tr>
+              <tr><td><code>address already in use</code></td><td>BlitZave is already running in another terminal. Use that one, or stop it first.</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <p class="next"><span>Next</span><a href="#connect">Connect your bank<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg></a></p>
+      </section>
+
+      <!-- 2 -->
+      <section class="chapter" id="connect" aria-labelledby="connect-title">
+        <div class="chapter-head">
+          <span class="chapter-num" aria-hidden="true">2</span>
+          <h2 id="connect-title">Connect your bank with SimpleFIN</h2>
+          <p>One token, pasted once. After that, BlitZave reads your accounts on its own.</p>
+        </div>
+
+        <h3>What SimpleFIN is</h3>
+        <div class="prose">
+          <p><a href="https://bridge.simplefin.org/" target="_blank" rel="noopener noreferrer">SimpleFIN Bridge</a> is a small, independent service that connects to your banks and lets apps you choose read your balances and transactions. It's <strong>read-only</strong>: an app connected through it can see, and can never move money.</p>
+          <p>You bring your own SimpleFIN account, so the bank connection belongs to you, not to BlitZave. There's no BlitZave server in the middle. SimpleFIN charges a small subscription, paid directly to them.</p>
+        </div>
+
+        <h3>Get a setup token</h3>
+        <ol class="steps">
+          <li><b>Create an account</b> at <a href="https://bridge.simplefin.org/" target="_blank" rel="noopener noreferrer">bridge.simplefin.org</a>.</li>
+          <li><b>Connect your banks and cards</b> there. SimpleFIN walks you through each one; your bank login goes to SimpleFIN's connection, never to BlitZave.</li>
+          <li><b>Create a new app connection</b> and copy the <strong>setup token</strong> it shows you. It's a long string of letters and numbers.</li>
+        </ol>
+
+        <h3>Paste it into BlitZave</h3>
+        <ol class="steps">
+          <li>On the welcome screen, choose <span class="ui">Get started</span>.</li>
+          <li>Paste the token into <span class="ui">Setup token</span> and choose <span class="ui">Connect</span>.</li>
+          <li>BlitZave runs its first sync, about the last 90 days. That usually takes a few seconds.</li>
+        </ol>
+
+        <div class="pair">
+          <figure class="shot">
+            <div class="frame"><div class="frame-bar" aria-hidden="true"><span class="frame-url"><svg viewBox="0 0 24 24"><path d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/></svg>127.0.0.1:8742</span></div>
+              <img src="../assets/guide/onboarding-connect.webp" width="2560" height="1600" loading="lazy" decoding="async" alt="Step 2 of 5, Connect your bank: a note that SimpleFIN is read-only, a Setup token box with a token pasted in, and a Connect button."></div>
+            <figcaption>Step 2: paste the token.</figcaption>
+          </figure>
+          <figure class="shot">
+            <div class="frame"><div class="frame-bar" aria-hidden="true"><span class="frame-url"><svg viewBox="0 0 24 24"><path d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/></svg>127.0.0.1:8742</span></div>
+              <img src="../assets/guide/onboarding-sync.webp" width="2560" height="1600" loading="lazy" decoding="async" alt="Step 3 of 5, Bringing in your accounts: the first sync has finished."></div>
+            <figcaption>Step 3: the first sync.</figcaption>
+          </figure>
+        </div>
+
+        <div class="note"><b>Where the token goes.</b> The setup token works once. BlitZave trades it for an access credential and keeps that only in your Mac's keychain, under the name <code>blitzave</code>. It's never in the database, the logs, or an export.</div>
+
+        <h3>The last two steps</h3>
+        <div class="prose">
+          <p><strong>Meet your accounts</strong> lists what came in. Checking, savings and credit cards are supported today; investment and loan accounts are skipped for now. You'll give each account its job in the next chapter.</p>
+          <p><strong>You're set</strong> asks one question: should BlitZave check GitHub once a day for a new version? It's off unless you say yes, and it sends nothing about you. Then choose <span class="ui">Take me in</span>, or <span class="ui">Set my first goal</span> if you already know what you're saving for.</p>
+        </div>
+
+        <div class="pair">
+          <figure class="shot">
+            <div class="frame"><div class="frame-bar" aria-hidden="true"><span class="frame-url"><svg viewBox="0 0 24 24"><path d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/></svg>127.0.0.1:8742</span></div>
+              <img src="../assets/guide/onboarding-accounts.webp" width="2560" height="1600" loading="lazy" decoding="async" alt="Step 4 of 5, Meet your accounts: checking, savings and card accounts from two fictional banks."></div>
+            <figcaption>Step 4: what came in.</figcaption>
+          </figure>
+          <figure class="shot">
+            <div class="frame"><div class="frame-bar" aria-hidden="true"><span class="frame-url"><svg viewBox="0 0 24 24"><path d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/></svg>127.0.0.1:8742</span></div>
+              <img src="../assets/guide/onboarding-finish.webp" width="2560" height="1600" loading="lazy" decoding="async" alt="Step 5 of 5, You're set: an optional update check, and the buttons Take me in and Set my first goal."></div>
+            <figcaption>Step 5: you're in.</figcaption>
+          </figure>
+        </div>
+
+        <h3>If SimpleFIN stops working</h3>
+        <div class="table-scroll">
+          <table class="plain">
+            <thead><tr><th scope="col">What you see</th><th scope="col">What to do</th></tr></thead>
+            <tbody>
+              <tr><td>"SimpleFIN access was revoked"</td><td>Make a new setup token in SimpleFIN. Open <code>127.0.0.1:8742/docs</code>, expand <code>POST /api/connect</code>, choose <span class="ui">Try it out</span>, and send <code>{"setup_token": "…"}</code>. It replaces the old credential.</td></tr>
+              <tr><td>"Your SimpleFIN subscription needs payment"</td><td>Renew it with SimpleFIN, then choose <span class="ui">Sync now</span>.</td></tr>
+              <tr><td>A bank is missing</td><td>Check it's connected in SimpleFIN, then sync again. Investment and loan accounts aren't brought in yet.</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <p class="next"><span>Next</span><a href="#accounts">Give every account its job<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg></a></p>
+      </section>
+
+      <!-- 3 -->
+      <section class="chapter" id="accounts" aria-labelledby="accounts-title">
+        <div class="chapter-head">
+          <span class="chapter-num" aria-hidden="true">3</span>
+          <h2 id="accounts-title">Give every account its job</h2>
+          <p>A minute here is what lets BlitZave tell saving from spending.</p>
+        </div>
+
+        <div class="prose">
+          <p>Every bank account does one of three jobs, and the <span class="ui">Accounts</span> page groups them that way. Cards get their own group, drawn as card faces.</p>
+        </div>
+        <div class="table-scroll">
+          <table class="plain">
+            <thead><tr><th scope="col">Job</th><th scope="col">What it's for</th><th scope="col">Counts as set aside?</th></tr></thead>
+            <tbody>
+              <tr><td>Checking</td><td>Pay comes in. Everyday spending and card payments go out.</td><td>No</td></tr>
+              <tr><td>Savings</td><td>A short buffer. Rent and bills wait here until they're due.</td><td>No: it's this month's money</td></tr>
+              <tr><td>Goal account</td><td>Goals live here. Money for something months or years away.</td><td>Yes</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <h3>Mark your goal accounts</h3>
+        <div class="prose">
+          <p>BlitZave guesses checking or savings from each account's name, and it never guesses a goal account. That one is your call.</p>
+        </div>
+        <ol class="steps">
+          <li>On <span class="ui">Accounts</span>, open the <span class="ui">⋯</span> menu on the savings account you save toward goals in.</li>
+          <li>Under <span class="ui">What's this account for?</span>, choose <span class="ui">Goal account</span>, then <span class="ui">Save</span>.</li>
+          <li>Do the same for any other account that holds goals. Your choice survives every sync.</li>
+        </ol>
+
+        <figure class="shot">
+          <div class="frame"><div class="frame-bar" aria-hidden="true"><span class="frame-url"><svg viewBox="0 0 24 24"><path d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/></svg>127.0.0.1:8742</span></div>
+            <img src="../assets/guide/accounts-menu.webp" width="2560" height="1600" loading="lazy" decoding="async" alt="The Accounts page, Goal accounts group. One account's menu is open, asking What's this account for? with three choices: Checking, Savings and Goal account, which is selected."></div>
+          <figcaption>Each job says what it means. An account that holds goals says which ones, and stays a goal account until they move.</figcaption>
+        </figure>
+
+        <div class="note"><b>One account per critical goal.</b> An emergency fund, a down payment, months of runway: each of these gets a goal account to itself, so its money is never mixed with a trip. If you only have one savings account, opening a second one at your bank is the usual fix. Smaller goals can share.</div>
+
+        <figure class="shot">
+          <div class="frame"><div class="frame-bar" aria-hidden="true"><span class="frame-url"><svg viewBox="0 0 24 24"><path d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/></svg>127.0.0.1:8742</span></div>
+            <img src="../assets/guide/accounts-cards.webp" width="2560" height="1600" loading="lazy" decoding="async" alt="Two goal accounts with their balances and the goals they hold, and below them two credit cards drawn as blue card faces."></div>
+          <figcaption>A card's balance is what you owe, shown as a negative number. Paying it off is a transfer, never spending.</figcaption>
+        </figure>
+
+        <p class="next"><span>Next</span><a href="#transactions">Transactions<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg></a></p>
+      </section>
+
+      <!-- 4 -->
+      <section class="chapter" id="transactions" aria-labelledby="transactions-title">
+        <div class="chapter-head">
+          <span class="chapter-num" aria-hidden="true">4</span>
+          <h2 id="transactions-title">Transactions, a month at a time</h2>
+          <p>Every account in one list. Teach it a merchant once and it remembers.</p>
+        </div>
+
+        <div class="prose">
+          <p>The <span class="ui">Transactions</span> page shows one month. Use the arrows to move between months, search by description, or narrow the list by tag, account or category. Sort by date, description or amount from the column headers.</p>
+          <p>Amounts, dates and descriptions come from your bank and can't be edited. What you add on top (categories, splits, tags, links) is yours.</p>
+        </div>
+
+        <figure class="shot">
+          <div class="frame"><div class="frame-bar" aria-hidden="true"><span class="frame-url"><svg viewBox="0 0 24 24"><path d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/></svg>127.0.0.1:8742</span></div>
+            <img src="../assets/guide/transactions.webp" width="2560" height="1600" loading="lazy" decoding="async" alt="The ledger for November 2026: a month stepper, a Sync November 2026 button, search and filters, and transactions with their category chips."></div>
+          <figcaption>Looking further back than your first sync? Open that month and choose <span class="ui">Sync <i>Month Year</i></span>.</figcaption>
+        </figure>
+
+        <h3>Categorize a purchase, and all like it</h3>
+        <ol class="steps">
+          <li>Click a transaction to open it.</li>
+          <li>Under <span class="ui">Category</span>, choose <span class="ui">Choose a category</span> and pick one.</li>
+          <li>Pick <span class="ui">Just this one</span>, or <span class="ui">All transactions like "…"</span> to teach BlitZave the merchant.</li>
+          <li>Choose <span class="ui">Save category</span>.</li>
+        </ol>
+        <figure class="shot">
+          <div class="frame"><div class="frame-bar" aria-hidden="true"><span class="frame-url"><svg viewBox="0 0 24 24"><path d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/></svg>127.0.0.1:8742</span></div>
+            <img src="../assets/guide/editor.webp" width="2560" height="1600" loading="lazy" decoding="async" alt="A transaction opened: Shopping chosen as its category, All transactions like BOOKSHOP CORNER selected, a Save category button, a Tags section, and Link to its other side."></div>
+          <figcaption>"All like this" matches the merchant through store numbers, reference codes, prefixes like Apple Pay and small typos. Future syncs follow it.</figcaption>
+        </figure>
+        <div class="prose" style="margin-top: 18px;">
+          <ul>
+            <li><strong>Your choices win.</strong> A sync only fills in transactions that don't have a category yet. Choosing "all like this" again for the same merchant replaces the old rule.</li>
+            <li><strong>Split one purchase</strong> with <span class="ui">Add a split</span>: a supermarket run that was half groceries and half household, say. The percentages need to add up to 100.</li>
+            <li><strong>Tags</strong> group transactions across categories, like everything from one trip. Add them in the same panel, then filter by tag.</li>
+          </ul>
+        </div>
+
+        <h3>Every dollar counted once</h3>
+        <div class="prose">
+          <p>Moving $500 from checking to savings isn't spending, and paying a card bill isn't spending twice. BlitZave links the two sides of each one, so they never count as spending.</p>
+          <ul>
+            <li><strong>Automatically, on every sync,</strong> for card payments, transfers between your accounts, and refunds: the same amount moving the opposite way within two days, when there's exactly one match.</li>
+            <li><strong>By hand</strong> for anything it leaves alone: open the transaction, choose <span class="ui">Find its other side</span>, and pick the match.</li>
+            <li><strong>Review them</strong> with <span class="ui">Adjustments</span> at the top of the page. If a link is wrong, choose <span class="ui">Unlink</span>; a pair you unlink is never linked automatically again.</li>
+          </ul>
+        </div>
+        <figure class="shot">
+          <div class="frame"><div class="frame-bar" aria-hidden="true"><span class="frame-url"><svg viewBox="0 0 24 24"><path d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/></svg>127.0.0.1:8742</span></div>
+            <img src="../assets/guide/adjustments.webp" width="2560" height="1600" loading="lazy" decoding="async" alt="The Adjustments panel open above the ledger, listing transfers between checking, savings and the cards, each with an Unlink button."></div>
+          <figcaption>Both sides stay in each account's list, so balances still add up.</figcaption>
+        </figure>
+
+        <p class="next"><span>Next</span><a href="#categories">Categories and budgets<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg></a></p>
+      </section>
+
+      <!-- 5 -->
+      <section class="chapter" id="categories" aria-labelledby="categories-title">
+        <div class="chapter-head">
+          <span class="chapter-num" aria-hidden="true">5</span>
+          <h2 id="categories-title">Categories and budgets</h2>
+          <p>A little context for your spending. Going over is information, never a red mark.</p>
+        </div>
+
+        <div class="prose">
+          <p>A category is <strong>Expense</strong>, <strong>Income</strong> or <strong>Savings</strong>. Goals are savings categories too, but you make them on the Savings page (chapter 6), and they're listed first here: pay yourself first, even in the layout.</p>
+        </div>
+
+        <h3>Add a category and a budget</h3>
+        <ol class="steps">
+          <li>On <span class="ui">Categories</span>, choose <span class="ui">New category</span>. Give it a <span class="ui">Name</span> and a <span class="ui">Kind</span>, then <span class="ui">Add category</span>.</li>
+          <li>Open the category and choose <span class="ui">Edit budget</span>. Enter the amount.</li>
+          <li>Under <span class="ui">Every</span>, choose how often it repeats: every month, or every 2, 3, 4, 6 or 12 months for things like gifts, insurance or a yearly subscription.</li>
+        </ol>
+
+        <figure class="shot">
+          <div class="frame"><div class="frame-bar" aria-hidden="true"><span class="frame-url"><svg viewBox="0 0 24 24"><path d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/></svg>127.0.0.1:8742</span></div>
+            <img src="../assets/guide/categories.webp" width="2560" height="1600" loading="lazy" decoding="async" alt="Budgets for November 2026: Rent, Transport, Shopping, Groceries, Dining out and others, each with a bar, a small marker, a percentage and the amount spent of the budget."></div>
+          <figcaption>The bar is what's been spent. The small marker is how far through the month you are, so the pace reads at a glance.</figcaption>
+        </figure>
+
+        <h3>Reading a budget</h3>
+        <div class="prose">
+          <p>Open any category to see the detail: what's been spent and what's left this round, a sentence about the pace, and where the round would land at this pace. <span class="ui">November transactions</span> jumps to the purchases behind it.</p>
+          <p>A budget that repeats every few months works in <strong>rounds</strong> that follow the calendar: every 3 months means Jan–Mar, Apr–Jun, and so on. Each round starts fresh. When one closes, BlitZave notes what was left or what it ran over by, under <span class="ui">Closed this year</span>.</p>
+        </div>
+        <figure class="shot">
+          <div class="frame"><div class="frame-bar" aria-hidden="true"><span class="frame-url"><svg viewBox="0 0 24 24"><path d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/></svg>127.0.0.1:8742</span></div>
+            <img src="../assets/guide/categories-open.webp" width="2560" height="1600" loading="lazy" decoding="async" alt="The Gifts budget opened: $300 every 3 months, spent this round, left this round, the pace, and two closed rounds this year, Apr–Jun and Jul–Sep, each with what was left."></div>
+          <figcaption>A gifts budget every three months: this round so far, and how the earlier rounds closed.</figcaption>
+        </figure>
+
+        <div class="note"><b>Changing a budget starts fresh.</b> Rounds only count from the day the amount or schedule was last set, so a budget you made today never reports on months before it existed.</div>
+
+        <h3>The month's summary</h3>
+        <div class="prose">
+          <ul>
+            <li><strong>Move between months</strong> with the arrows at the top of the list. Budgets carry forward each month.</li>
+            <li><strong>Refunds reduce a category's spending.</strong> A returned purchase cancels out, as it should.</li>
+            <li><strong>Uncategorized activity</strong> sits at the bottom with its total. <span class="ui">Review</span> opens those transactions so you can sort them.</li>
+          </ul>
+        </div>
+
+        <p class="next"><span>Next</span><a href="#goals">Goals and Savings<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg></a></p>
+      </section>
+
+      <!-- 6 -->
+      <section class="chapter" id="goals" aria-labelledby="goals-title">
+        <div class="chapter-head">
+          <span class="chapter-num" aria-hidden="true">6</span>
+          <h2 id="goals-title">Goals and Savings</h2>
+          <p>Something you're saving toward, the account that holds it, and when it gets there.</p>
+        </div>
+
+        <div class="note" style="margin-top: 0;"><b>Before you start:</b> you need at least one goal account (chapter 3). A goal's money is read from that account's balance, so there's nothing to log by hand.</div>
+
+        <h3>Make a goal</h3>
+        <ol class="steps">
+          <li>On <span class="ui">Savings</span>, choose <span class="ui">New goal</span>. Give it a <span class="ui">Name</span> and an <span class="ui">Amount</span>.</li>
+          <li>Under <span class="ui">How important is it?</span>, pick <strong>Critical</strong> (can't go without it: an emergency fund, runway, a down payment, education) or <strong>Regular</strong> (nice to have: trips, gadgets, treats).</li>
+          <li>Under <span class="ui">Where it lives</span>, pick its goal account. A critical goal needs an empty one to itself; regular goals can share. Accounts that are taken say who holds them.</li>
+          <li>Under <span class="ui">When</span>, choose <span class="ui">One time</span> with a <span class="ui">Target date</span>, or tick <span class="ui">No target date</span> for an amount you just want to hold, like an emergency fund. <span class="ui">Recurring</span> is for an amount every few months.</li>
+          <li>Save. A new goal joins the end of its account's line.</li>
+        </ol>
+        <figure class="shot">
+          <div class="frame"><div class="frame-bar" aria-hidden="true"><span class="frame-url"><svg viewBox="0 0 24 24"><path d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/></svg>127.0.0.1:8742</span></div>
+            <img src="../assets/guide/goal-form.webp" width="2560" height="1600" loading="lazy" decoding="async" alt="The new goal form: Concert tickets, $240, Regular chosen, and the shared Goals Savings account picked as where it lives, with a note that it joins the end of the line after PS5, Japan trip and New bike."></div>
+          <figcaption>The emergency fund's account is greyed out: a critical goal already has it to itself.</figcaption>
+        </figure>
+
+        <h3>The Savings page</h3>
+        <div class="prose">
+          <p>At the top: everything set aside across your goal accounts. Then each critical goal with its own ring (it can pass 100%, because the whole account counts toward it), then each shared account with its line of goals.</p>
+        </div>
+        <figure class="shot">
+          <div class="frame"><div class="frame-bar" aria-hidden="true"><span class="frame-url"><svg viewBox="0 0 24 24"><path d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/></svg>127.0.0.1:8742</span></div>
+            <img src="../assets/guide/savings-line.webp" width="2560" height="1600" loading="lazy" decoding="async" alt="A shared goal account holding three goals in order: PS5 funded, Japan trip saving with a pace line, and New bike not started yet, with a Change order button."></div>
+          <figcaption>A shared account fills from the top: PS5 first, then the Japan trip, then the bike.</figcaption>
+        </figure>
+        <div class="prose" style="margin-top: 18px;">
+          <ul>
+            <li><strong>Where each goal stands:</strong> Not started, Saving, Funded, or Completed, with how much is there and how much is still to go.</li>
+            <li><strong>When it gets there:</strong> "At about $500.00 a month, it gets there around June–July 2027." The range runs from your last three months' pace to your last six, so one light month barely moves it. With a target date, it also says what a month would take to make it.</li>
+            <li><strong>Change order</strong> puts arrows on each goal. Move one up and the money moves with it, right away, because the split comes from the account's balance.</li>
+          </ul>
+        </div>
+
+        <h3>When you buy it</h3>
+        <div class="prose">
+          <p>When money leaves a goal account and the amount matches a funded goal, Savings asks once: <em>"$500.00 left this account. Was that the PS5?"</em></p>
+          <ul>
+            <li><span class="ui">Yes, I bought it</span> moves the goal to <strong>Completed this year</strong>, and the goals below it move up.</li>
+            <li><span class="ui">It was something else</span> leaves the goals alone. The money comes off the bottom of the line.</li>
+          </ul>
+          <p>You can also open any goal and choose <span class="ui">Mark as bought</span>. A completed goal can go <span class="ui">Back to saving</span>.</p>
+        </div>
+        <figure class="shot">
+          <div class="frame"><div class="frame-bar" aria-hidden="true"><span class="frame-url"><svg viewBox="0 0 24 24"><path d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/></svg>127.0.0.1:8742</span></div>
+            <img src="../assets/guide/savings.webp" width="2560" height="1600" loading="lazy" decoding="async" alt="The top of the Savings page: the total set aside, a question card asking whether $500.00 that left the Goals Savings account was the PS5, and the Emergency fund's ring at 83%."></div>
+          <figcaption>One question per withdrawal. Answer it and it's never asked again.</figcaption>
+        </figure>
+
+        <p class="next"><span>Next</span><a href="#home">Home<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg></a></p>
+      </section>
+
+      <!-- 7 -->
+      <section class="chapter" id="home" aria-labelledby="home-title">
+        <div class="chapter-head">
+          <span class="chapter-num" aria-hidden="true">7</span>
+          <h2 id="home-title">Home: the one thing worth knowing</h2>
+          <p>Not a dashboard. One sentence, chosen from everything above.</p>
+        </div>
+
+        <figure class="shot" style="margin-top: 0;">
+          <div class="frame"><div class="frame-bar" aria-hidden="true"><span class="frame-url"><svg viewBox="0 0 24 24"><path d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/></svg>127.0.0.1:8742</span></div>
+            <img src="../assets/guide/home.webp" width="2560" height="1600" loading="lazy" decoding="async" alt="Home: a ring showing November, day 8, with a small star and the words Japan trip: halfway there. Below, one sentence and three figures: spent so far, set aside, and goals underway."></div>
+          <figcaption>The ring is the month, and the dot is today. A goal passed halfway this week, so that's what Home says.</figcaption>
+        </figure>
+
+        <div class="prose" style="margin-top: 22px;">
+          <p>BlitZave opens on Home. It checks a short list in order and says the first thing that's true. Wins come first, and a heavier month is met with context, never a warning.</p>
+        </div>
+        <div class="table-scroll">
+          <table class="plain">
+            <thead><tr><th scope="col">When</th><th scope="col">Home says</th></tr></thead>
+            <tbody>
+              <tr><td>Less than a month of history</td><td class="said">Getting to know your money.</td></tr>
+              <tr><td>A goal was reached this week</td><td class="said">Emergency fund: done.</td></tr>
+              <tr><td>A goal passed a quarter, half or three-quarters this week</td><td class="said">Japan trip: halfway there.</td></tr>
+              <tr><td>Spending is running well ahead of your usual pace</td><td class="said">A heavier start. That happens.</td></tr>
+              <tr><td>A goal is within a quarter of its amount</td><td class="said">Almost there.</td></tr>
+              <tr><td>Savings moved before most of the month's spending</td><td class="said">You're in good shape.</td></tr>
+              <tr><td>Your usual savings day has passed and nothing's moved yet</td><td class="said">A quiet month for savings so far.</td></tr>
+              <tr><td>Everything else</td><td class="said">Nothing needs you today.</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="prose" style="margin-top: 22px;">
+          <ul>
+            <li><strong>Milestones</strong> at 25, 50, 75 and 100% each get one moment, in words, with a tiny star. A dip is never news: nothing is ever "lost."</li>
+            <li><strong>Set aside</strong> means money that went into goal accounts this month, minus money that came out. Interest doesn't count; it isn't something you did.</li>
+            <li><strong>The three figures</strong> under the sentence open the detail: spent so far goes to Transactions, set aside and goals underway go to Savings.</li>
+          </ul>
+        </div>
+
+        <p class="next"><span>Next</span><a href="#data">Your data<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg></a></p>
+      </section>
+
+      <!-- 8 -->
+      <section class="chapter" id="data" aria-labelledby="data-title">
+        <div class="chapter-head">
+          <span class="chapter-num" aria-hidden="true">8</span>
+          <h2 id="data-title">Your data, on your laptop</h2>
+          <p>One file you own, and a way to take it with you.</p>
+        </div>
+
+        <div class="table-scroll">
+          <table class="plain">
+            <thead><tr><th scope="col">What</th><th scope="col">Where</th></tr></thead>
+            <tbody>
+              <tr><td>Everything BlitZave knows</td><td><code>~/BlitZave/blitzave.db</code>, one SQLite file</td></tr>
+              <tr><td>Your SimpleFIN credential</td><td>Your Mac's keychain, under <code>blitzave</code></td></tr>
+              <tr><td>Copies made before an update</td><td><code>~/BlitZave/backups</code>, the last three</td></tr>
+              <tr><td>Anything else</td><td>Nowhere. There's no server.</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <h3>Export, and move to a new laptop</h3>
+        <ol class="steps">
+          <li>Choose <span class="ui">Export your data</span> at the bottom of the sidebar. It saves one file with every account, transaction, category, goal, rule and link, and nothing about your bank login.</li>
+          <li>On the new laptop, install BlitZave (chapter 1) and start it.</li>
+          <li>On the welcome screen, choose <span class="ui">Bring in your export</span> and pick the file. It only goes into a fresh install, and it's all or nothing.</li>
+          <li>Connect SimpleFIN again (chapter 2). Your categories, rules and goals are already there.</li>
+        </ol>
+
+        <h3>Back up</h3>
+        <div class="prose"><p>Copy the database while BlitZave is stopped, or any time with SQLite's own backup:</p></div>
+        <div class="code"><pre><code>sqlite3 ~/BlitZave/blitzave.db ".backup ~/blitzave-backup.db"</code></pre><button class="copy" type="button" aria-label="Copy command"><svg class="idle" viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg><svg class="done" viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg></button></div>
+        <div class="prose" style="margin-top: 14px;"><p>To keep the data folder somewhere else, start BlitZave with <code>BLITZAVE_HOME=~/Documents/BlitZave blitzave</code>.</p></div>
+
+        <h3>What leaves your laptop</h3>
+        <div class="prose">
+          <ul>
+            <li><strong>The bank sync,</strong> to your own SimpleFIN account. That's the only call BlitZave makes by default.</li>
+            <li><strong>The update check,</strong> if you turned it on: one request to GitHub a day, which sends nothing about you or your money.</li>
+            <li><strong>Nothing else.</strong> BlitZave only answers on 127.0.0.1, so other devices on your network can't reach it. No analytics, no telemetry, no remote fonts.</li>
+          </ul>
+        </div>
+
+        <h3>Uninstall</h3>
+        <div class="prose"><p>Stop BlitZave, uninstall it, delete <code>~/BlitZave</code>, then remove the keychain entry. On a Mac you can also delete the item named <code>blitzave</code> in Keychain Access.</p></div>
+        <div class="code"><pre><code>uv tool uninstall blitzave
+uvx keyring del blitzave simplefin_access_url</code></pre><button class="copy" type="button" aria-label="Copy commands"><svg class="idle" viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg><svg class="done" viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg></button></div>
+      </section>
+
+      <section class="end" aria-labelledby="end-title">
+        <h2 id="end-title">That's the whole of it.</h2>
+        <p>Stuck, or something reads wrong? Ask on <a href="https://discord.com/invite/VerUYP67" target="_blank" rel="noopener noreferrer">Discord</a> or open an <a href="https://github.com/blitzave/blitzave/issues" target="_blank" rel="noopener noreferrer">issue</a>. Leave your real numbers out; describe the shape of the data instead.</p>
+      </section>
+    </main>
+  </div>
+
+  <footer>
+    <div class="foot">
+      <p>© 2026 The BlitZave Authors · Apache-2.0 · Not affiliated with any bank.</p>
+      <p><a href="../">blitzave.com</a></p>
+    </div>
+  </footer>
+
+  <script>
+    // Copy buttons on the commands.
+    document.querySelectorAll(".copy").forEach(function (btn) {
+      btn.addEventListener("click", function () {
+        var text = btn.parentElement.querySelector("code").innerText
+          .split("\n").filter(function (line) { return !line.trim().startsWith("#"); }).join("\n").trim();
+        if (!navigator.clipboard) return;
+        navigator.clipboard.writeText(text).then(function () {
+          btn.classList.add("is-done");
+          setTimeout(function () { btn.classList.remove("is-done"); }, 1600);
+        });
+      });
+    });
+
+    // The rail: the chapter you're reading is filled in, and the line fills
+    // up to it, like a goal account's line on the Savings page.
+    (function () {
+      var links = Array.prototype.slice.call(document.querySelectorAll(".rail a"));
+      var fill = document.querySelector(".rail-fill");
+      var chapters = links.map(function (a) { return document.querySelector(a.getAttribute("href")); });
+      if (!links.length) return;
+      function mark() {
+        var current = -1;
+        chapters.forEach(function (ch, i) {
+          if (ch.getBoundingClientRect().top < window.innerHeight * 0.4) current = i;
+        });
+        links.forEach(function (a, i) {
+          a.classList.toggle("is-past", i < current);
+          if (i === current) a.setAttribute("aria-current", "true");
+          else a.removeAttribute("aria-current");
+        });
+        // From the first stop's center to the current one's.
+        var line = fill.parentElement.getBoundingClientRect();
+        var first = links[0].querySelector(".stop").getBoundingClientRect();
+        var top = first.top + first.height / 2 - line.top;
+        fill.style.top = top + "px";
+        if (current > 0) {
+          var stop = links[current].querySelector(".stop").getBoundingClientRect();
+          fill.style.height = (stop.top + stop.height / 2 - line.top - top) + "px";
+        } else {
+          fill.style.height = "0px";
+        }
+      }
+      var queued = false;
+      window.addEventListener("scroll", function () {
+        if (queued) return;
+        queued = true;
+        requestAnimationFrame(function () { queued = false; mark(); });
+      }, { passive: true });
+      window.addEventListener("resize", mark);
+      mark();
+    })();
+  </script>
+</body>
+</html>
