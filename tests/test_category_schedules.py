@@ -7,14 +7,14 @@ from datetime import date
 import pytest
 from fastapi.testclient import TestClient
 
-from blitzave.__main__ import create_app
+from blitzave.__main__ import URL, create_app
 from blitzave.store import categories, db, users
 
 
 @pytest.fixture
 def client(tmp_path, monkeypatch):
     monkeypatch.setenv("BLITZAVE_HOME", str(tmp_path))
-    with TestClient(create_app()) as client:
+    with TestClient(create_app(), base_url=URL) as client:
         yield client
 
 

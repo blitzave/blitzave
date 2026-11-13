@@ -5,7 +5,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from blitzave import jobs
-from blitzave.__main__ import create_app
+from blitzave.__main__ import URL, create_app
 from blitzave.sources import github
 from blitzave.store import db, users
 
@@ -181,7 +181,7 @@ def test_the_same_version_as_installed_is_not_an_update():
 
 
 def test_api_reads_and_sets_the_choice():
-    with TestClient(create_app()) as client:
+    with TestClient(create_app(), base_url=URL) as client:
         assert client.get("/api/updates").json()["enabled"] is None
 
         response = client.put("/api/updates", json={"enabled": True})
@@ -191,7 +191,7 @@ def test_api_reads_and_sets_the_choice():
 
 @pytest.mark.parametrize("value", ["yes", "true", 1, None])
 def test_api_rejects_anything_but_true_or_false(value):
-    with TestClient(create_app()) as client:
+    with TestClient(create_app(), base_url=URL) as client:
         response = client.put("/api/updates", json={"enabled": value})
         assert response.status_code == 422
         assert client.get("/api/updates").json()["enabled"] is None
@@ -199,6 +199,6 @@ def test_api_rejects_anything_but_true_or_false(value):
 
 def test_startup_runs_the_check_once_opted_in(github_calls):
     set_meta({"update_check": True})
-    with TestClient(create_app()) as client:
+    with TestClient(create_app(), base_url=URL) as client:
         assert client.get("/api/updates").json()["available_version"] == "0.2.0"
     assert len(github_calls) == 1

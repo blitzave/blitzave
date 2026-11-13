@@ -7,6 +7,7 @@ from pathlib import Path
 
 import uvicorn
 from fastapi import FastAPI
+from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from fastapi.staticfiles import StaticFiles
 
 from blitzave import jobs
@@ -27,6 +28,13 @@ WEB_DIR = Path(__file__).resolve().parent / "web"
 HOST = "127.0.0.1"
 PORT = 8742
 URL = f"http://{HOST}:{PORT}"
+
+# DNS rebinding: a page on evil.example can point its own name at 127.0.0.1,
+# and the browser then lets it read this server as if it were its own site.
+# The request's Host header still says evil.example, so any name but ours
+# gets a 400. Only the name is checked: a page can't make the browser send
+# 127.0.0.1 or localhost unless it really was opened there.
+ALLOWED_HOSTS = [HOST, "localhost"]
 
 
 class RevalidatingStaticFiles(StaticFiles):
@@ -70,6 +78,8 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 
 def create_app() -> FastAPI:
     app = FastAPI(title="BlitZave", lifespan=lifespan)
+    # Wraps everything below: the API, /docs, /dev and the UI.
+    app.add_middleware(TrustedHostMiddleware, allowed_hosts=ALLOWED_HOSTS)
     app.include_router(router)
     if DEV_DIR.is_dir():
         app.mount("/dev", RevalidatingStaticFiles(directory=DEV_DIR, html=True), name="dev")

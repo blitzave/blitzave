@@ -4,7 +4,7 @@ import sqlite3
 import pytest
 from fastapi.testclient import TestClient
 
-from blitzave.__main__ import create_app
+from blitzave.__main__ import URL, create_app
 from blitzave.sources.base import AccountRow, TxRow
 from blitzave.store import categories, db, ingest, transfers, users
 
@@ -152,7 +152,7 @@ def client(tmp_path, monkeypatch):
         seed_conn.close()
     # No SimpleFIN connection, so the startup sync is skipped and only the
     # synthetic rows above exist.
-    with TestClient(create_app()) as c:
+    with TestClient(create_app(), base_url=URL) as c:
         yield c
 
 

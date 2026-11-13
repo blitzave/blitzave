@@ -7,7 +7,7 @@ from datetime import date
 import pytest
 from fastapi.testclient import TestClient
 
-from blitzave.__main__ import create_app
+from blitzave.__main__ import URL, create_app
 from blitzave.copy.home import home_words
 from blitzave.copy.savings import pace_line
 from blitzave.refine.goals import fill
@@ -256,7 +256,7 @@ def test_no_pace_is_never_never():
 @pytest.fixture
 def client(tmp_path, monkeypatch):
     monkeypatch.setenv("BLITZAVE_HOME", str(tmp_path))
-    with TestClient(create_app()) as client:
+    with TestClient(create_app(), base_url=URL) as client:
         yield client
 
 

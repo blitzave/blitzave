@@ -4,7 +4,7 @@
 import pytest
 from fastapi.testclient import TestClient
 
-from blitzave.__main__ import create_app
+from blitzave.__main__ import URL, create_app
 from blitzave.refine.goals import fill, savings_by_account
 from blitzave.sources.base import AccountRow, BalanceRow
 from blitzave.store import db, ingest, users
@@ -110,7 +110,7 @@ def test_savings_lists_every_targeted_account_with_its_line():
 @pytest.fixture
 def client(tmp_path, monkeypatch):
     monkeypatch.setenv("BLITZAVE_HOME", str(tmp_path))
-    with TestClient(create_app()) as client:
+    with TestClient(create_app(), base_url=URL) as client:
         yield client
 
 
