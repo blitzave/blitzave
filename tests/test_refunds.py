@@ -8,7 +8,7 @@ import sqlite3
 import pytest
 from fastapi.testclient import TestClient
 
-from blitzave.__main__ import create_app
+from blitzave.__main__ import URL, create_app
 from blitzave.sources.base import AccountRow, TxRow
 from blitzave.store import categories, db, ingest, transactions, transfers, users
 
@@ -217,7 +217,7 @@ def client(conn, tmp_path, monkeypatch):
         conn.backup(destination)
     finally:
         destination.close()
-    with TestClient(create_app()) as test_client:
+    with TestClient(create_app(), base_url=URL) as test_client:
         yield test_client
 
 

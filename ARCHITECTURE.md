@@ -95,7 +95,7 @@ flowchart TB
 
 | File | Job |
 |---|---|
-| `__main__.py` | The `blitzave` command. Builds the FastAPI app, mounts `web/` at `/` (and `dev/` at `/dev` when it exists), runs the startup sync, binds `127.0.0.1:8742` and opens the browser. |
+| `__main__.py` | The `blitzave` command. Builds the FastAPI app, refuses any `Host` but `127.0.0.1` or `localhost`, mounts `web/` at `/` (and `dev/` at `/dev` when it exists), runs the startup sync, binds `127.0.0.1:8742` and opens the browser. |
 | `jobs.py` | The sync pipeline (`sync`, `sync_month`), category-rule application, pair matching, and the opt-in daily update check. |
 | `backup.py` | Copies the database before a migration and keeps the last three copies. |
 | `api/routes.py` | Every `/api/*` endpoint and its Pydantic request models. Maps store errors to 404, 409 and 422. |
@@ -329,6 +329,11 @@ All under `/api`. Interactive docs at `http://127.0.0.1:8742/docs` while BlitZav
 
 - **Loopback only.** The server binds `127.0.0.1`, never `0.0.0.0`.
 - **One origin, no CORS.** The UI is served by the engine itself.
+- **Only our own name gets an answer.** `TrustedHostMiddleware` in `create_app()`
+  refuses (400) any request whose `Host` header isn't `127.0.0.1` or `localhost`, on
+  every path: the API, `/docs`, `/dev` and the UI. Without it, DNS rebinding (a site
+  pointing its own name at 127.0.0.1) would let any web page read and change the
+  user's data. Only the name is checked, not the port. `tests/test_trusted_host.py`.
 - **The credential lives in the OS keychain.** It's never in the database, logs or
   exports. The database stores only a hash of it (`users.simplefin_hash`).
 - **Bank access is read-only.** SimpleFIN can't move money, and neither can BlitZave.

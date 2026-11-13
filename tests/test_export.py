@@ -5,7 +5,7 @@ import json
 
 from fastapi.testclient import TestClient
 
-from blitzave.__main__ import create_app
+from blitzave.__main__ import URL, create_app
 from blitzave.sources.base import AccountRow, BalanceRow, TxRow
 from blitzave.store import db, ingest, users
 
@@ -14,7 +14,7 @@ def _client(tmp_path, monkeypatch, name):
     home = tmp_path / name
     home.mkdir()
     monkeypatch.setenv("BLITZAVE_HOME", str(home))
-    return TestClient(create_app())
+    return TestClient(create_app(), base_url=URL)
 
 
 def _fill(client):

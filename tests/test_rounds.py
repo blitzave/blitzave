@@ -6,7 +6,7 @@ from datetime import date
 import pytest
 from fastapi.testclient import TestClient
 
-from blitzave.__main__ import create_app
+from blitzave.__main__ import URL, create_app
 from blitzave.refine.rounds import category_rounds, round_label, round_of
 from blitzave.sources.base import AccountRow, TxRow
 from blitzave.store import db, ingest, users
@@ -104,7 +104,7 @@ def test_categories_without_a_recurring_amount_have_no_rounds():
 @pytest.fixture
 def client(tmp_path, monkeypatch):
     monkeypatch.setenv("BLITZAVE_HOME", str(tmp_path))
-    with TestClient(create_app()) as client:
+    with TestClient(create_app(), base_url=URL) as client:
         yield client
 
 

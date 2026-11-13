@@ -24,7 +24,7 @@ def isolated_home(tmp_path, monkeypatch):
 
 @pytest.fixture
 def client():
-    with TestClient(create_app()) as c:
+    with TestClient(create_app(), base_url=URL) as c:
         yield c
 
 

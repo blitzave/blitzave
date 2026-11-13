@@ -5,7 +5,7 @@ import httpx
 import pytest
 from fastapi.testclient import TestClient
 
-from blitzave.__main__ import create_app
+from blitzave.__main__ import URL, create_app
 
 VALID_TOKEN = "aHR0cHM6Ly9icmlkZ2Uuc2ltcGxlZmluLm9yZy9jbGFpbS9hYmM="
 FIXTURE = json.loads(
@@ -21,7 +21,7 @@ def isolated_home(tmp_path, monkeypatch):
 
 @pytest.fixture
 def client(monkeypatch):
-    with TestClient(create_app()) as c:
+    with TestClient(create_app(), base_url=URL) as c:
         monkeypatch.setattr(
             httpx,
             "post",
