@@ -24,6 +24,12 @@ def test_a_heavier_month_is_higher_than_usual_and_reads_as_an_ally():
     )
 
 
+def test_every_fact_a_summary_can_have_is_a_slot_the_writer_is_told_about():
+    months = ["2026-08", "2026-09", "2026-10"]
+    facts = spending.summary({"2026-08": 30000, "2026-09": 30000, "2026-10": 52000}, months, "2026-11")
+    assert set(words.summary_facts(facts, "Dining", 2026)) == set(words.SLOTS)
+
+
 def test_a_lighter_or_steady_month_says_so():
     months = ["2026-09", "2026-10"]
     assert spending.summary({"2026-09": 10000, "2026-10": 8000}, months, "2026-11")["trend"] == "lower"

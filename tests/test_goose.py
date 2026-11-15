@@ -10,6 +10,7 @@ from pydantic import ValidationError
 
 from blitzave import assistant
 from blitzave.__main__ import URL, create_app
+from blitzave.copy import MONTHS
 from blitzave.copy import goose as words
 from blitzave.sources import models
 from blitzave.sources.base import AccountRow, TxRow
@@ -98,6 +99,7 @@ def fake(client, monkeypatch):
         transactions.update_metadata(conn, ext, categories={groceries["id"]: 1.0})
     transfers.create_transfer(conn, user_id, "P1", "P2")  # the card payment
     conn.close()
+    model.account_ids = accounts
     return model
 
 
@@ -209,14 +211,40 @@ def test_g3_a_writer_that_types_a_number_is_replaced_by_the_engines_sentence(cli
     assert not assistant.NOT_ALLY.search(card["text"])
 
 
-def test_g1_no_row_or_account_detail_ever_reaches_a_model(client, fake):
+def test_g1_no_row_account_detail_or_result_ever_reaches_a_model(client, fake):
     _ask(client, fake, "show the trip", _plan({"intent": "show_transactions", "filter": {**TRIP, "account": "A2"}}))
     _ask(client, fake, "tag the trip", _plan({"intent": "propose_tag", "tag_name": "PNW", "filter": TRIP}))
-    _ask(client, fake, "how's my spending", _plan({"intent": "spending_summary"}), "{label} averaged {average}.")
+    [card] = _ask(
+        client, fake, "how's my spending", _plan({"intent": "spending_summary"}), "{label} averaged {average}."
+    )
+    assert card["text"] == "Your spending averaged $142.50."  # the figure is filled in after the model
     sent = json.dumps(fake.requests)
     assert "CANARY" not in sent  # descriptions, merchants, bank and account names
     assert "1111" not in sent and "2222" not in sent  # account numbers
+    words_sent = json.dumps([[r["system"], r["messages"]] for r in fake.requests])  # the schema has "$defs"
+    assert "$" not in words_sent and "142" not in words_sent  # no amount, not even the summary's own
+    assert not any(month in words_sent for month in MONTHS)  # no month a summary picked out
     assert "A2 (credit card)" in fake.requests[0]["system"]  # the alias is all a model knows
+
+
+def test_g1_the_writer_hears_the_same_thing_whatever_the_figures(client, fake):
+    question = "how are groceries going"
+    plan = _plan({"intent": "spending_summary", "category": "Groceries"})
+    _ask(client, fake, question, plan, "{label} averaged {average}.")
+    first = fake.requests[-1]
+
+    conn = db.connect()  # a much heavier October changes every figure the summary has
+    groceries = next(c["id"] for c in client.get("/api/categories").json() if c["name"] == "Groceries")
+    ingest.upsert_transaction(conn, users.get_or_create_user(conn), fake.account_ids["ACT-2"], TxRow(
+        "ACT-2", "G12", -90000, "USD", "debit", "2026-10-20", "CANARY G12", "CANARY Merchant",
+    ))
+    conn.commit()
+    transactions.update_metadata(conn, "G12", categories={groceries: 1.0})
+    conn.close()
+
+    [card] = _ask(client, fake, question, plan, "{label} averaged {average}.")
+    assert card["text"] == "Groceries averaged $260.00."
+    assert fake.requests[-1] == first
 
 
 def test_g2_the_planner_hears_the_same_thing_whatever_ran_before(client, fake):
@@ -279,6 +307,9 @@ def test_clarify_and_decline_stand_alone():
         ("{label} ran high in October.", None),  # a typed month
         ("{label} held for six months.", None),  # a number in words
         ("You overspent on {label}.", None),  # a scorekeeper word
+        ("{label} came to {total}, more than {average}.", None),  # a comparison it couldn't see
+        ("{label} averaged {average}, as usual.", None),
+        ("{label} came to {total}, {trend}.", None),  # a slot the engine didn't give
         ("One. Two. Three.", None),  # more than two sentences
     ],
 )

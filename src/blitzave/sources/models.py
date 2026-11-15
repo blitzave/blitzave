@@ -21,7 +21,9 @@ ANTHROPIC_URL = "https://api.anthropic.com"
 ANTHROPIC_VERSION = "2026-10-21"
 # Claude models that can re-run a request their safety checks declined on a
 # fallback model Anthropic picks ("fallbacks": "default").
-FALLBACK_MODELS = {"claude-fable-5-1", "claude-opus-5-5", "claude-opus-5", "claude-sonnet-5-5"}
+FALLBACK_MODELS = {
+    "claude-fable-5-2", "claude-fable-5-1", "claude-opus-5-5", "claude-opus-5", "claude-sonnet-5-5",
+}
 KEYRING_SERVICE = "blitzave"
 KEYRING_USERNAME = "anthropic_api_key"
 LOOPBACK = {"127.0.0.1", "localhost", "::1"}

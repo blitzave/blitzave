@@ -325,7 +325,7 @@ Still stuck? Ask on [Discord](https://discord.gg/akSZ794XxG).
 
 - **Local-only server.** BlitZave listens on `127.0.0.1` only, never on your network.
 - **Read-only bank access.** SimpleFIN can see balances and transactions; it can never move money.
-- **One network call by default.** Syncing with your own SimpleFIN account is the only thing that touches the internet. Two others stay off until you turn them on: a daily update check against GitHub, which sends nothing about you, and Claude, if you pick it as Goose's model, which gets your question and your category and tag names but never a transaction. No telemetry, no analytics, no remote fonts.
+- **One network call by default.** Syncing with your own SimpleFIN account is the only thing that touches the internet. Two others stay off until you turn them on: a daily update check against GitHub, which sends nothing about you, and Claude, if you pick it as Goose's model, which gets your question and your category and tag names but never a transaction or an amount. No telemetry, no analytics, no remote fonts.
 - **Your keychain, not our database.** The SimpleFIN credential, and a Claude API key if you add one, live in the OS keychain, never in the database, logs or exports.
 - **No account, no server.** We don't hold your data. We can't sell what we never have.
 

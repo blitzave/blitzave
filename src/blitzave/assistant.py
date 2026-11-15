@@ -9,9 +9,9 @@ runs it. ARCHITECTURE.md ("Goose") has the picture; the rule is one-way.
 - The engine runs each intent in its lane. Show lists rows. Change previews a
   tag or a category, and writes only the rows the user leaves checked, on
   Apply, with Undo. Summarize works out one scope's monthly facts.
-- A model may word that summary, but it never types a number: it writes
-  {slots}, and fill() swaps in the engine's display strings or throws the
-  sentence away.
+- A model may word that summary, but it never sees or types a number: it
+  gets the slot names only, writes {slots}, and fill() swaps in the engine's
+  display strings or throws the sentence away.
 
 Like jobs.py, this module orchestrates sources/, store/ and refine/. It holds
 no SQL and makes no network call of its own.
@@ -255,10 +255,11 @@ Accounts: {accounts}"""
 
 WRITER = """\
 You write one or two short, calm sentences that answer the user's question about their \
-own money in BlitZave, an app that has their back. Use only the facts given. Write \
-each fact as its {name} in curly braces, exactly as listed: never type a number, an \
-amount or a month yourself. Say what happened without judging it: no "should", no \
-"too much", no warnings. Reply with the sentences only."""
+own money in BlitZave, an app that has their back. You get the names of the facts, \
+not their values. Write each fact as its {name} in curly braces, exactly as listed: \
+never type a number, an amount or a month yourself, and never compare amounts \
+yourself; {trend} says how the latest month compares. Say what happened without \
+judging it: no "should", no "too much", no warnings. Reply with the sentences only."""
 
 
 @dataclass(frozen=True)
@@ -443,8 +444,10 @@ def _summarize(conn, model, intent: SpendingSummary, labels: Labels, question: s
 
 
 def _phrase(model: models.ChatModel, question: str, shown: dict[str, str]) -> str | None:
-    """The model's wording of a summary, if it passes fill()."""
-    facts = "\n".join(f"{{{key}}} = {value}" for key, value in shown.items())
+    """The model's wording of a summary, if it passes fill(). The model gets
+    every slot's name and meaning, never a value, so the request is the same
+    whatever the figures are; only fill() sees them."""
+    facts = "\n".join(f"{{{key}}}: {meaning}" for key, meaning in words.SLOTS.items())
     try:
         reply = model.chat(WRITER, [{"role": "user", "content": f"Question: {question}\n\nFacts:\n{facts}"}])
     except ModelError:
@@ -463,6 +466,15 @@ TYPED_FIGURE = re.compile(
     r"|(?i:\b(zero|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|twenty"
     r"|hundred|thousand|million|half|twice|double|triple)\b)"
 )
+# The writer never sees a value, so a comparison it types is a guess, and
+# it's refused even when it happens to be true. How amounts compare comes
+# only from the slots: {trend}, {highest_month}, {lowest_month}.
+TYPED_COMPARISON = re.compile(
+    r"\b(more|less|fewer|higher|lower|highest|lowest|most|least|bigger|smaller|above|below"
+    r"|than|usual|normal|typical|rose|rising|fell|falling|dropped|jump\w*|spike\w*"
+    r"|increase\w*|decrease\w*)\b",
+    re.IGNORECASE,
+)
 NOT_ALLY = re.compile(
     r"\b(overspen\w*|fail\w*|miss(ed)?|blew|wasted|too much|should|must|streak\w*|behind|bad)\b",
     re.IGNORECASE,
@@ -477,7 +489,8 @@ def fill(sentence: str, facts: dict[str, str]) -> str | None:
         return None
     if any(key not in facts for key in SLOT.findall(sentence)):
         return None
-    if TYPED_FIGURE.search(SLOT.sub("", sentence)) or NOT_ALLY.search(sentence):
+    typed = SLOT.sub("", sentence)  # the words the model wrote itself
+    if TYPED_FIGURE.search(typed) or TYPED_COMPARISON.search(typed) or NOT_ALLY.search(sentence):
         return None
     filled = SLOT.sub(lambda m: facts[m.group(1)], sentence)
     return filled[:1].upper() + filled[1:]

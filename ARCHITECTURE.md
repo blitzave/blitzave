@@ -4,7 +4,7 @@ BlitZave is one Python process on your laptop. It keeps one SQLite file and serv
 web page. This document maps the pieces and follows the data through them. The tables
 themselves are in [SCHEMA.md](SCHEMA.md).
 
-Current as of 2026-11-14, schema version 11.
+Current as of 2026-11-15, schema version 11.
 
 - [The whole system](#the-whole-system)
 - [Layers and their rules](#layers-and-their-rules)
@@ -69,7 +69,7 @@ Everything inside the laptop box works with Wi-Fi off. Only three calls leave th
 - the sync with SimpleFIN;
 - the update check, which is off until you turn it on;
 - Goose's model, only if you choose Claude (or an Ollama on another machine), and only
-  after a screen lists what it gets. It never gets a transaction.
+  after a screen lists what it gets. It never gets a transaction or an amount.
 
 The UI and the API share one origin, so there's no CORS and no second server.
 
@@ -291,15 +291,17 @@ sequenceDiagram
 
 ## Goose
 
-A question about your own money becomes a plan, and the engine runs it. The model
-plans; it never reads your data, and nothing comes back to it.
+Goose is BlitZave's persona: the calm ally that has your back, never a scorekeeper.
+In the app, Goose is where you ask about your own money. A question becomes a plan,
+and the engine runs it. The model plans; it never reads your data, and nothing comes
+back to it.
 
 ```mermaid
 flowchart LR
   you(["You"]) -->|"question"| planner["Planner<br/>your model"]
   planner -->|"Plan: 1–3 intents"| engine["Engine<br/>assistant.py lanes"]
   engine -->|"cards"| you
-  engine -->|"one scope's monthly totals"| writer["Writer<br/>same model, optional"]
+  engine -->|"slot names only, never values"| writer["Writer<br/>same model, optional"]
   writer -->|"a sentence with {slots}"| fill["fill()"]
   fill -->|"engine's figures, or its own sentence"| you
   engine -. "rows, counts, results: never" .-x planner
@@ -320,19 +322,22 @@ flowchart LR
    - **Summarize** (`spending_summary`) works out one category's, one tag's, or all
      spending's whole months.
    - `clarify` and `decline` get fixed words from `copy/goose.py`.
-3. **Word.** For a summary, the model may suggest a sentence, but it writes `{slots}`
+3. **Word.** For a summary, the model may suggest a sentence. It gets the question and
+   the fixed list of slot names with what each means (`copy/goose.SLOTS`), never a
+   value, so its request is the same whatever your figures are. It writes `{slots}`
    instead of numbers. `fill()` swaps in the engine's display strings, or throws the
-   sentence out (a typed digit, month or number word, a scorekeeper word, or more than
-   two sentences) and shows the engine's own.
+   sentence out (a typed digit, month or number word, a comparison it couldn't have
+   seen, a slot this summary doesn't have, a scorekeeper word, or more than two
+   sentences) and shows the engine's own.
 
 No memory: each question stands alone. A preview lives 15 minutes in memory, and a
 restart forgets it.
 
 | Guarantee | Enforced by | Proven by (`tests/test_goose.py`) |
 |---|---|---|
-| G1. No row reaches a model | The planner's prompt is built from labels only; the writer gets `copy/goose.summary_facts()` | Every description, merchant and account name carries `CANARY`; no request does |
+| G1. No row or result reaches a model | The planner's prompt is built from labels only; the writer gets slot names only (`copy/goose.SLOTS`) | Every description, merchant and account name carries `CANARY`, and no request holds it, an amount or a month; the writer's request is identical after every figure changes |
 | G2. Nothing flows back to the planner | No conversation memory; a lane's result goes only to the API response | The same question sends an identical request after a show, a preview, an Apply and a summary |
-| G3. No number a model typed is shown | `fill()` | Typed figures, unknown slots and scorekeeper words fall back |
+| G3. No number or comparison a model typed is shown | `fill()` | Typed figures, typed comparisons, unknown slots and scorekeeper words fall back |
 | G4. Nothing changes without your click | Previews write nothing; Apply checks the rows; one commit; Undo | Apply outside the preview is a 422; a second Apply is a 404; Undo restores |
 | G5. Remote is decided by the host | `models.is_remote()`; saving a remote model needs `remote_ok`, sent after the disclosure | An Ollama at 192.168.1.5 needs consent; the key never reaches the database, its WAL, a backup or an export |
 

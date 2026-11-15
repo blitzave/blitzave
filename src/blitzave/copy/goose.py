@@ -38,14 +38,34 @@ DECLINE = {
 # what assistant.py puts in a request; keep the two in step.
 DISCLOSURE = (
     "This model isn't on your laptop, so each question sends it: your question and"
-    " today's date; your category and tag names, goals included; your accounts as"
-    " types only, like \"A1 (checking)\"; and for a summary, the monthly totals of"
-    " what you asked about. Never sent: a transaction, a description or merchant,"
-    " a balance, an account number, or your bank's name. A Claude API key stays in"
-    " your system's keychain and goes only to Anthropic."
+    " today's date; your category and tag names, goals included; and your accounts"
+    " as types only, like \"A1 (checking)\". Never sent: a transaction, a"
+    " description or merchant, an amount or total, a balance, an account number,"
+    " or your bank's name. A Claude API key stays in your system's keychain and"
+    " goes only to Anthropic."
 )
 
 TREND = {"higher": "higher than usual", "lower": "lower than usual", "usual": "close to usual"}
+
+# Every {slot} a summary sentence may use, and what it stands for. A model
+# that words a summary gets this list, never the values, so what it's sent
+# is the same whatever the figures are. summary_facts() fills only some of
+# them; a sentence that uses one it left out isn't shown.
+SLOTS = {
+    "label": "what the question was about, like a category's name",
+    "so_far": "the amount so far this month",
+    "months": "how many whole months the summary covers",
+    "first_month": "the first of those months",
+    "latest_month": "the latest whole month",
+    "latest": "the latest whole month's amount",
+    "total": "all the whole months together",
+    "average": "the average whole month",
+    "highest_month": "the whole month with the most",
+    "highest": "that month's amount",
+    "lowest_month": "the whole month with the least",
+    "lowest": "that month's amount",
+    "trend": "how the latest whole month compares with the ones before it, like \"higher than usual\"",
+}
 
 
 def clarify(field: str) -> str:
