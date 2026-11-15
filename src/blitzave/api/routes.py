@@ -1,13 +1,20 @@
 import re
 from calendar import monthrange
 from datetime import date, timedelta
-from typing import Literal
+from typing import Annotated, Literal
 
 from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel, StrictBool, field_validator, model_validator
+from pydantic import (
+    BaseModel,
+    Field,
+    StrictBool,
+    StringConstraints,
+    field_validator,
+    model_validator,
+)
 
-from blitzave import jobs
+from blitzave import assistant, jobs
 from blitzave.api.money import format_cents, parse_amount
 from blitzave.copy import MONTHS
 from blitzave.copy.home import home_words
@@ -320,6 +327,23 @@ class TransactionMetadataPatch(BaseModel):
             if abs(sum(self.categories.values()) - 1.0) > 1e-6:
                 raise ValueError("split fractions must sum to exactly 1.0")
         return self
+
+
+class GooseRequest(BaseModel):
+    question: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=500)]
+
+
+class ApplyRequest(BaseModel):
+    # Positions in the preview the user left checked; never transaction ids.
+    rows: list[int] = Field(min_length=1)
+
+
+class GooseSettingsUpdate(BaseModel):
+    provider: Literal["ollama", "anthropic"]
+    model: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=100)]
+    base_url: str | None = None  # Ollama's address; Claude's is fixed
+    api_key: str | None = None  # goes to the keychain and never comes back
+    remote_ok: StrictBool = False  # sent only after the disclosure was shown
 
 
 # --- health / connect / sync ------------------------------------------------
@@ -931,6 +955,54 @@ def update_transaction_metadata(
     if patch.apply_to_all:
         row["applied_to_count"] = applied_to_count
     return row
+
+
+# --- goose ------------------------------------------------------------------------
+# A question in, cards out. Each card is already in the engine's words; see
+# assistant.py for what a model may see and say.
+
+
+@router.post("/goose")
+def goose(request: GooseRequest) -> dict:
+    try:
+        return {"cards": assistant.ask(request.question)}
+    except assistant.NotSetUpError as e:
+        raise HTTPException(status_code=409, detail=str(e)) from e
+    except assistant.ModelError as e:
+        raise HTTPException(status_code=502, detail=str(e)) from e
+
+
+@router.post("/goose/proposals/{proposal_id}/apply")
+def apply_proposal(proposal_id: str, request: ApplyRequest) -> dict:
+    try:
+        return assistant.apply(proposal_id, request.rows)
+    except assistant.ProposalGoneError as e:
+        raise HTTPException(status_code=404, detail=str(e)) from e
+    except assistant.NotInPreviewError as e:
+        raise HTTPException(status_code=422, detail=str(e)) from e
+
+
+@router.post("/goose/proposals/{proposal_id}/undo")
+def undo_proposal(proposal_id: str) -> dict:
+    # No body, but the id is an unguessable one-time token, so a blind
+    # cross-site POST has nothing to aim at.
+    try:
+        return assistant.undo(proposal_id)
+    except assistant.ProposalGoneError as e:
+        raise HTTPException(status_code=404, detail=str(e)) from e
+
+
+@router.get("/goose/settings")
+def goose_settings() -> dict:
+    return assistant.settings()
+
+
+@router.put("/goose/settings")
+def save_goose_settings(request: GooseSettingsUpdate) -> dict:
+    try:
+        return assistant.save_settings(**request.model_dump())
+    except assistant.SettingsError as e:
+        raise HTTPException(status_code=422, detail=str(e)) from e
 
 
 # --- transfers: every matched pair --------------------------------------------

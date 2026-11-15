@@ -1,0 +1,249 @@
+/* BlitZave — Goose (js/components/goose-drawer.js). A native <dialog> pinned to
+   the right edge, so Home stays put underneath and its one card stays alone.
+   Namespaced .goose-*, plus .home-goose for the way in. */
+
+.home-goose svg {
+  width: 16px;
+  height: 16px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.goose-drawer {
+  position: fixed;
+  inset: 0 0 0 auto;
+  width: min(460px, 100vw);
+  height: 100dvh;
+  max-width: 100vw;
+  max-height: none;
+  margin: 0;
+  padding: 0;
+  border: none;
+  border-left: 1px solid var(--line-faint);
+  background: var(--bg-page);
+  color: var(--text-primary);
+  box-shadow: var(--shadow-float);
+}
+
+.goose-drawer[open] {
+  display: flex;
+  flex-direction: column;
+  animation: goose-slide var(--t-base) var(--ease-out);
+}
+
+.goose-drawer::backdrop {
+  background: rgba(15, 23, 42, 0.18);
+}
+
+@keyframes goose-slide {
+  from {
+    opacity: 0;
+    transform: translateX(24px);
+  }
+}
+
+.goose-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: var(--space-4) var(--space-5);
+  border-bottom: 1px solid var(--line-faint);
+}
+
+.goose-head h2 {
+  margin: 0 auto 0 0;
+  font-size: var(--text-lg);
+  font-weight: var(--weight-semibold);
+}
+
+.goose-close svg {
+  width: 18px;
+  height: 18px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+}
+
+.goose-body {
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  padding: var(--space-5);
+}
+
+.goose-form {
+  display: flex;
+  gap: var(--space-2);
+}
+
+.goose-form .input {
+  flex: 1;
+}
+
+.goose-answer {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.goose-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-4);
+}
+
+.goose-text,
+.goose-quiet {
+  margin: 0;
+  font-size: var(--text-base);
+  line-height: var(--leading-body);
+}
+
+.goose-quiet {
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+}
+
+.goose-sentence {
+  margin: 0;
+  font-size: 1.1875rem;
+  line-height: var(--leading-body);
+  text-wrap: pretty;
+}
+
+.goose-figure {
+  margin: 0;
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+}
+
+.goose-figure strong {
+  font-size: 1.5rem;
+  font-weight: var(--weight-semibold);
+}
+
+.goose-figure span {
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+}
+
+.goose-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+}
+
+.goose-rows {
+  max-height: 320px;
+  overflow-y: auto;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border-top: 1px solid var(--line-faint);
+}
+
+.goose-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-2) 0;
+  border-bottom: 1px solid var(--line-faint);
+  font-size: var(--text-sm);
+}
+
+.goose-row-date {
+  flex: none;
+  width: 4.5em;
+  color: var(--text-secondary);
+}
+
+.goose-row-desc {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.goose-row-amount {
+  flex: none;
+}
+
+.goose-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.goose-months summary {
+  cursor: pointer;
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+}
+
+.goose-months ul {
+  margin: var(--space-2) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.goose-months li {
+  display: flex;
+  justify-content: space-between;
+  padding: var(--space-1) 0;
+  font-size: var(--text-sm);
+}
+
+.goose-settings {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.goose-providers {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  border: 0;
+  font-size: var(--text-sm);
+}
+
+.goose-providers legend {
+  margin-bottom: var(--space-2);
+}
+
+.goose-disclosure {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-control);
+  background: var(--bg-well);
+  font-size: var(--text-sm);
+  line-height: var(--leading-body);
+  color: var(--text-secondary);
+}
+
+.goose-disclosure p {
+  margin: 0;
+}
+
+.goose-disclosure label {
+  color: var(--text-primary);
+}
+
+/* .field and .goose-disclosure set display, which would beat [hidden]. */
+.goose-drawer [hidden] {
+  display: none !important;
+}
