@@ -95,7 +95,7 @@
     main { position: relative; z-index: 1; max-width: calc(var(--measure) + 2 * var(--gutter)); margin: 0 auto; padding: 72px var(--gutter) 120px; }
     .back { display: inline-flex; align-items: center; gap: 6px; font-size: 14.5px; color: var(--text-secondary); }
     .back:hover { color: var(--accent); text-decoration: none; }
-    .back svg, .next svg { width: 16px; height: 16px; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+    .back svg { width: 16px; height: 16px; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
     .head { display: grid; gap: 18px; margin-top: 28px; }
     .meta { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; font-size: 13.5px; color: var(--text-faint); font-weight: 500; }
     .tag { padding: 2px 10px; border-radius: 999px; background: var(--accent-soft); color: var(--accent); font-weight: 650; font-size: 12.5px; }
@@ -142,11 +142,22 @@
     .what { display: block; font-weight: 650; color: var(--text-primary); }
     .why { display: block; font-size: 15px; color: var(--text-secondary); line-height: 1.5; margin-top: 2px; }
 
-    .next {
-      display: flex; align-items: center; justify-content: space-between; gap: 16px;
-      margin-top: 72px; padding-top: 22px; border-top: 1px solid var(--line-faint); font-size: 15px; color: var(--text-faint);
+    /* The previous (older) and next (newer) post, under the article. */
+    .pager { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-top: 72px; padding-top: 28px; border-top: 1px solid var(--line-faint); }
+    .pager a {
+      display: grid; gap: 4px; align-content: start; padding: 16px 18px; border-radius: var(--radius-control);
+      background: var(--bg-raised); border: 1px solid var(--line-faint); box-shadow: var(--shadow-xs); color: var(--text-primary);
     }
-    .next a { display: inline-flex; align-items: center; gap: 8px; }
+    .pager a:hover { text-decoration: none; border-color: var(--line-strong); }
+    .pager a:hover .pager-title { color: var(--accent); }
+    .pager .newer { grid-column: 2; text-align: right; }
+    .pager-dir { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 600; color: var(--text-faint); }
+    .pager .newer .pager-dir { justify-content: flex-end; }
+    .pager-dir svg { width: 14px; height: 14px; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+    .pager-title { font-size: 15.5px; font-weight: 650; line-height: 1.35; }
+    .all { margin-top: 24px; font-size: 15px; text-align: center; }
+    .all a { color: var(--text-secondary); }
+    .all a:hover { color: var(--accent); }
 
     footer { position: relative; z-index: 1; border-top: 1px solid var(--line-faint); }
     .foot { max-width: 1180px; margin: 0 auto; padding: 26px var(--gutter) 36px; display: flex; flex-wrap: wrap; justify-content: space-between; gap: 12px; font-size: 14px; color: var(--text-faint); }
@@ -160,6 +171,8 @@
       .brand span i { display: none; }
       .timeline { padding: 22px 18px 18px; }
       .timeline li { gap: 14px; }
+      .pager { grid-template-columns: 1fr; }
+      .pager .newer { grid-column: auto; }
     }
   </style>
 </head>
@@ -200,7 +213,17 @@
       </div>
     </article>
 
-    <p class="next"><span>More</span><a href="../">All posts<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg></a></p>
+    {%- if page.previous or page.next %}
+    <nav class="pager" aria-label="More posts">
+      {%- if page.previous %}
+      <a class="older" href="../{{ page.previous.url | remove_first: '/blog/' }}" rel="prev"><span class="pager-dir"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19 12H5M11 6l-6 6 6 6"/></svg>Previous</span><span class="pager-title">{{ page.previous.title }}</span></a>
+      {%- endif %}
+      {%- if page.next %}
+      <a class="newer" href="../{{ page.next.url | remove_first: '/blog/' }}" rel="next"><span class="pager-dir">Next<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg></span><span class="pager-title">{{ page.next.title }}</span></a>
+      {%- endif %}
+    </nav>
+    {%- endif %}
+    <p class="all"><a href="../">All posts</a></p>
   </main>
 
   <footer>

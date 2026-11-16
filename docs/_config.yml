@@ -4,8 +4,13 @@
 #
 # A new post is one Markdown file in blog/_posts/, named YYYY-MM-DD-slug.md.
 # Its images go in assets/blog/<slug>/.
+# Two posts on the same day? Give each a time in its front matter, like
+# date: 2026-11-15 20:43:00, or they sort by file name instead.
 
 url: "https://www.blitzave.com"
+
+# Post times are read, and dates shown, in this zone. GitHub builds in UTC.
+timezone: America/Chicago
 
 # No GitHub Pages theme: every page brings its own styles.
 theme: null
