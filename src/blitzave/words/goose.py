@@ -9,7 +9,7 @@ strings.
 from datetime import date
 
 from blitzave.api.money import format_cents
-from blitzave.copy import MONTHS, month_name
+from blitzave.words import MONTHS, month_name
 
 NO_PLAN = "That one didn't come through clearly. Try naming a category, a tag or some dates."
 GONE = "This preview isn't open anymore. Ask again for a fresh one."

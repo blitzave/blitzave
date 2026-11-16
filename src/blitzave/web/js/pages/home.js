@@ -3,7 +3,7 @@
 // the month it is. Inside it, the one thing worth knowing today; below it,
 // one supporting sentence and three figures that open the detail one tap down.
 //
-// The engine picks the message (refine/home.py) and writes it (copy/home.py).
+// The engine picks the message (refine/home.py) and writes it (words/home.py).
 // This page only lays it out: every figure is a *_display string, and the
 // ring's geometry comes from the day of the month.
 

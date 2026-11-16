@@ -1,7 +1,7 @@
 """Which one thing Home says (P0.8). The rules are the design canvas's
 "Home message templates" board: checked top to bottom, the first that matches
 wins. A win shows before a heavy month, and a heavy month before anything that
-looks like a reminder. This picks the rule and its facts; copy/home.py says it.
+looks like a reminder. This picks the rule and its facts; words/home.py says it.
 
 Milestones (25%, 50% and 75% of a goal) are wins too, so they follow "goal
 reached" (100%), before the heavy month. Not on the canvas yet: a first pass

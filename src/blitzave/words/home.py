@@ -6,7 +6,7 @@ from calendar import monthrange
 from datetime import date
 
 from blitzave.api.money import format_cents
-from blitzave.copy import day_of, month_name, ordinal
+from blitzave.words import day_of, month_name, ordinal
 
 MILESTONE_WORDS = {
     25: "a quarter of the way there",

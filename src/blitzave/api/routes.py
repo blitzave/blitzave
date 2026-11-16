@@ -16,9 +16,9 @@ from pydantic import (
 
 from blitzave import assistant, jobs
 from blitzave.api.money import format_cents, parse_amount
-from blitzave.copy import MONTHS
-from blitzave.copy.home import home_words
-from blitzave.copy.savings import pace_line
+from blitzave.words import MONTHS
+from blitzave.words.home import home_words
+from blitzave.words.savings import pace_line
 from blitzave.refine.budgets import monthly_budget
 from blitzave.refine.categorize import is_match, match_key
 from blitzave.refine.goals import (
@@ -710,7 +710,7 @@ def _savings_with_arc(conn, today: date) -> tuple[dict, dict, dict[int, dict]]:
 @router.get("/home")
 def home() -> dict:
     """Home's one card: the first rule that matches (refine/home.py), in fixed
-    words (copy/home.py), with the month ring and three figures beneath it.
+    words (words/home.py), with the month ring and three figures beneath it.
     Read-only: opening Home never changes anything."""
     today = date.today()
     conn = db.connect()
