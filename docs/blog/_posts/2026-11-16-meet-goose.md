@@ -9,9 +9,9 @@ published: false
 
 BlitZave has a new member of the family. Its name is Goose.
 
-Goose is the part of BlitZave you can talk to. Open Home, press **Ask Goose about your money**, and ask in your own words. No menus, no filters to set up, no report builder.
+Goose is the part of BlitZave you can talk to: a partner for keeping track of your spending and your savings. Open Home, press **Ask Goose about your money**, and ask in your own words. No menus, no filters to set up, no report builder. You don't need a minor in accounting to use it.
 
-And here's the part I'm proudest of: **the AI behind Goose never sees your money.** Not a transaction, not a balance, not an answer. As far as I know, it's the first assistant in a personal finance app built that way.
+And here's the part I'm proudest of: **the AI behind Goose never sees your money.** Not a transaction, not a balance, not an answer. Plenty of money apps have a chatbot now, and they work by reading your data. As far as I know, Goose is the first assistant in a money app that can actually do things for you, like tagging a trip or filing a purchase, without its AI ever seeing your data.
 
 ## What you can ask
 
