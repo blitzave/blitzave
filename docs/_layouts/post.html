@@ -1,0 +1,276 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{ page.title | escape }} · BlitZave blog</title>
+  <meta name="description" content="{{ page.description | escape }}">
+  <meta name="theme-color" content="#f7faff">
+  <meta property="og:type" content="article">
+  <meta property="og:title" content="{{ page.title | escape }}">
+  <meta property="og:description" content="{{ page.description | escape }}">
+  <meta property="og:url" content="{{ page.url | absolute_url }}">
+  <meta property="og:image" content="{{ page.image | default: '/assets/og.png' | absolute_url }}">
+  <meta property="article:published_time" content="{{ page.date | date: '%Y-%m-%d' }}">
+  <meta name="twitter:card" content="summary_large_image">
+  <link rel="icon" href="../../assets/mark.svg" type="image/svg+xml">
+  <link rel="preload" href="../../assets/fonts/manrope-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
+  <style>
+    /* Manrope (SIL OFL, assets/fonts/OFL.txt), served from this site. The page
+       makes no request to any other server. */
+    @font-face {
+      font-family: "Manrope";
+      font-style: normal;
+      font-display: swap;
+      font-weight: 200 800;
+      src: url("../../assets/fonts/manrope-latin-wght-normal.woff2") format("woff2-variations"),
+        url("../../assets/fonts/manrope-latin-wght-normal.woff2") format("woff2");
+    }
+
+    /* The app's "Clarity blue" tokens, as on the landing page and the guide. */
+    :root {
+      color-scheme: light;
+      --bg-page: #f7faff;
+      --bg-raised: #fcfdff;
+      --bg-well: #eef3fa;
+      --line-faint: rgba(212, 223, 235, 0.7);
+      --line-strong: #d4dfeb;
+      --text-primary: #10161f;
+      --text-secondary: #677283;
+      --text-faint: #8792a3;
+      --text-body: #3b4655;
+      --accent: #1072cb;
+      --accent-ink: #f4f9ff;
+      --accent-soft: rgba(16, 114, 203, 0.1);
+      --glow-blue: rgba(74, 128, 255, 0.2);
+      --glow-teal: rgba(45, 212, 191, 0.16);
+      --font: "Manrope", ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      --mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, monospace;
+      --radius-card: 20px;
+      --radius-control: 14px;
+      --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.05);
+      --shadow-shot: 0 24px 48px -28px rgba(15, 23, 42, 0.3), 0 1px 3px rgba(15, 23, 42, 0.06);
+      --gutter: 24px;
+      --measure: 680px;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; }
+    html { -webkit-text-size-adjust: 100%; }
+    body {
+      margin: 0; background: var(--bg-page); color: var(--text-primary);
+      font-family: var(--font); font-size: 17px; line-height: 1.7;
+      -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility;
+      overflow-x: hidden; position: relative;
+    }
+    a { color: var(--accent); text-decoration: none; font-weight: 600; }
+    a:hover { text-decoration: underline; }
+    h1, h2, h3, p, ul, ol, figure, blockquote, pre { margin: 0; }
+    :focus-visible { outline: none; box-shadow: 0 0 0 2px var(--bg-page), 0 0 0 4px rgba(77, 137, 204, 0.6); border-radius: 8px; }
+    code { font-family: var(--mono); font-size: 0.86em; padding: 1px 6px; border-radius: 6px; background: var(--bg-well); color: var(--text-primary); }
+    strong { font-weight: 650; color: var(--text-primary); }
+
+    .glows { position: absolute; inset: 0 0 auto; height: 1100px; overflow: hidden; z-index: 0; pointer-events: none; }
+    .glow { position: absolute; border-radius: 50%; filter: blur(10px); }
+    .glow-blue { width: 900px; height: 700px; left: -360px; top: -300px; background: radial-gradient(closest-side, var(--glow-blue), transparent); }
+    .glow-teal { width: 760px; height: 760px; right: -380px; top: 300px; background: radial-gradient(closest-side, var(--glow-teal), transparent); }
+
+    /* ---------- Header, as on the guide ---------- */
+    .top {
+      position: sticky; top: 0; z-index: 10;
+      background: rgba(247, 250, 255, 0.82); border-bottom: 1px solid var(--line-faint);
+      -webkit-backdrop-filter: saturate(160%) blur(14px); backdrop-filter: saturate(160%) blur(14px);
+    }
+    .top-in { display: flex; align-items: center; justify-content: space-between; gap: 16px; max-width: 1180px; margin: 0 auto; padding: 14px var(--gutter); }
+    .brand { display: flex; align-items: center; gap: 12px; color: var(--text-primary); font-weight: 600; }
+    .brand:hover { text-decoration: none; }
+    .brand img { width: 34px; height: 34px; }
+    .brand span { font-size: 15px; }
+    .brand span b { font-weight: 700; }
+    .brand span i { font-style: normal; color: var(--text-secondary); font-weight: 500; }
+    .top-links { display: flex; align-items: center; gap: 22px; font-size: 15px; }
+    .top-links a { color: var(--text-secondary); font-weight: 600; }
+    .top-links a:hover { color: var(--accent); text-decoration: none; }
+
+    /* ---------- Article ---------- */
+    main { position: relative; z-index: 1; max-width: calc(var(--measure) + 2 * var(--gutter)); margin: 0 auto; padding: 72px var(--gutter) 120px; }
+    .back { display: inline-flex; align-items: center; gap: 6px; font-size: 14.5px; color: var(--text-secondary); }
+    .back:hover { color: var(--accent); text-decoration: none; }
+    .back svg { width: 16px; height: 16px; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+    .head { display: grid; gap: 18px; margin-top: 28px; }
+    .meta { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; font-size: 13.5px; color: var(--text-faint); font-weight: 500; }
+    .tag { padding: 2px 10px; border-radius: 999px; background: var(--accent-soft); color: var(--accent); font-weight: 650; font-size: 12.5px; }
+    .head h1 { font-size: clamp(2.3rem, 5.4vw, 3.3rem); font-weight: 600; line-height: 1.06; letter-spacing: -0.035em; overflow-wrap: anywhere; }
+    .lede { font-size: clamp(1.08rem, 1.6vw, 1.24rem); color: var(--text-secondary); line-height: 1.6; }
+
+    /* What Markdown turns into. */
+    .prose { margin-top: 44px; }
+    .prose > * + * { margin-top: 18px; }
+    .prose p, .prose li { color: var(--text-body); }
+    .prose h2 { font-size: clamp(1.45rem, 2.8vw, 1.8rem); font-weight: 600; line-height: 1.2; letter-spacing: -0.022em; margin-top: 64px; }
+    .prose h3 { font-size: 1.2rem; font-weight: 600; line-height: 1.3; margin-top: 40px; }
+    .prose h2 + *, .prose h3 + * { margin-top: 14px; }
+    .prose ul, .prose ol { padding-left: 1.3em; }
+    .prose li + li { margin-top: 10px; }
+    .prose li::marker { color: var(--text-faint); }
+    .prose blockquote {
+      padding: 4px 0 4px 20px; border-left: 3px solid var(--accent);
+      font-size: 1.12rem; line-height: 1.55; font-weight: 550;
+    }
+    .prose blockquote p { color: var(--text-primary); }
+    .prose pre { padding: 16px 18px; border-radius: var(--radius-control); background: #10161f; color: #e8eef7; font-size: 13.5px; line-height: 1.7; overflow-x: auto; }
+    .prose pre code { padding: 0; background: none; color: inherit; font-size: inherit; }
+    .prose hr { border: 0; border-top: 1px solid var(--line-faint); margin: 48px 0; }
+    /* Media: ![alt](../../assets/blog/<slug>/file.webp) in Markdown, or a
+       <figure> / <video> pasted in as HTML. */
+    .prose img, .prose video { display: block; max-width: 100%; height: auto; border-radius: 16px; border: 1px solid var(--line-faint); box-shadow: var(--shadow-shot); }
+    .prose figcaption { margin-top: 12px; font-size: 14px; color: var(--text-faint); }
+    /* App screenshots: <figure class="shot">, at their real size, centered. Two side by
+       side go in <div class="pair">, which stacks on a phone. */
+    .prose figure.shot { margin-top: 28px; }
+    .prose figure.shot img { margin: 0 auto; }
+    .prose figure.shot figcaption { text-align: center; }
+    .prose .pair { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; align-items: start; margin-top: 28px; }
+    .prose .pair figure.shot { margin-top: 0; }
+    @media (max-width: 600px) { .prose .pair { grid-template-columns: 1fr; } }
+    .prose table { width: 100%; border-collapse: collapse; font-size: 15.5px; }
+    .prose th { text-align: left; font-size: 13px; font-weight: 600; color: var(--text-faint); padding: 0 16px 10px 0; border-bottom: 1px solid var(--line-strong); }
+    .prose td { padding: 12px 16px 12px 0; border-bottom: 1px solid var(--line-faint); vertical-align: top; color: var(--text-body); }
+    .note { padding: 16px 20px; border-radius: var(--radius-control); background: var(--bg-well); color: var(--text-body); font-size: 15.5px; line-height: 1.6; }
+
+    /* A timeline: <figure class="timeline"> in a post. Same shape as a goal
+       account's line on the Savings page: stops on one line, the last filled. */
+    .timeline { margin: 40px 0 8px; padding: 26px 26px 22px; border-radius: var(--radius-card); background: var(--bg-raised); border: 1px solid var(--line-faint); box-shadow: var(--shadow-xs); }
+    .timeline figcaption { margin: 0 0 18px; font-size: 13px; font-weight: 600; color: var(--text-faint); }
+    .timeline ol { list-style: none; padding: 0; position: relative; display: grid; gap: 20px; }
+    .timeline ol::before { content: ""; position: absolute; left: 7px; top: 10px; bottom: 10px; width: 2px; border-radius: 2px; background: var(--line-strong); }
+    .timeline li { position: relative; display: grid; grid-template-columns: 16px minmax(0, 1fr); gap: 18px; align-items: start; margin: 0; }
+    .dot { width: 16px; height: 16px; margin-top: 4px; border-radius: 50%; background: var(--bg-raised); border: 2px solid var(--accent); z-index: 1; }
+    .now .dot { background: var(--accent); box-shadow: 0 0 0 4px var(--accent-soft); }
+    .when { display: block; font-size: 13px; font-weight: 600; color: var(--text-faint); font-variant-numeric: tabular-nums; }
+    .what { display: block; font-weight: 650; color: var(--text-primary); }
+    .why { display: block; font-size: 15px; color: var(--text-secondary); line-height: 1.5; margin-top: 2px; }
+
+    /* Diagrams: <figure class="diagram"><div class="fig-wrap"><svg>…</svg></div>
+       <figcaption>…</figcaption></figure>. Wide ones scroll inside their frame on a
+       phone, never the page. Teal is "inside a model call", blue carries your rows. */
+    .prose figure.diagram { margin-top: 30px; width: min(920px, 100vw - 2 * var(--gutter)); margin-left: 50%; transform: translateX(-50%); }
+    .fig-wrap { overflow-x: auto; background: var(--bg-raised); border: 1px solid var(--line-faint); border-radius: 16px; padding: 14px; box-shadow: var(--shadow-xs); }
+    .fig-wrap svg { display: block; width: 100%; height: auto; min-width: 720px; }
+    .d-box { fill: var(--bg-raised); stroke: var(--line-strong); stroke-width: 1.2; }
+    .d-box-soft { fill: var(--bg-well); stroke: var(--line-strong); stroke-width: 1; }
+    .d-mbox { fill: rgba(14, 124, 132, 0.08); stroke: #0e7c84; stroke-width: 1.3; }
+    .d-zone { fill: rgba(14, 124, 132, 0.06); stroke: #0e7c84; stroke-width: 1.3; stroke-dasharray: 6 5; }
+    .d-band { fill: var(--bg-well); }
+    .d-t { fill: var(--text-primary); font-family: var(--font); font-size: 13px; font-weight: 650; }
+    .d-s { fill: var(--text-secondary); font-family: var(--font); font-size: 11.5px; }
+    .d-m { fill: var(--text-secondary); font-family: var(--mono); font-size: 11px; }
+    .d-z { fill: #0e7c84; font-family: var(--font); font-size: 10.5px; font-weight: 700; letter-spacing: 0.2em; }
+    .d-z.n { fill: var(--text-secondary); }
+    .d-l { fill: var(--text-secondary); font-family: var(--font); font-size: 11.5px; paint-order: stroke; stroke: var(--bg-raised); stroke-width: 5px; stroke-linejoin: round; }
+    .d-l.m { fill: #0e7c84; }
+    .d-l.a { fill: var(--accent); font-weight: 600; }
+    .d-l.w { fill: #a66a0f; font-weight: 600; }
+    .d-l.x { fill: #c81e2a; font-weight: 600; }
+    .d-e { stroke: var(--text-secondary); stroke-width: 1.4; fill: none; }
+    .d-e.a { stroke: var(--accent); stroke-width: 2.4; }
+    .d-e.m { stroke: #0e7c84; stroke-width: 1.6; }
+    .d-e.w { stroke: #a66a0f; stroke-width: 2.2; }
+    .d-e.x { stroke: #c81e2a; stroke-width: 1.6; stroke-dasharray: 5 4; }
+    .d-x { stroke: #c81e2a; stroke-width: 2.2; stroke-linecap: round; }
+    .d-life { stroke: var(--line-strong); stroke-width: 1.2; stroke-dasharray: 3 4; }
+    .mk-n { fill: var(--text-secondary); } .mk-a { fill: var(--accent); } .mk-m { fill: #0e7c84; } .mk-w { fill: #a66a0f; }
+    .prose .table-scroll { overflow-x: auto; }
+    .prose .table-scroll table { min-width: 560px; }
+
+    /* The previous (older) and next (newer) post, under the article. */
+    .pager { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-top: 72px; padding-top: 28px; border-top: 1px solid var(--line-faint); }
+    .pager a {
+      display: grid; gap: 4px; align-content: start; padding: 16px 18px; border-radius: var(--radius-control);
+      background: var(--bg-raised); border: 1px solid var(--line-faint); box-shadow: var(--shadow-xs); color: var(--text-primary);
+    }
+    .pager a:hover { text-decoration: none; border-color: var(--line-strong); }
+    .pager a:hover .pager-title { color: var(--accent); }
+    .pager .newer { grid-column: 2; text-align: right; }
+    .pager-dir { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 600; color: var(--text-faint); }
+    .pager .newer .pager-dir { justify-content: flex-end; }
+    .pager-dir svg { width: 14px; height: 14px; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+    .pager-title { font-size: 15.5px; font-weight: 650; line-height: 1.35; }
+    .all { margin-top: 24px; font-size: 15px; text-align: center; }
+    .all a { color: var(--text-secondary); }
+    .all a:hover { color: var(--accent); }
+
+    footer { position: relative; z-index: 1; border-top: 1px solid var(--line-faint); }
+    .foot { max-width: 1180px; margin: 0 auto; padding: 26px var(--gutter) 36px; display: flex; flex-wrap: wrap; justify-content: space-between; gap: 12px; font-size: 14px; color: var(--text-faint); }
+    .foot a { color: var(--text-secondary); }
+
+    @media (max-width: 600px) {
+      :root { --gutter: 16px; }
+      body { font-size: 16px; }
+      main { padding-top: 40px; }
+      .top-links { gap: 14px; font-size: 14px; }
+      .brand span i { display: none; }
+      .timeline { padding: 22px 18px 18px; }
+      .timeline li { gap: 14px; }
+      .pager { grid-template-columns: 1fr; }
+      .pager .newer { grid-column: auto; }
+    }
+  </style>
+</head>
+<body>
+  <div class="glows" aria-hidden="true"><div class="glow glow-blue"></div><div class="glow glow-teal"></div></div>
+
+  <header class="top">
+    <div class="top-in">
+      <a class="brand" href="../../">
+        <img src="../../assets/mark.svg" alt="" width="34" height="34">
+        <span><b>BlitZave</b> <i>blog</i></span>
+      </a>
+      <nav class="top-links" aria-label="Site">
+        <a href="../../">Home</a>
+        <a href="../../guide/">Guide</a>
+        <a href="https://github.com/blitzave/blitzave" target="_blank" rel="noopener noreferrer">GitHub</a>
+        <a href="https://discord.gg/akSZ794XxG" target="_blank" rel="noopener noreferrer">Discord</a>
+      </nav>
+    </div>
+  </header>
+
+  <main>
+    <a class="back" href="../"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19 12H5M11 6l-6 6 6 6"/></svg>All posts</a>
+
+    {%- assign words = content | strip_html | number_of_words -%}
+    {%- assign minutes = words | plus: 115 | divided_by: 230 | at_least: 1 %}
+    <article aria-labelledby="post-title">
+      <header class="head">
+        <p class="meta"><span class="tag">{{ page.tag | default: "Notes" }}</span><time datetime="{{ page.date | date: '%Y-%m-%d' }}">{{ page.date | date: "%B %-d, %Y" }}</time><span aria-hidden="true">·</span><span>{{ minutes }} min read</span></p>
+        <h1 id="post-title">{{ page.title }}</h1>
+        {%- if page.description %}
+        <p class="lede">{{ page.description }}</p>
+        {%- endif %}
+      </header>
+
+      <div class="prose">
+{{ content }}
+      </div>
+    </article>
+
+    {%- if page.previous or page.next %}
+    <nav class="pager" aria-label="More posts">
+      {%- if page.previous %}
+      <a class="older" href="../{{ page.previous.url | remove_first: '/blog/' }}" rel="prev"><span class="pager-dir"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19 12H5M11 6l-6 6 6 6"/></svg>Previous</span><span class="pager-title">{{ page.previous.title }}</span></a>
+      {%- endif %}
+      {%- if page.next %}
+      <a class="newer" href="../{{ page.next.url | remove_first: '/blog/' }}" rel="next"><span class="pager-dir">Next<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg></span><span class="pager-title">{{ page.next.title }}</span></a>
+      {%- endif %}
+    </nav>
+    {%- endif %}
+    <p class="all"><a href="../">All posts</a></p>
+  </main>
+
+  <footer>
+    <div class="foot">
+      <p>© 2026 The BlitZave Authors · Apache-2.0 · Not affiliated with any bank.</p>
+      <p><a href="../../">blitzave.com</a></p>
+    </div>
+  </footer>
+</body>
+</html>

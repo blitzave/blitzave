@@ -1,0 +1,13 @@
+# Only for previewing the site locally. GitHub Pages builds it on its own.
+#   cd docs && bundle install
+#   bundle exec jekyll serve --livereload   # then open http://127.0.0.1:4000/blog/
+source "https://rubygems.org"
+
+gem "github-pages", group: :jekyll_plugins
+
+# Newer Rubies no longer ship these by default; GitHub's own build doesn't need them.
+gem "webrick"
+gem "csv"
+gem "base64"
+gem "bigdecimal"
+gem "logger"

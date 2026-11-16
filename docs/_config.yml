@@ -1,0 +1,34 @@
+# GitHub Pages builds this folder with Jekyll. Only the blog uses it: every
+# other page here (the landing page, the guide) is plain HTML with no front
+# matter, so Jekyll copies it as is.
+#
+# A new post is one Markdown file in blog/_posts/, named YYYY-MM-DD-slug.md.
+# Its images go in assets/blog/<slug>/.
+# Two posts on the same day? Give each a time in its front matter, like
+# date: 2026-11-15 20:43:00 -0600 (with the offset, or it reads as UTC),
+# or they sort by file name instead.
+
+url: "https://www.blitzave.com"
+
+# Post times are read, and dates shown, in this zone. GitHub builds in UTC.
+timezone: America/Chicago
+
+# No GitHub Pages theme: every page brings its own styles.
+theme: null
+
+markdown: kramdown
+kramdown:
+  input: GFM
+
+# Posts live at /blog/<slug>/ and use the post layout unless they say otherwise.
+permalink: /blog/:title/
+defaults:
+  - scope:
+      type: posts
+    values:
+      layout: post
+
+# Keeps an old address working after a post is renamed: list it under
+# redirect_from in the post's front matter.
+plugins:
+  - jekyll-redirect-from
