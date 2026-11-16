@@ -15,21 +15,31 @@ And here's the part I'm proudest of: **the AI behind Goose never sees your money
 
 ## What you can ask
 
-Goose does four things today: it finds transactions, adds up your spending, tags things, and files them under a category. Here's what that looks like, word for word.
+Goose does four things today: it finds transactions, adds up your spending, tags things, and files them under a category. Here it is on BlitZave's demo household, where the banks and every dollar are made up.
 
-**"How's my grocery spending?"**
+<figure class="shot">
+<img src="../../assets/blog/meet-goose/summary.webp" width="456" height="396" loading="lazy" decoding="async" alt="Goose, asked &quot;How's my grocery spending?&quot;, answers: Groceries came to $642.02 in October. Chips below read Category: Groceries, October, and This month left out of the average, with an Each month row to open.">
+<figcaption>A question in plain words, and an answer in BlitZave's own numbers. The chips show how Goose read it.</figcaption>
+</figure>
 
-> Over the last 5 months, Groceries averaged $412.30 a month. October came to $438.90, close to usual.
+Tagging works the same way, with one extra step: you see exactly what will change first.
 
-**"Tag May 13–27 as PNW"**
+<div class="pair">
+<figure class="shot">
+<img src="../../assets/blog/meet-goose/tag-preview.webp" width="465" height="641" loading="lazy" decoding="async" alt="Goose, asked to tag the Lantern Bistro dinners as date night, asks: Tag these 7 transactions &quot;date night&quot; (a new tag)? Seven Lantern Bistro rows from April to October, each with a ticked box, and Apply and Cancel buttons.">
+<figcaption>First a preview, a box on every row.</figcaption>
+</figure>
+<figure class="shot">
+<img src="../../assets/blog/meet-goose/tagged.webp" width="464" height="646" loading="lazy" decoding="async" alt="The same seven rows after Apply, with the line: Tagged 7 transactions &quot;date night&quot;, and an Undo button.">
+<figcaption>Then your Apply, and an Undo.</figcaption>
+</figure>
+</div>
 
-> Tag these 23 transactions "PNW" (a new tag)?
+And when a question isn't about tracking your money, Goose says so.
 
-You get the list, with a box next to each one. Untick anything that wasn't the trip, then press Apply. Card payments and transfers are already left out.
-
-**"Should I move my savings into index funds?"**
-
-> BlitZave keeps track of your money, but it doesn't give investment advice. A licensed advisor can help with that.
+<figure class="shot">
+<img src="../../assets/blog/meet-goose/decline.webp" width="466" height="286" loading="lazy" decoding="async" alt="Goose, asked &quot;Should I move my savings into index funds?&quot;, answers: BlitZave keeps track of your money, but it doesn't give investment advice. A licensed advisor can help with that.">
+</figure>
 
 That last one matters as much as the first two. BlitZave tracks your money. It doesn't manage it, and Goose won't pretend otherwise.
 
@@ -46,12 +56,22 @@ So a few things are always true, whatever the AI does:
 
 - **Every number comes from BlitZave**, never from the AI. If the AI tries to type a figure, it doesn't get shown.
 - **Nothing changes until you press Apply.** And Undo takes it back.
-- **You see how it read you.** Every list, summary and preview shows what Goose thought you asked, like "May 13 – May 27" or "Category: Groceries", so a misunderstanding is obvious.
+- **You see how it read you.** Every list, summary and preview shows what Goose thought you asked, so a misunderstanding is obvious.
 - **It's an ally, not a scorekeeper.** Goose reports what happened. It never tells you that you overspent.
+
+<figure class="shot">
+<img src="../../assets/blog/meet-goose/list.webp" width="464" height="481" loading="lazy" decoding="async" alt="Goose, asked &quot;Show what I spent at Greenleaf Market in October&quot;, answers: 5 transactions. Chips read Oct 1, 2026 – Oct 31, 2026 and Text: &quot;Greenleaf Market&quot;, above five Greenleaf Market rows.">
+<figcaption>The dates and the merchant Goose understood, right above the rows.</figcaption>
+</figure>
 
 ## Your laptop, your choice of AI
 
-Goose works with an AI that runs on your own laptop, through Ollama, so nothing leaves your machine at all. If you'd rather use Claude, you can opt in. Before the first question, BlitZave shows you exactly what Claude would get: your question, today's date, your category and tag names, and your accounts as types, like "checking". Never a transaction, an amount, a balance or your bank's name.
+Goose works with an AI that runs on your own laptop, through Ollama, so nothing leaves your machine at all. If you'd rather use Claude, you can opt in. Before the first question, BlitZave shows you exactly what Claude would get, and what it never will:
+
+<figure class="shot">
+<img src="../../assets/blog/meet-goose/disclosure.webp" width="464" height="768" loading="lazy" decoding="async" alt="Goose's model settings with Claude chosen. A box reads: This model isn't on your laptop, so each question sends it: your question and today's date; your category and tag names, goals included; and your accounts as types only, like A1 (checking). Never sent: a transaction, a description or merchant, an amount or total, a balance, an account number, or your bank's name. Below it, a checkbox: That's fine, send those.">
+<figcaption>Nothing goes to Claude until you tick that box.</figcaption>
+</figure>
 
 One honest note: a small AI on a laptop will misread you more often than a big one. That's why every list and summary shows how it read your question, and why nothing changes without your click.
 

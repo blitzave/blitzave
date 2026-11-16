@@ -124,6 +124,14 @@
        <figure> / <video> pasted in as HTML. */
     .prose img, .prose video { display: block; max-width: 100%; height: auto; border-radius: 16px; border: 1px solid var(--line-faint); box-shadow: var(--shadow-shot); }
     .prose figcaption { margin-top: 12px; font-size: 14px; color: var(--text-faint); }
+    /* App screenshots: <figure class="shot">, at their real size, centered. Two side by
+       side go in <div class="pair">, which stacks on a phone. */
+    .prose figure.shot { margin-top: 28px; }
+    .prose figure.shot img { margin: 0 auto; }
+    .prose figure.shot figcaption { text-align: center; }
+    .prose .pair { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; align-items: start; margin-top: 28px; }
+    .prose .pair figure.shot { margin-top: 0; }
+    @media (max-width: 600px) { .prose .pair { grid-template-columns: 1fr; } }
     .prose table { width: 100%; border-collapse: collapse; font-size: 15.5px; }
     .prose th { text-align: left; font-size: 13px; font-weight: 600; color: var(--text-faint); padding: 0 16px 10px 0; border-bottom: 1px solid var(--line-strong); }
     .prose td { padding: 12px 16px 12px 0; border-bottom: 1px solid var(--line-faint); vertical-align: top; color: var(--text-body); }
