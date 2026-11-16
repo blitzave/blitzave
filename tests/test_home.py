@@ -8,13 +8,13 @@ import pytest
 from fastapi.testclient import TestClient
 
 from blitzave.__main__ import URL, create_app
-from blitzave.words.home import home_words
-from blitzave.words.savings import pace_line
 from blitzave.refine.goals import fill
 from blitzave.refine.home import newly_reached, pick
 from blitzave.refine.savings import add_months, month_key
 from blitzave.sources.base import AccountRow, BalanceRow, TxRow
 from blitzave.store import db, ingest, users
+from blitzave.words.home import home_words
+from blitzave.words.savings import pace_line
 
 TODAY = date(2026, 11, 8)
 

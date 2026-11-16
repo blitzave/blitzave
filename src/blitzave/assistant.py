@@ -36,13 +36,13 @@ from pydantic import (
 )
 
 from blitzave.api.money import format_cents
-from blitzave.words import goose as words
-from blitzave.words import month_name
 from blitzave.refine import spending
 from blitzave.refine.savings import month_key
 from blitzave.sources import models
 from blitzave.sources.models import ModelError
 from blitzave.store import accounts, categories, db, tags, transactions, users
+from blitzave.words import goose as words
+from blitzave.words import month_name
 
 SHOW_LIMIT = 50  # rows a Show card lists; the Transactions page has the rest
 PREVIEW_LIMIT = 500  # rows one preview can hold; past this, ask for less

@@ -1,7 +1,7 @@
 from datetime import date
 
-from blitzave.words import goose as words
 from blitzave.refine import spending
+from blitzave.words import goose as words
 
 TODAY = date(2026, 11, 14)
 
