@@ -4,7 +4,7 @@ BlitZave is one Python process on your laptop. It keeps one SQLite file and serv
 web page. This document maps the pieces and follows the data through them. The tables
 themselves are in [SCHEMA.md](SCHEMA.md).
 
-Current as of 2026-11-08, schema version 11.
+Current as of 2026-11-15, schema version 11.
 
 - [The whole system](#the-whole-system)
 - [Layers and their rules](#layers-and-their-rules)
@@ -13,6 +13,7 @@ Current as of 2026-11-08, schema version 11.
 - [The sync pipeline](#the-sync-pipeline)
 - [A request, end to end](#a-request-end-to-end)
 - [Goals: from a balance to the Savings page](#goals-from-a-balance-to-the-savings-page)
+- [Goose](#goose)
 - [The UI](#the-ui)
 - [API endpoints](#api-endpoints)
 - [Safety rails](#safety-rails)
@@ -28,36 +29,47 @@ flowchart LR
       web["web/<br/>the UI, static files served at /"]
       api["api/<br/>routes.py, money.py<br/>/api/*"]
       jobs["jobs.py<br/>sync pipeline, update check"]
+      assistant["assistant.py<br/>Goose: plan, lanes, Apply"]
       refine["refine/<br/>pure analysis"]
       store["store/<br/>every SQL statement"]
       sources["sources/<br/>network clients"]
     end
     db[("~/BlitZave/blitzave.db<br/>SQLite, WAL")]
     backups[("~/BlitZave/backups/<br/>copies taken before a migration")]
-    keychain[["OS keychain<br/>SimpleFIN access URL"]]
+    keychain[["OS keychain<br/>SimpleFIN access URL,<br/>Claude API key if added"]]
+    ollama(["Ollama<br/>127.0.0.1:11434, if you use it"])
   end
   simplefin(["SimpleFIN Bridge<br/>read-only bank data"])
   github(["GitHub Releases<br/>opt-in, at most once a day"])
+  claude(["Claude API<br/>opt-in, after a disclosure"])
 
   browser -->|"GET / (HTML, JS, CSS)"| web
   browser -->|"JSON over /api"| api
   api --> store
   api --> refine
   api -->|"POST /api/sync"| jobs
+  api -->|"POST /api/goose"| assistant
   jobs --> sources
   jobs --> store
   jobs --> refine
+  assistant --> sources
+  assistant --> store
+  assistant --> refine
   store --> db
   store -.->|"before a pending migration"| backups
   sources --> keychain
   sources -->|"HTTPS"| simplefin
   sources -.->|"HTTPS, only if turned on"| github
+  sources -.->|"question and labels only"| ollama
+  sources -.->|"HTTPS, only if chosen"| claude
 ```
 
-Everything inside the laptop box works with Wi-Fi off. Only two calls leave the machine:
+Everything inside the laptop box works with Wi-Fi off. Only three calls leave the machine:
 
 - the sync with SimpleFIN;
-- the update check, which is off until you turn it on.
+- the update check, which is off until you turn it on;
+- Goose's model, only if you choose Claude (or an Ollama on another machine), and only
+  after a screen lists what it gets. It never gets a transaction or an amount.
 
 The UI and the API share one origin, so there's no CORS and no second server.
 
@@ -65,11 +77,12 @@ The UI and the API share one origin, so there's no CORS and no second server.
 
 | Layer | May | May not |
 |---|---|---|
-| `sources/` | call the network (SimpleFIN; GitHub for the opt-in update check) | touch SQLite. It returns normalized rows (`sources/base.py`) |
+| `sources/` | call the network (SimpleFIN; GitHub for the opt-in update check; the model Goose uses) | touch SQLite. It returns normalized rows (`sources/base.py`) |
 | `store/` | read and write SQLite | call the network, or hold business logic |
 | `refine/` | compute: facts in, facts out | do any I/O |
 | `api/` | validate requests (Pydantic), call `store/` and `refine/`, format money for display | contain SQL, or call `sources/` directly |
 | `jobs.py` | orchestrate a sync: `sources/` → `store/` → `refine/` → `store/` | — |
+| `assistant.py` | orchestrate Goose: a plan from `sources/models.py`, then lanes over `store/` and `refine/` | contain SQL, or give a model a row, a count or a result |
 | `web/` | show what the API returns | compute or format money, or call anything but `/api/*` |
 
 The engine (everything but `web/`) is built in small reviewed steps. The UI is
@@ -97,27 +110,30 @@ flowchart TB
 |---|---|
 | `__main__.py` | The `blitzave` command. Builds the FastAPI app, refuses any `Host` but `127.0.0.1` or `localhost`, mounts `web/` at `/` (and `dev/` at `/dev` when it exists), runs the startup sync, binds `127.0.0.1:8742` and opens the browser. |
 | `jobs.py` | The sync pipeline (`sync`, `sync_month`), category-rule application, pair matching, and the opt-in daily update check. |
+| `assistant.py` | Goose (see [Goose](#goose)): the plan grammar, the planner prompt with one repair, the Show, Change and Summarize lanes, previews held in memory with Apply and Undo, `fill()` for a model's wording, and the model settings. |
 | `backup.py` | Copies the database before a migration and keeps the last three copies. |
 | `api/routes.py` | Every `/api/*` endpoint and its Pydantic request models. Maps store errors to 404, 409 and 422. |
 | `api/money.py` | `parse_amount()` (text → integer cents) and `format_cents()` (cents → "$1,200.00"). The only money conversions. |
 | `sources/base.py` | Normalized row types: `AccountRow`, `TxRow`, `BalanceRow`, `Fetched`. |
 | `sources/simplefin.py` | Claims a setup token, keeps the access URL in the keychain, and fetches accounts, balances and transactions. Guesses each account's type from its name. |
 | `sources/github.py` | One bare GET for the latest release, when the update check is on. |
+| `sources/models.py` | Goose's model adapters: `Ollama` and `Claude`, each one `chat(system, messages, schema)`; `make_model()` picks one from `ADAPTERS`. `is_remote()` decides by host. The Claude API key lives in the keychain. |
 | `store/db.py` | Connects to the database (WAL, foreign keys on), runs pending migrations, and then denies schema changes for the rest of the connection. |
 | `store/ingest.py` | Upserts accounts, transactions and balances from a sync, and keeps sync watermarks. |
 | `store/accounts.py` | Lists accounts with their job and latest balance; corrects an account's type or job. |
 | `store/categories.py` | Categories, their plans (amount and schedule), goals (level, home, place in line), goal reordering, and "apply to all" rules. |
-| `store/transactions.py` | The transaction list (filters, sort, paging), split categories, tags, and the category summary. |
+| `store/transactions.py` | The transaction list (filters, sort, paging), split categories, tags, and the category summary. Goose's category Apply and Undo (`set_category`, `restore_categories`). |
 | `store/transfers.py` | Matched pairs: list, link, unlink, and the unlinked legs the matcher looks at. |
 | `store/export.py` | Export every table to one JSON document; import one into an empty database, all or nothing. Leaves out the connection hash and generated columns. |
-| `store/tags.py`, `store/users.py` | Tags, and the single local user (with its `meta` settings). |
+| `store/tags.py`, `store/users.py` | Tags (with Goose's additive `tag_transactions`, its undo, and a tag's monthly totals), and the single local user (with its `meta` settings). |
 | `store/migrations/` | `001` … `009`, numbered SQL files. The only way the schema changes. |
 | `refine/categorize.py` | `match_key()` normalizes a description; `is_match()` compares keys. |
 | `refine/transfers.py` | Finds exactly opposite debit/credit legs and decides what a pair is called (transfer, refund, credit) when it's shown. |
 | `refine/budgets.py` | Monthly budget facts: spent, remaining, pace. |
 | `refine/savings.py` | The Savings arc's facts: money set aside per month (into goal accounts, minus out, interest left out), pay-yourself-first (did it go before the spending, under one switchable rule), spending pace against the usual, and each goal's arrival as a range (3- vs 6-month pace; shared accounts fill in order). |
 | `refine/home.py` | Which one thing Home says: the design's seven rules, plus milestones, top to bottom, first match wins (getting started, goal reached, milestone, heavier month, goal close, saved first, not yet, steady). A one-time goal's milestones are 25, 50, 75 and 100% of its amount; each is news for a week after a recorded balance first reached it, and only the highest it's at shows. 100% is "goal reached". A dip is never news. |
-| `copy/` | The fixed words: `copy/home.py` (Home's headline and sentence per rule, with variants so every sentence is true) and `copy/savings.py` (each goal's pace line). Numbers come in as engine figures and go out through `format_cents()`. |
+| `copy/` | The fixed words: `copy/home.py` (Home's headline and sentence per rule, with variants so every sentence is true), `copy/savings.py` (each goal's pace line) and `copy/goose.py` (every word on a Goose card, the summary sentence, and the disclosure). Numbers come in as engine figures and go out through `format_cents()`. |
+| `refine/spending.py` | One scope's money by whole month, for Goose's summaries: total, average, highest and lowest month, and how the latest compares. A month the data starts partway through is left out. |
 | `refine/rounds.py` | Rounds for a recurring amount: the calendar-aligned stretch it covers (Oct–Dec for every 3 months), spending and pace in the current round, and what each closed round of the year came to. |
 | `refine/goals.py` | Splits a goal account's balance across its goals, top first, and gives each goal its state. |
 
@@ -130,7 +146,7 @@ flowchart TB
 | `js/router.js` | Hash routes → page modules. |
 | `js/api.js` | The only file that knows API URLs. Passes `*_display` strings through untouched. Pages that use calls added after a release import it as `api.js?v=…`, so a tab left open across an update loads the new one (LESSONS.md 13). |
 | `js/pages/*.js` | One module per page: `onboarding`, `home`, `savings`, `goal-form`, `accounts`, `account-detail`, `transactions`, `categories`. |
-| `js/components/*.js` | The shared transactions table, and the adjustments (pairs) panel. |
+| `js/components/*.js` | The shared transactions table, the adjustments (pairs) panel, and the Goose drawer. |
 
 ### Outside the package
 
@@ -273,12 +289,64 @@ sequenceDiagram
 - **When nothing matches.** A withdrawal that matches no funded goal just lowers the
   balance. No question.
 
+## Goose
+
+Goose is BlitZave's persona: the calm ally that has your back, never a scorekeeper.
+In the app, Goose is where you ask about your own money. A question becomes a plan,
+and the engine runs it. The model plans; it never reads your data, and nothing comes
+back to it.
+
+```mermaid
+flowchart LR
+  you(["You"]) -->|"question"| planner["Planner<br/>your model"]
+  planner -->|"Plan: 1–3 intents"| engine["Engine<br/>assistant.py lanes"]
+  engine -->|"cards"| you
+  engine -->|"slot names only, never values"| writer["Writer<br/>same model, optional"]
+  writer -->|"a sentence with {slots}"| fill["fill()"]
+  fill -->|"engine's figures, or its own sentence"| you
+  engine -. "rows, counts, results: never" .-x planner
+```
+
+1. **Plan.** The planner gets the question, today's date and your labels: category and
+   tag names, and accounts as aliases like `A1 (checking)`, never their names or
+   numbers. It answers with one JSON plan. Ollama holds it to the schema with a
+   grammar, Claude with structured outputs, and Pydantic validates it against your
+   labels. A plan that doesn't fit gets one repair, which quotes the model's own reply.
+   After a second miss, the card says so in fixed words.
+2. **Run.** Each intent goes to its lane:
+   - **Show** (`show_transactions`) lists the rows.
+   - **Change** (`propose_tag`, `propose_category`) shows a preview with a box per row.
+     It writes nothing until Apply, and Apply takes only rows the preview showed (422
+     otherwise), once, in one commit. Undo takes back exactly what it wrote. Pair legs
+     are left out, so a trip's tag never catches the card payment.
+   - **Summarize** (`spending_summary`) works out one category's, one tag's, or all
+     spending's whole months.
+   - `clarify` and `decline` get fixed words from `copy/goose.py`.
+3. **Word.** For a summary, the model may suggest a sentence. It gets the question and
+   the fixed list of slot names with what each means (`copy/goose.SLOTS`), never a
+   value, so its request is the same whatever your figures are. It writes `{slots}`
+   instead of numbers. `fill()` swaps in the engine's display strings, or throws the
+   sentence out (a typed digit, month or number word, a comparison it couldn't have
+   seen, a slot this summary doesn't have, a scorekeeper word, or more than two
+   sentences) and shows the engine's own.
+
+No memory: each question stands alone. A preview lives 15 minutes in memory, and a
+restart forgets it.
+
+| Guarantee | Enforced by | Proven by (`tests/test_goose.py`) |
+|---|---|---|
+| G1. No row or result reaches a model | The planner's prompt is built from labels only; the writer gets slot names only (`copy/goose.SLOTS`) | Every description, merchant and account name carries `CANARY`, and no request holds it, an amount or a month; the writer's request is identical after every figure changes |
+| G2. Nothing flows back to the planner | No conversation memory; a lane's result goes only to the API response | The same question sends an identical request after a show, a preview, an Apply and a summary |
+| G3. No number or comparison a model typed is shown | `fill()` | Typed figures, typed comparisons, unknown slots and scorekeeper words fall back |
+| G4. Nothing changes without your click | Previews write nothing; Apply checks the rows; one commit; Undo | Apply outside the preview is a 422; a second Apply is a 404; Undo restores |
+| G5. Remote is decided by the host | `models.is_remote()`; saving a remote model needs `remote_ok`, sent after the disclosure | An Ollama at 192.168.1.5 needs consent; the key never reaches the database, its WAL, a backup or an export |
+
 ## The UI
 
 | Route | Page | Endpoints it calls |
 |---|---|---|
 | `#/onboarding` | Bring in an export (optional), connect SimpleFIN, first sync, accounts, update-check choice, an optional first goal | `/import`, `/connect`, `/sync`, `/accounts`, `/updates` |
-| `#/home` (default) | The ring: how far through the month, one headline and sentence, and three figures | `GET /home` |
+| `#/home` (default) | The ring: how far through the month, one headline and sentence, and three figures. "Ask Goose about your money" opens the Goose drawer. | `GET /home`; the drawer: `/goose`, `/goose/proposals/{id}/apply` and `/undo`, `/goose/settings` |
 | `#/savings` | The total in goal accounts; "was that the goal?" questions; critical goals, shared lines, free goal accounts, completed this year; reorder | `GET /goals`, `PUT /accounts/{id}/goal-order`, `POST /goals/questions/{id}` |
 | `#/savings/new`, `#/savings/:id` | Goal form: name and amount, level, home, when; mark as bought; delete | `GET /goals`, `POST/PATCH/DELETE /categories` |
 | `#/accounts` | Accounts grouped by job; job picker; goal accounts locked while they hold goals | `GET /accounts`, `GET /goals`, `PATCH /accounts/{id}` |
@@ -324,6 +392,11 @@ All under `/api`. Interactive docs at `http://127.0.0.1:8742/docs` while BlitZav
 | GET | `/transfers/{id}` | One pair. |
 | POST | `/transfers` | Links a pair by hand. |
 | DELETE | `/transfers/{id}` | Unlinks a pair. It stays unlinked through later syncs. |
+| POST | `/goose` | A question in, cards out, in plan order. 409 until a model is chosen; 502 if the model can't be reached. |
+| POST | `/goose/proposals/{id}/apply` | Writes a preview's change to the rows still checked, sent as their positions. 404 if used or expired; 422 for a row the preview didn't show. |
+| POST | `/goose/proposals/{id}/undo` | Takes back exactly what that Apply wrote. |
+| GET | `/goose/settings` | The chosen model, whether it's remote, whether a key is saved (never the key), and the disclosure. |
+| PUT | `/goose/settings` | Chooses the model. A remote one needs `remote_ok: true`; a Claude key goes to the keychain. |
 
 ## Safety rails
 
@@ -337,6 +410,10 @@ All under `/api`. Interactive docs at `http://127.0.0.1:8742/docs` while BlitZav
 - **The credential lives in the OS keychain.** It's never in the database, logs or
   exports. The database stores only a hash of it (`users.simplefin_hash`).
 - **Bank access is read-only.** SimpleFIN can't move money, and neither can BlitZave.
+- **Goose's model plans and never reads.** It sees the question and your labels, never a
+  row or a result, and its only words you see are a summary sentence that passed
+  `fill()`. Bank text is untrusted, and no model reads it. Every Goose body is JSON, so
+  a page on another site can't send one blind. See [Goose](#goose).
 - **Money is integer cents end to end.** `parse_amount()` and `format_cents()` are the
   only conversions.
 - **The schema changes only through migrations.**
@@ -354,7 +431,7 @@ All under `/api`. Interactive docs at `http://127.0.0.1:8742/docs` while BlitZav
 |---|---|
 | `~/BlitZave/blitzave.db` | Everything: accounts, transactions, categories, goals, rules, pairs, balances. |
 | `~/BlitZave/backups/blitzave-vNNN-YYYY-MM-DD.db` | A copy taken before migrating from version NNN. The last three are kept. |
-| OS keychain, service `blitzave` | The SimpleFIN access URL. |
+| OS keychain, service `blitzave` | The SimpleFIN access URL, and a Claude API key if you add one for Goose. |
 
 `BLITZAVE_HOME` moves the data folder. The tests use it to get a fresh folder each.
 It doesn't move the keychain entry, so a fresh folder still syncs the real bank;

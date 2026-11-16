@@ -183,3 +183,6 @@ cython_debug/
 
 # Local demo data and capture scripts (fictional data, for screenshots and the tour)
 dev/demo/
+
+# Local-only working notes and reports (never part of a PR)
+.local-docs/

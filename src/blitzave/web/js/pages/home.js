@@ -10,6 +10,12 @@
 // Versioned import: a tab left open across an update still holds the old
 // api.js, which lacks the goal and export calls (LESSONS.md 13).
 import * as api from "../api.js?v=goals";
+import { openGooseDrawer } from "../components/goose-drawer.js";
+
+const ICON_GOOSE = `
+  <svg viewBox="0 0 24 24" aria-hidden="true">
+    <path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z" />
+  </svg>`;
 
 const R = 190;
 const C = 2 * Math.PI * R;
@@ -85,7 +91,9 @@ export async function render(root) {
         <a class="home-snapshot" href="#/savings"><strong class="u-tabular">${escapeHtml(home.set_aside_display)}</strong><span>set aside</span></a>
         <a class="home-snapshot" href="#/savings"><strong class="u-tabular">${goals}</strong><span>${goals === 1 ? "goal underway" : "goals underway"}</span></a>
       </nav>
+      <button class="btn btn-ghost home-goose" type="button">${ICON_GOOSE}<span>Ask Goose about your money</span></button>
       <p class="home-footnote">Everything here stays on this laptop.</p>
     </section>
   `;
+  root.querySelector(".home-goose").addEventListener("click", () => openGooseDrawer());
 }

@@ -418,6 +418,58 @@ def update_metadata(
     return applied_to_count
 
 
+def row_ids(conn: sqlite3.Connection, keys: list[tuple[str, str]]) -> list[int]:
+    """Internal ids for (account id, transaction id) pairs, the public ids a
+    listed row carries. A transaction id alone can repeat across accounts."""
+    found = []
+    for account_id, external_id in keys:
+        row = conn.execute(
+            "SELECT t.id FROM transactions t JOIN accounts a ON a.id = t.account_id "
+            "WHERE a.external_id = ? AND t.external_id = ?",
+            (account_id, external_id),
+        ).fetchone()
+        if row is not None:
+            found.append(row[0])
+    return found
+
+
+def set_category(
+    conn: sqlite3.Connection, txn_ids: list[int], category_id: int
+) -> list[tuple[int, str, str | None]]:
+    """Files these rows (internal ids) under one category, as the user's own
+    choice. One commit. A row that has become a pair's leg is skipped, since
+    legs never take a category. Returns each changed row's id, categories and
+    categories_set_by from before: all an undo needs."""
+    if not txn_ids:
+        return []
+    placeholders = ",".join("?" * len(txn_ids))
+    before = conn.execute(
+        f"SELECT id, categories, categories_set_by FROM activity WHERE id IN ({placeholders})",
+        txn_ids,
+    ).fetchall()
+    filed = json.dumps({str(category_id): 1.0})
+    conn.executemany(
+        "UPDATE transactions SET categories = ?, categories_set_by = 'user' WHERE id = ?",
+        [(filed, row[0]) for row in before],
+    )
+    conn.commit()
+    return before
+
+
+def restore_categories(
+    conn: sqlite3.Connection, category_id: int, before: list[tuple[int, str, str | None]]
+) -> None:
+    """Undoes set_category, row by row, except on a row whose categories
+    have changed since: that newer choice stands."""
+    filed = json.dumps({str(category_id): 1.0})
+    conn.executemany(
+        "UPDATE transactions SET categories = ?, categories_set_by = ? "
+        "WHERE id = ? AND categories = ?",
+        [(categories, set_by, txn_id, filed) for txn_id, categories, set_by in before],
+    )
+    conn.commit()
+
+
 def goal_account_rows(conn: sqlite3.Connection, since: str) -> list[dict]:
     """Every transaction in a goal account (asset_type 'targeted') posted on
     or after `since`, transfer legs included: a transfer in is exactly how

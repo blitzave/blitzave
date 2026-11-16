@@ -325,8 +325,8 @@ Still stuck? Ask on [Discord](https://discord.gg/akSZ794XxG).
 
 - **Local-only server.** BlitZave listens on `127.0.0.1` only, never on your network.
 - **Read-only bank access.** SimpleFIN can see balances and transactions; it can never move money.
-- **One network call by default.** Syncing with your own SimpleFIN account is the only thing that touches the internet. The one other call, a daily update check against GitHub, stays off until you turn it on and sends nothing about you. No telemetry, no analytics, no remote fonts.
-- **Your keychain, not our database.** The SimpleFIN credential lives in the OS keychain, never in the database, logs or exports.
+- **One network call by default.** Syncing with your own SimpleFIN account is the only thing that touches the internet. Two others stay off until you turn them on: a daily update check against GitHub, which sends nothing about you, and Claude, if you pick it as Goose's model, which gets your question and your category and tag names but never a transaction or an amount. No telemetry, no analytics, no remote fonts.
+- **Your keychain, not our database.** The SimpleFIN credential, and a Claude API key if you add one, live in the OS keychain, never in the database, logs or exports.
 - **No account, no server.** We don't hold your data. We can't sell what we never have.
 
 ## How it works
@@ -393,9 +393,11 @@ edges.
 - [x] Milestone moments at 25, 50, 75 and 100%
 
 **After that**
-- [ ] Ask BlitZave: questions about your own money, answered from your own data. First
-  as a read-only MCP server for the AI app you already use, then in the app itself.
-  Every number comes from BlitZave's own calculations, never from the model.
+- [x] Goose: BlitZave's own ally, answering questions about your own money in plain
+  words, with a model on your laptop (Ollama) or Claude if you opt in. The model only
+  plans; BlitZave runs the plan on your laptop, so the model never sees a transaction,
+  and every number comes from BlitZave's own calculations. Tags and categories change
+  only when you press Apply.
 - [ ] Recurring charges on their own page, including price changes
   ("went from $15.49 to $17.99")
 - [ ] More of **the Vital Five** behavior cards:

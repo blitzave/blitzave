@@ -202,6 +202,42 @@ export function importData(exportDocument) {
   });
 }
 
+// -------------------------------- Goose --------------------------------
+// A question in, cards out (assistant.py). Every word and figure on a card
+// comes from the engine; the drawer only lays them out.
+
+export function ask(question) {
+  return request("/api/goose", {
+    method: "POST",
+    body: JSON.stringify({ question }),
+  });
+}
+
+// rows: positions in the preview that the user left checked.
+export function applyProposal(proposalId, rows) {
+  return request(`/api/goose/proposals/${encodeURIComponent(proposalId)}/apply`, {
+    method: "POST",
+    body: JSON.stringify({ rows }),
+  });
+}
+
+export function undoProposal(proposalId) {
+  return request(`/api/goose/proposals/${encodeURIComponent(proposalId)}/undo`, { method: "POST" });
+}
+
+// { provider, model, base_url, remote, key_saved, disclosure }. Never the key.
+export function gooseSettings() {
+  return request("/api/goose/settings");
+}
+
+// { provider, model, base_url, api_key, remote_ok }
+export function saveGooseSettings(body) {
+  return request("/api/goose/settings", {
+    method: "PUT",
+    body: JSON.stringify(body),
+  });
+}
+
 // -------------------------------- Tags --------------------------------
 
 export function listTags() {
