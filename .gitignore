@@ -189,3 +189,9 @@ dev/demo/
 
 # macOS
 .DS_Store
+
+# Local Jekyll preview of docs/ (GitHub Pages builds the real site)
+docs/_site/
+docs/.jekyll-cache/
+docs/.bundle/
+docs/Gemfile.lock

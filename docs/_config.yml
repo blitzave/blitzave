@@ -1,0 +1,28 @@
+# GitHub Pages builds this folder with Jekyll. Only the blog uses it: every
+# other page here (the landing page, the guide) is plain HTML with no front
+# matter, so Jekyll copies it as is.
+#
+# A new post is one Markdown file in blog/_posts/, named YYYY-MM-DD-slug.md.
+# Its images go in assets/blog/<slug>/.
+
+url: "https://www.blitzave.com"
+
+# No GitHub Pages theme: every page brings its own styles.
+theme: null
+
+markdown: kramdown
+kramdown:
+  input: GFM
+
+# Posts live at /blog/<slug>/ and use the post layout unless they say otherwise.
+permalink: /blog/:title/
+defaults:
+  - scope:
+      type: posts
+    values:
+      layout: post
+
+# Keeps an old address working after a post is renamed: list it under
+# redirect_from in the post's front matter.
+plugins:
+  - jekyll-redirect-from
