@@ -1,0 +1,173 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>The BlitZave blog</title>
+  <meta name="description" content="Why BlitZave is built the way it is: the decisions, the tradeoffs, and how to get the most out of it.">
+  <meta name="theme-color" content="#f7faff">
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="The BlitZave blog">
+  <meta property="og:description" content="Why BlitZave is built the way it is: the decisions, the tradeoffs, and how to get the most out of it.">
+  <meta property="og:url" content="https://blitzave.github.io/blitzave/blog/">
+  <meta property="og:image" content="https://blitzave.github.io/blitzave/assets/og.png">
+  <meta name="twitter:card" content="summary_large_image">
+  <link rel="icon" href="../assets/mark.svg" type="image/svg+xml">
+  <link rel="preload" href="../assets/fonts/manrope-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
+  <style>
+    /* Manrope (SIL OFL, assets/fonts/OFL.txt), served from this site. The page
+       makes no request to any other server. */
+    @font-face {
+      font-family: "Manrope";
+      font-style: normal;
+      font-display: swap;
+      font-weight: 200 800;
+      src: url("../assets/fonts/manrope-latin-wght-normal.woff2") format("woff2-variations"),
+        url("../assets/fonts/manrope-latin-wght-normal.woff2") format("woff2");
+    }
+
+    /* The app's "Clarity blue" tokens, as on the landing page and the guide. */
+    :root {
+      color-scheme: light;
+      --bg-page: #f7faff;
+      --bg-raised: #fcfdff;
+      --bg-well: #eef3fa;
+      --line-faint: rgba(212, 223, 235, 0.7);
+      --line-strong: #d4dfeb;
+      --text-primary: #10161f;
+      --text-secondary: #677283;
+      --text-faint: #8792a3;
+      --text-body: #3b4655;
+      --accent: #1072cb;
+      --accent-soft: rgba(16, 114, 203, 0.1);
+      --glow-blue: rgba(74, 128, 255, 0.2);
+      --glow-teal: rgba(45, 212, 191, 0.16);
+      --font: "Manrope", ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      --radius-card: 20px;
+      --radius-control: 14px;
+      --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.05);
+      --shadow-lift: 0 18px 36px -24px rgba(15, 23, 42, 0.28), 0 1px 3px rgba(15, 23, 42, 0.06);
+      --ease-out: cubic-bezier(0.25, 0.46, 0.45, 0.94);
+      --gutter: 24px;
+      --column: 760px;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; }
+    html { -webkit-text-size-adjust: 100%; }
+    body {
+      margin: 0; background: var(--bg-page); color: var(--text-primary);
+      font-family: var(--font); font-size: 17px; line-height: 1.65;
+      -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility;
+      overflow-x: hidden; position: relative;
+    }
+    img { display: block; max-width: 100%; height: auto; }
+    a { color: var(--accent); text-decoration: none; font-weight: 600; }
+    a:hover { text-decoration: underline; }
+    h1, h2, h3, p, ul, ol { margin: 0; }
+    :focus-visible { outline: none; box-shadow: 0 0 0 2px var(--bg-page), 0 0 0 4px rgba(77, 137, 204, 0.6); border-radius: 8px; }
+
+    .glows { position: absolute; inset: 0 0 auto; height: 1100px; overflow: hidden; z-index: 0; pointer-events: none; }
+    .glow { position: absolute; border-radius: 50%; filter: blur(10px); }
+    .glow-blue { width: 900px; height: 700px; left: -360px; top: -300px; background: radial-gradient(closest-side, var(--glow-blue), transparent); }
+    .glow-teal { width: 760px; height: 760px; right: -380px; top: 300px; background: radial-gradient(closest-side, var(--glow-teal), transparent); }
+
+    /* ---------- Header, as on the guide ---------- */
+    .top {
+      position: sticky; top: 0; z-index: 10;
+      background: rgba(247, 250, 255, 0.82); border-bottom: 1px solid var(--line-faint);
+      -webkit-backdrop-filter: saturate(160%) blur(14px); backdrop-filter: saturate(160%) blur(14px);
+    }
+    .top-in { display: flex; align-items: center; justify-content: space-between; gap: 16px; max-width: 1180px; margin: 0 auto; padding: 14px var(--gutter); }
+    .brand { display: flex; align-items: center; gap: 12px; color: var(--text-primary); font-weight: 600; }
+    .brand:hover { text-decoration: none; }
+    .brand img { width: 34px; height: 34px; }
+    .brand span { font-size: 15px; }
+    .brand span b { font-weight: 700; }
+    .brand span i { font-style: normal; color: var(--text-secondary); font-weight: 500; }
+    .top-links { display: flex; align-items: center; gap: 22px; font-size: 15px; }
+    .top-links a { color: var(--text-secondary); font-weight: 600; }
+    .top-links a:hover { color: var(--accent); text-decoration: none; }
+
+    /* ---------- Content ---------- */
+    main { position: relative; z-index: 1; max-width: calc(var(--column) + 2 * var(--gutter)); margin: 0 auto; padding: 80px var(--gutter) 120px; }
+    .intro { display: grid; gap: 18px; }
+    .intro h1 { font-size: clamp(2.5rem, 5.4vw, 3.6rem); font-weight: 600; line-height: 1.04; letter-spacing: -0.035em; }
+    .lede { font-size: clamp(1.06rem, 1.5vw, 1.22rem); color: var(--text-secondary); line-height: 1.6; }
+    .split { margin-top: 8px; padding: 16px 20px; border-radius: var(--radius-control); background: var(--bg-well); color: var(--text-body); font-size: 15.5px; line-height: 1.6; }
+
+    .posts { list-style: none; padding: 0; margin-top: 56px; display: grid; gap: 16px; }
+    .post-card {
+      position: relative; display: grid; gap: 10px; padding: 26px 28px; border-radius: var(--radius-card);
+      background: var(--bg-raised); border: 1px solid var(--line-faint); box-shadow: var(--shadow-xs);
+      transition: box-shadow 200ms var(--ease-out), transform 200ms var(--ease-out);
+    }
+    .post-card:hover { box-shadow: var(--shadow-lift); transform: translateY(-2px); }
+    @media (prefers-reduced-motion: reduce) { .post-card, .post-card:hover { transition: none; transform: none; } }
+    .meta { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; font-size: 13.5px; color: var(--text-faint); font-weight: 500; }
+    .tag { padding: 2px 10px; border-radius: 999px; background: var(--accent-soft); color: var(--accent); font-weight: 650; font-size: 12.5px; }
+    .post-card h2 { font-size: clamp(1.35rem, 2.6vw, 1.6rem); font-weight: 600; line-height: 1.2; letter-spacing: -0.02em; }
+    .post-card h2 a { color: var(--text-primary); }
+    .post-card h2 a:hover { text-decoration: none; }
+    /* The whole card is the link; the title carries it for screen readers. */
+    .post-card h2 a::after { content: ""; position: absolute; inset: 0; border-radius: var(--radius-card); }
+    .post-card p { color: var(--text-body); }
+
+    footer { position: relative; z-index: 1; border-top: 1px solid var(--line-faint); }
+    .foot { max-width: 1180px; margin: 0 auto; padding: 26px var(--gutter) 36px; display: flex; flex-wrap: wrap; justify-content: space-between; gap: 12px; font-size: 14px; color: var(--text-faint); }
+    .foot a { color: var(--text-secondary); }
+
+    @media (max-width: 600px) {
+      :root { --gutter: 16px; }
+      body { font-size: 16px; }
+      main { padding-top: 48px; }
+      .top-links { gap: 14px; font-size: 14px; }
+      .brand span i { display: none; }
+      .post-card { padding: 22px 20px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="glows" aria-hidden="true"><div class="glow glow-blue"></div><div class="glow glow-teal"></div></div>
+
+  <header class="top">
+    <div class="top-in">
+      <a class="brand" href="../">
+        <img src="../assets/mark.svg" alt="" width="34" height="34">
+        <span><b>BlitZave</b> <i>blog</i></span>
+      </a>
+      <nav class="top-links" aria-label="Site">
+        <a href="../">Home</a>
+        <a href="../guide/">Guide</a>
+        <a href="https://github.com/blitzave/blitzave" target="_blank" rel="noopener noreferrer">GitHub</a>
+        <a href="https://discord.gg/akSZ794XxG" target="_blank" rel="noopener noreferrer">Discord</a>
+      </nav>
+    </div>
+  </header>
+
+  <main>
+    <section class="intro" aria-labelledby="blog-title">
+      <h1 id="blog-title">The BlitZave blog</h1>
+      <p class="lede">Why BlitZave is built the way it is: the decisions, the tradeoffs, the things that didn't work, and how to get the most out of it.</p>
+      <p class="split">Looking for how to use a page? That's the <a href="../guide/">guide</a>, and it's kept current. Posts here are dated and stay as written, even when the app moves on.</p>
+    </section>
+
+    <!-- Newest first. To add a post: copy a folder under blog/, edit it, and add a card here. -->
+    <ol class="posts" reversed>
+      <li>
+        <article class="post-card">
+          <p class="meta"><span class="tag">Engineering</span><time datetime="2026-11-15">November 15, 2026</time><span aria-hidden="true">·</span><span>6 min read</span></p>
+          <h2><a href="cloud-laptop-cloud-laptop/">Cloud, laptop, cloud, laptop</a></h2>
+          <p>BlitZave changed architectures three times in five months. What each switch was for, what it cost, and why it stays on the laptop.</p>
+        </article>
+      </li>
+    </ol>
+  </main>
+
+  <footer>
+    <div class="foot">
+      <p>© 2026 The BlitZave Authors · Apache-2.0 · Not affiliated with any bank.</p>
+      <p><a href="../">blitzave.com</a></p>
+    </div>
+  </footer>
+</body>
+</html>

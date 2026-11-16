@@ -5,7 +5,7 @@ no date, said kindly, never "never"."""
 from datetime import date
 
 from blitzave.api.money import format_cents
-from blitzave.copy import month_name
+from blitzave.words import month_name
 
 
 def pace_line(goal: dict, trajectory: dict | None, today: date) -> str | None:

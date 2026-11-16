@@ -132,7 +132,7 @@ flowchart TB
 | `refine/budgets.py` | Monthly budget facts: spent, remaining, pace. |
 | `refine/savings.py` | The Savings arc's facts: money set aside per month (into goal accounts, minus out, interest left out), pay-yourself-first (did it go before the spending, under one switchable rule), spending pace against the usual, and each goal's arrival as a range (3- vs 6-month pace; shared accounts fill in order). |
 | `refine/home.py` | Which one thing Home says: the design's seven rules, plus milestones, top to bottom, first match wins (getting started, goal reached, milestone, heavier month, goal close, saved first, not yet, steady). A one-time goal's milestones are 25, 50, 75 and 100% of its amount; each is news for a week after a recorded balance first reached it, and only the highest it's at shows. 100% is "goal reached". A dip is never news. |
-| `copy/` | The fixed words: `copy/home.py` (Home's headline and sentence per rule, with variants so every sentence is true), `copy/savings.py` (each goal's pace line) and `copy/goose.py` (every word on a Goose card, the summary sentence, and the disclosure). Numbers come in as engine figures and go out through `format_cents()`. |
+| `words/` | The fixed words: `words/home.py` (Home's headline and sentence per rule, with variants so every sentence is true), `words/savings.py` (each goal's pace line) and `words/goose.py` (every word on a Goose card, the summary sentence, and the disclosure). Numbers come in as engine figures and go out through `format_cents()`. |
 | `refine/spending.py` | One scope's money by whole month, for Goose's summaries: total, average, highest and lowest month, and how the latest compares. A month the data starts partway through is left out. |
 | `refine/rounds.py` | Rounds for a recurring amount: the calendar-aligned stretch it covers (Oct–Dec for every 3 months), spending and pace in the current round, and what each closed round of the year came to. |
 | `refine/goals.py` | Splits a goal account's balance across its goals, top first, and gives each goal its state. |
@@ -321,9 +321,9 @@ flowchart LR
      are left out, so a trip's tag never catches the card payment.
    - **Summarize** (`spending_summary`) works out one category's, one tag's, or all
      spending's whole months.
-   - `clarify` and `decline` get fixed words from `copy/goose.py`.
+   - `clarify` and `decline` get fixed words from `words/goose.py`.
 3. **Word.** For a summary, the model may suggest a sentence. It gets the question and
-   the fixed list of slot names with what each means (`copy/goose.SLOTS`), never a
+   the fixed list of slot names with what each means (`words/goose.SLOTS`), never a
    value, so its request is the same whatever your figures are. It writes `{slots}`
    instead of numbers. `fill()` swaps in the engine's display strings, or throws the
    sentence out (a typed digit, month or number word, a comparison it couldn't have
@@ -335,7 +335,7 @@ restart forgets it.
 
 | Guarantee | Enforced by | Proven by (`tests/test_goose.py`) |
 |---|---|---|
-| G1. No row or result reaches a model | The planner's prompt is built from labels only; the writer gets slot names only (`copy/goose.SLOTS`) | Every description, merchant and account name carries `CANARY`, and no request holds it, an amount or a month; the writer's request is identical after every figure changes |
+| G1. No row or result reaches a model | The planner's prompt is built from labels only; the writer gets slot names only (`words/goose.SLOTS`) | Every description, merchant and account name carries `CANARY`, and no request holds it, an amount or a month; the writer's request is identical after every figure changes |
 | G2. Nothing flows back to the planner | No conversation memory; a lane's result goes only to the API response | The same question sends an identical request after a show, a preview, an Apply and a summary |
 | G3. No number or comparison a model typed is shown | `fill()` | Typed figures, typed comparisons, unknown slots and scorekeeper words fall back |
 | G4. Nothing changes without your click | Previews write nothing; Apply checks the rows; one commit; Undo | Apply outside the preview is a 422; a second Apply is a 404; Undo restores |

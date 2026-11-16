@@ -1,6 +1,6 @@
 """The Savings arc's facts (P0.4–P0.6): how much was set aside, whether it
 went first, and when each goal gets there. Facts, never sentences; the
-words live in copy/.
+words live in words/.
 
 Maintainer calls (2026-11-08):
 - Set aside means money into goal accounts (asset_type 'targeted') minus money

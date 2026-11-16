@@ -10,11 +10,11 @@ from pydantic import ValidationError
 
 from blitzave import assistant
 from blitzave.__main__ import URL, create_app
-from blitzave.copy import MONTHS
-from blitzave.copy import goose as words
 from blitzave.sources import models
 from blitzave.sources.base import AccountRow, TxRow
 from blitzave.store import db, ingest, transactions, transfers, users
+from blitzave.words import MONTHS
+from blitzave.words import goose as words
 
 TODAY = date(2026, 11, 14)
 TRIP = {"start": "2026-05-13", "end": "2026-05-27"}
