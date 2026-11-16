@@ -5,7 +5,8 @@
 # A new post is one Markdown file in blog/_posts/, named YYYY-MM-DD-slug.md.
 # Its images go in assets/blog/<slug>/.
 # Two posts on the same day? Give each a time in its front matter, like
-# date: 2026-11-15 20:43:00, or they sort by file name instead.
+# date: 2026-11-15 20:43:00 -0600 (with the offset, or it reads as UTC),
+# or they sort by file name instead.
 
 url: "https://www.blitzave.com"
 

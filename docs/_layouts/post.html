@@ -142,6 +142,38 @@
     .what { display: block; font-weight: 650; color: var(--text-primary); }
     .why { display: block; font-size: 15px; color: var(--text-secondary); line-height: 1.5; margin-top: 2px; }
 
+    /* Diagrams: <figure class="diagram"><div class="fig-wrap"><svg>…</svg></div>
+       <figcaption>…</figcaption></figure>. Wide ones scroll inside their frame on a
+       phone, never the page. Teal is "inside a model call", blue carries your rows. */
+    .prose figure.diagram { margin-top: 30px; width: min(920px, 100vw - 2 * var(--gutter)); margin-left: 50%; transform: translateX(-50%); }
+    .fig-wrap { overflow-x: auto; background: var(--bg-raised); border: 1px solid var(--line-faint); border-radius: 16px; padding: 14px; box-shadow: var(--shadow-xs); }
+    .fig-wrap svg { display: block; width: 100%; height: auto; min-width: 720px; }
+    .d-box { fill: var(--bg-raised); stroke: var(--line-strong); stroke-width: 1.2; }
+    .d-box-soft { fill: var(--bg-well); stroke: var(--line-strong); stroke-width: 1; }
+    .d-mbox { fill: rgba(14, 124, 132, 0.08); stroke: #0e7c84; stroke-width: 1.3; }
+    .d-zone { fill: rgba(14, 124, 132, 0.06); stroke: #0e7c84; stroke-width: 1.3; stroke-dasharray: 6 5; }
+    .d-band { fill: var(--bg-well); }
+    .d-t { fill: var(--text-primary); font-family: var(--font); font-size: 13px; font-weight: 650; }
+    .d-s { fill: var(--text-secondary); font-family: var(--font); font-size: 11.5px; }
+    .d-m { fill: var(--text-secondary); font-family: var(--mono); font-size: 11px; }
+    .d-z { fill: #0e7c84; font-family: var(--font); font-size: 10.5px; font-weight: 700; letter-spacing: 0.2em; }
+    .d-z.n { fill: var(--text-secondary); }
+    .d-l { fill: var(--text-secondary); font-family: var(--font); font-size: 11.5px; paint-order: stroke; stroke: var(--bg-raised); stroke-width: 5px; stroke-linejoin: round; }
+    .d-l.m { fill: #0e7c84; }
+    .d-l.a { fill: var(--accent); font-weight: 600; }
+    .d-l.w { fill: #a66a0f; font-weight: 600; }
+    .d-l.x { fill: #c81e2a; font-weight: 600; }
+    .d-e { stroke: var(--text-secondary); stroke-width: 1.4; fill: none; }
+    .d-e.a { stroke: var(--accent); stroke-width: 2.4; }
+    .d-e.m { stroke: #0e7c84; stroke-width: 1.6; }
+    .d-e.w { stroke: #a66a0f; stroke-width: 2.2; }
+    .d-e.x { stroke: #c81e2a; stroke-width: 1.6; stroke-dasharray: 5 4; }
+    .d-x { stroke: #c81e2a; stroke-width: 2.2; stroke-linecap: round; }
+    .d-life { stroke: var(--line-strong); stroke-width: 1.2; stroke-dasharray: 3 4; }
+    .mk-n { fill: var(--text-secondary); } .mk-a { fill: var(--accent); } .mk-m { fill: #0e7c84; } .mk-w { fill: #a66a0f; }
+    .prose .table-scroll { overflow-x: auto; }
+    .prose .table-scroll table { min-width: 560px; }
+
     /* The previous (older) and next (newer) post, under the article. */
     .pager { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-top: 72px; padding-top: 28px; border-top: 1px solid var(--line-faint); }
     .pager a {
