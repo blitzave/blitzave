@@ -252,6 +252,7 @@
       body { font-size: 16px; }
       .top-links { gap: 14px; font-size: 14px; }
       .brand span i { display: none; }
+      .top-links .wide-only { display: none; }
       .chapter-head { grid-template-columns: 40px minmax(0, 1fr); gap: 4px 14px; }
       .chapter-num { width: 40px; height: 40px; font-size: 16px; }
       .pair { grid-template-columns: 1fr; }
@@ -273,7 +274,8 @@
       </a>
       <nav class="top-links" aria-label="Site">
         <a href="../">Home</a>
-        <a href="../#tour">Tour</a>
+        <a class="wide-only" href="../#tour">Tour</a>
+        <a href="../blog/">Blog</a>
         <a href="https://github.com/blitzave/blitzave" target="_blank" rel="noopener noreferrer">GitHub</a>
         <a href="https://discord.gg/akSZ794XxG" target="_blank" rel="noopener noreferrer">Discord</a>
       </nav>

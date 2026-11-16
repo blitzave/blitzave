@@ -186,3 +186,6 @@ dev/demo/
 
 # Local-only working notes and reports (never part of a PR)
 .local-docs/
+
+# macOS
+.DS_Store
