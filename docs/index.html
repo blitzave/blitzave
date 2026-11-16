@@ -207,6 +207,13 @@
     .say-head { font-size: clamp(1.35rem, 2.2vw, 1.7rem); font-weight: 600; letter-spacing: -0.02em; line-height: 1.2; }
     .say-sub { font-size: 15.5px; color: var(--text-secondary); line-height: 1.55; }
     @media (max-width: 600px) { .say:not(:first-child) { margin-left: 0; } .say { padding: 20px; } }
+
+    /* Goose's cards, as the app words them: your question, how it was read, the answer. */
+    .say-q { justify-self: start; padding: 6px 14px; border-radius: var(--radius-chip); background: var(--accent-soft); color: var(--text-primary); font-size: 14.5px; font-weight: 600; }
+    .chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+    .chips span { padding: 2px 10px; border-radius: var(--radius-chip); background: var(--bg-well); font-size: 12.5px; font-weight: 500; color: var(--text-secondary); }
+    .say-a { font-size: 16px; font-weight: 550; color: var(--text-primary); line-height: 1.5; margin-top: 4px; }
+    .say-apply { justify-self: start; margin-top: 6px; padding: 5px 16px; border-radius: var(--radius-control); background: var(--accent); color: #f4f9ff; font-size: 14px; font-weight: 600; }
     .hero-shot figcaption { margin-top: 18px; text-align: center; font-size: 14px; color: var(--text-faint); }
 
     /* ---------- Get started ---------- */
@@ -369,7 +376,7 @@
         <div class="fact">
           <div class="fact-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/></svg></div>
           <h3>Nothing phones home</h3>
-          <p>The app answers only on 127.0.0.1. The one network call is your bank sync, plus a daily update check if you turn it on. No analytics, ever.</p>
+          <p>The app answers only on 127.0.0.1. The one network call is your bank sync. An update check, and Claude for Goose, stay off unless you turn them on. No analytics, ever.</p>
         </div>
         <div class="fact">
           <div class="fact-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m18 16 4-4-4-4"/><path d="m6 8-4 4 4 4"/><path d="m14.5 4-5 16"/></svg></div>
@@ -450,6 +457,37 @@
 
         <div class="feature flip">
           <div class="feature-copy">
+            <p class="kicker">Goose</p>
+            <h3 class="h3">Ask about your own money</h3>
+            <p>Goose is the ally you can ask. How's your grocery spending going? Tag a trip's purchases? A model turns your words into a plan, and BlitZave runs that plan here on your laptop. The model never sees a transaction, and every number comes from BlitZave's own math.</p>
+            <ul class="ticks">
+              <li><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg>A model on your laptop through Ollama, or Claude if you opt in</li>
+              <li><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg>Every card shows how it read your question</li>
+              <li><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg>Nothing changes until you press Apply, and Undo takes it back</li>
+            </ul>
+            <a class="feature-link" href="https://github.com/blitzave/blitzave/blob/main/ARCHITECTURE.md#goose" target="_blank" rel="noopener noreferrer">How Goose keeps your data on your laptop</a>
+          </div>
+          <figure class="says" aria-label="Three things Goose might say, word for word">
+            <div class="say">
+              <p class="say-q">How's my grocery spending?</p>
+              <p class="chips"><span>Category: Groceries</span><span>June – October</span><span>This month left out of the average</span></p>
+              <p class="say-a">Over the last 5 months, Groceries averaged $412.30 a month. October came to $438.90, close to usual.</p>
+            </div>
+            <div class="say">
+              <p class="say-q">Tag May 13–27 as PNW</p>
+              <p class="chips"><span>May 13, 2026 – May 27, 2026</span><span>Card payments and transfers left out</span></p>
+              <p class="say-a">Tag these 23 transactions “PNW” (a new tag)?</p>
+              <span class="say-apply" aria-hidden="true">Apply</span>
+            </div>
+            <div class="say">
+              <p class="say-q">Should I move my savings into index funds?</p>
+              <p class="say-a">BlitZave keeps track of your money, but it doesn't give investment advice. A licensed advisor can help with that.</p>
+            </div>
+          </figure>
+        </div>
+
+        <div class="feature">
+          <div class="feature-copy">
             <p class="kicker">Savings</p>
             <h3 class="h3">Goals with a home</h3>
             <p>Each goal lives in a real savings account, so its progress is that account's balance. An emergency fund gets an account to itself; a trip and a new phone can share one, filling from the top in the order you choose.</p>
@@ -462,7 +500,7 @@
           <figure class="frame"><img src="assets/guide/savings-line.webp" width="2560" height="1600" loading="lazy" decoding="async" alt="A shared goal account with three goals in order: PS5 funded, Japan trip saving with a pace line, and New bike not started"></figure>
         </div>
 
-        <div class="feature">
+        <div class="feature flip">
           <div class="feature-copy">
             <p class="kicker">Transactions</p>
             <h3 class="h3">One calm month at a time</h3>
@@ -475,7 +513,7 @@
           <figure class="frame"><img src="assets/guide/transactions.webp" width="2560" height="1600" loading="lazy" decoding="async" alt="The ledger for November 2026, with a month stepper, a Sync November 2026 button, search and filters"></figure>
         </div>
 
-        <div class="feature flip">
+        <div class="feature">
           <div class="feature-copy">
             <p class="kicker">Rules</p>
             <h3 class="h3">Teach it once</h3>
@@ -488,7 +526,7 @@
           <figure class="frame"><img src="assets/guide/editor.webp" width="2560" height="1600" loading="lazy" decoding="async" alt="A transaction opened: Shopping chosen, All transactions like BOOKSHOP CORNER selected, with tags and Link to its other side"></figure>
         </div>
 
-        <div class="feature">
+        <div class="feature flip">
           <div class="feature-copy">
             <p class="kicker">Budgets</p>
             <h3 class="h3">Context, not alarms</h3>
@@ -498,7 +536,7 @@
           <figure class="frame"><img src="assets/guide/categories-open.webp" width="2560" height="1600" loading="lazy" decoding="async" alt="The Gifts budget, every 3 months, opened to show this round's spending, its pace, and the two rounds that closed this year"></figure>
         </div>
 
-        <div class="feature flip">
+        <div class="feature">
           <div class="feature-copy">
             <p class="kicker">Adjustments</p>
             <h3 class="h3">Every dollar counted once</h3>
