@@ -112,13 +112,13 @@ flowchart TB
 | `jobs.py` | The sync pipeline (`sync`, `sync_month`), category-rule application, pair matching, and the opt-in daily update check. |
 | `assistant.py` | Goose (see [Goose](#goose)): the plan grammar, the planner prompt with one repair, the Show, Change and Summarize lanes, previews held in memory with Apply and Undo, `fill()` for a model's wording, and the model settings. |
 | `backup.py` | Copies the database before a migration and keeps the last three copies. |
-| `traces.py` | Goose's dev-mode trace: a `Turn` notes each model call (prompt, raw reply, seconds, the engine's verdict), and `write()` appends it to `traces/` when `BLITZAVE_DEV=1`. |
+| `traces.py` | Goose's dev-mode trace: a `Turn` notes each model call in memory (prompt, raw reply, seconds, the server's usage, the engine's verdict), and `write()` appends it to `traces/` when `BLITZAVE_DEV=1`. Nothing is written otherwise. |
 | `api/routes.py` | Every `/api/*` endpoint and its Pydantic request models. Maps store errors to 404, 409 and 422. |
 | `api/money.py` | `parse_amount()` (text → integer cents) and `format_cents()` (cents → "$1,200.00"). The only money conversions. |
 | `sources/base.py` | Normalized row types: `AccountRow`, `TxRow`, `BalanceRow`, `Fetched`. |
 | `sources/simplefin.py` | Claims a setup token, keeps the access URL in the keychain, and fetches accounts, balances and transactions. Guesses each account's type from its name. |
 | `sources/github.py` | One bare GET for the latest release, when the update check is on. |
-| `sources/models.py` | Goose's model adapters: `Ollama` and `Claude`, each one `chat(system, messages, schema)`; `make_model()` picks one from `ADAPTERS`. `is_remote()` decides by host. The Claude API key lives in the keychain. An Ollama model that can think (Ollama's `/api/show` lists the capability; asked once per model) is sent `think: false`: qwen3 thinks by default, which only costs time on a short JSON plan, and takes no level in between. |
+| `sources/models.py` | Goose's model adapters: `Ollama` and `Claude`, each one `chat(system, messages, schema)` returning a `Reply`: the text, and the usage the response already carries (tokens in and out; Ollama's load, prompt and output seconds; the model that answered). `make_model()` picks one from `ADAPTERS`. `is_remote()` decides by host. The Claude API key lives in the keychain. An Ollama model that can think (Ollama's `/api/show` lists the capability; asked once per model) is sent `think: false`: qwen3 thinks by default, which only costs time on a short JSON plan, and takes no level in between. |
 | `store/db.py` | Connects to the database (WAL, foreign keys on), runs pending migrations, and then denies schema changes for the rest of the connection. |
 | `store/ingest.py` | Upserts accounts, transactions and balances from a sync, and keeps sync watermarks. |
 | `store/accounts.py` | Lists accounts with their job and latest balance; corrects an account's type or job. |
@@ -154,7 +154,7 @@ flowchart TB
 | Path | Job |
 |---|---|
 | `dev/` | A throwaway debug page at `/dev`, served only from a source checkout. |
-| `evals/` | Goose's planner eval: `planner.toml` (made-up questions and labels, and the plan each should get), `run.py` (asks a real model, scores, reports) and `runs/` (one JSON line per case per run). Run by hand, never in CI. |
+| `evals/` | Goose's planner eval: `planner.toml` (made-up questions and labels, and the plan each should get), `prompts.toml` (a name for each prompt hash), `run.py` (asks a real model, scores, reports, compares) and `runs/` (one JSON line per case per run). Run by hand, never in CI, and never shipped: it's outside `src/`. |
 | `docs/` | The website on GitHub Pages: `index.html`, the setup guide at `guide/`, and their images and video in `assets/`. |
 
 ## Starting up
@@ -359,15 +359,25 @@ The guarantees say what a model can't do. These two say how well it does its job
   `evals/planner.toml` through the same `_plan()`, repair included, and scores the
   plan strictly: same intents, same order, every field as expected, and a filter the
   question didn't ask for is a miss. Summary cases also go to the writer, and its
-  sentence is scored by `fill()`'s rules. A run is kept in `evals/runs/` with a hash
-  of the prompts (and, for Ollama, whether thinking was off), and `--report` compares
-  runs as Markdown tables. A run is written as `.jsonl.partial` until every case is in,
-  so an unfinished one is never charted. A case whose every reply was empty is the
-  server's failure, not the model's: it's an error, and three in a row stop the run.
-  `evals/charts.py` (the `eval` dependency group) draws a run's figures with pandas
-  and matplotlib, after checking its counts against `run.py`'s own. `tests/test_evals.py`
-  checks in CI that every case is a valid plan and that a planner answering as expected
-  passes them all.
+  sentence is scored by `fill()`'s rules. A run is kept in `evals/runs/`, and every
+  line carries its stamp: hashes of the answer key and the prompts, the git commit and
+  whether the tree was dirty, the model (and for Ollama its digest, its version, and
+  whether thinking was off), the settings sent, and the machine. Each call keeps the
+  server's usage: tokens, and Ollama's load, prompt and output seconds. A run is
+  written as `.jsonl.partial` until every case is in, so an unfinished one is never
+  charted. A case whose every reply was empty is the server's failure, not the
+  model's: it's an error, and three in a row stop the run.
+- **Reading runs.** A run keeps every plan and writer sentence, so `--report` and
+  `--compare` score them again against today's `planner.toml` and `fill()`, without
+  a model, and say which cases score differently from what was recorded. `--report`
+  prints a row per run (pass rate, median, p90 and slowest seconds, median tokens).
+  `--compare OLD NEW` lines two runs up case by case: what differs in their stamps,
+  and which cases the change fixed, broke, or still gets wrong for another reason.
+  `evals/prompts.toml` names each prompt hash, and CI fails until today's has an entry.
+  `evals/charts.py` (the `eval` dependency group, installed in CI) draws a run's
+  figures with pandas and matplotlib, after checking its counts against `run.py`'s
+  own. `tests/test_evals.py` checks in CI that every case is a valid plan and that a
+  planner answering as expected passes them all.
 
 A real question worth keeping goes from the trace into `planner.toml` only after it's
 rewritten with made-up names: the repo is public.

@@ -147,12 +147,16 @@ The tests use a scripted model. To see how a real one plans, run the eval:
 uv run python evals/run.py ollama qwen3:8b             # a model on this laptop, thinking off as in the app
 uv run python evals/run.py anthropic claude-haiku-5-5  # uses the key saved in Goose's settings; a few cents
 uv run python evals/run.py --report evals/runs/*.jsonl
+uv run python evals/run.py --compare BEFORE.jsonl AFTER.jsonl
 uv run --group eval python evals/charts.py evals/runs/*.jsonl --out figures/
 ```
 
 If you change Goose's prompts or plan grammar, run the eval before and after,
-and put both rows of the report in the PR. A question Goose misread is welcome
-as a new case in `evals/planner.toml`, with the names changed.
+on the same model and machine. Put both rows of the report in the PR, with what
+`--compare` says, and a sentence for every case it lists as broken. The change
+also needs an entry in `evals/prompts.toml`; CI fails until it has one. A
+question Goose misread is welcome as a new case in `evals/planner.toml`, with
+the names changed.
 
 ## Pull request checklist
 
