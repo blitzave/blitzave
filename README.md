@@ -18,7 +18,7 @@ A calm, open-source personal finance app that runs on your own laptop.
 
 <br>
 
-<a href="https://blitzave.github.io/blitzave/#tour"><img src="docs/assets/tour.gif" alt="A tour of BlitZave: Home's one sentence, a goal account's line of goals, reordering them so the money follows, and answering “Was that the PS5?”" width="880"></a>
+<a href="https://blitzave.github.io/blitzave/#tour"><img src="docs/assets/tour.gif" alt="A tour of BlitZave: Home's one sentence, asking Goose about grocery spending, tagging a few dinners and undoing it, and a goal account's line of goals" width="880"></a>
 
 <sub>Every screenshot uses made-up data from fictional banks. [Watch the full tour](https://blitzave.github.io/blitzave/#tour) (under two minutes).</sub>
 

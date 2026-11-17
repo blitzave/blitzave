@@ -142,6 +142,8 @@ use synthetic or scrubbed data only.
 - [ ] No new network calls, telemetry, or remote assets. An optional call must
   be off by default, explained in plain words, and send the minimum.
 - [ ] No real financial data anywhere in the diff.
+- [ ] A user-facing feature says whether it gets a tour scene, a guide chapter,
+  or a homepage block. "Not yet" is an answer.
 - [ ] New dependencies are justified in the PR description. Fewer moving parts wins.
 
 ## Releasing (maintainers)
