@@ -39,11 +39,28 @@ def test_g5_remote_is_decided_by_where_the_bytes_go(url, remote):
 def test_ollama_holds_the_plan_to_the_schema_with_its_grammar(sent):
     sent["reply"] = httpx.Response(200, json={"message": {"content": '{"intents": []}'}})
     reply = models.make_model("ollama", "qwen3:8b", models.OLLAMA_URL).chat("rules", MESSAGES, SCHEMA)
-    assert reply == '{"intents": []}'
+    assert reply.text == '{"intents": []}'
     assert sent["url"] == "http://127.0.0.1:11434/api/chat"
     assert sent["body"]["format"] == SCHEMA
     assert sent["body"]["messages"] == [{"role": "system", "content": "rules"}, *MESSAGES]
-    assert sent["body"]["options"]["num_ctx"] == 8192
+    assert sent["body"]["options"] == {"temperature": 0, "num_ctx": 8192}
+
+
+def test_ollamas_counts_and_timings_are_kept_as_tokens_and_seconds(sent):
+    sent["reply"] = httpx.Response(200, json={
+        "message": {"content": "{}"},
+        "prompt_eval_count": 412, "eval_count": 38,
+        "load_duration": 2_500_000_000, "prompt_eval_duration": 310_000_000, "eval_duration": 1_234_567_890,
+    })
+    reply = models.Ollama("qwen3:8b").chat("rules", MESSAGES, SCHEMA)
+    assert reply.usage == {
+        "tokens_in": 412, "tokens_out": 38, "load_seconds": 2.5, "prompt_seconds": 0.31, "output_seconds": 1.235,
+    }
+
+
+def test_what_ollama_leaves_out_is_left_out(sent):
+    sent["reply"] = httpx.Response(200, json={"message": {"content": "{}"}, "eval_count": 5})
+    assert models.Ollama("qwen3:8b").chat("rules", MESSAGES, SCHEMA).usage == {"tokens_out": 5}
 
 
 @pytest.fixture
@@ -100,11 +117,14 @@ def test_a_failed_ask_sends_no_think_and_is_asked_again_next_time(ollama):
 def test_claude_holds_the_plan_to_the_schema_with_structured_outputs(sent, fake_keyring):
     models.save_api_key("sk-ant-test")
     sent["reply"] = httpx.Response(200, json={
+        "model": "claude-opus-5-5",
         "stop_reason": "end_turn",
         "content": [{"type": "thinking", "thinking": ""}, {"type": "text", "text": '{"intents": []}'}],
+        "usage": {"input_tokens": 1890, "output_tokens": 61},
     })
     reply = models.make_model("anthropic", "claude-opus-5-5", models.ANTHROPIC_URL).chat("rules", MESSAGES, SCHEMA)
-    assert reply == '{"intents": []}'
+    assert reply.text == '{"intents": []}'
+    assert reply.usage == {"tokens_in": 1890, "tokens_out": 61, "served_by": "claude-opus-5-5"}
     assert sent["url"] == "https://api.anthropic.com/v1/messages"
     assert sent["headers"]["x-api-key"] == "sk-ant-test"
     assert sent["headers"]["anthropic-version"] == models.ANTHROPIC_VERSION
@@ -116,7 +136,7 @@ def test_claude_holds_the_plan_to_the_schema_with_structured_outputs(sent, fake_
 def test_claude_writes_plain_text_without_a_schema(sent, fake_keyring):
     models.save_api_key("sk-ant-test")
     sent["reply"] = httpx.Response(200, json={"content": [{"type": "text", "text": "Calm words."}]})
-    assert models.Claude("claude-haiku-5-5").chat("rules", MESSAGES) == "Calm words."
+    assert models.Claude("claude-haiku-5-5").chat("rules", MESSAGES) == models.Reply("Calm words.")
     assert "output_config" not in sent["body"]
     assert "fallbacks" not in sent["body"]  # Haiku has no server-side fallback
 

@@ -3,10 +3,14 @@ traced back to what the model was asked and what it said. Off unless
 BLITZAVE_DEV=1.
 
 One JSON line per question, in ~/BlitZave/traces/YYYY-MM-DD.jsonl: each model
-call's prompt, the model's raw reply, how long it took, and what the engine
-made of it. Only what already crossed to the model and back: never a row, a
-count or a figure, because those never reach the model either. Nothing here is
+call's prompt, the model's raw reply, how long it took, what the server said
+about the call (tokens, seconds), and what the engine made of it. Only what
+already crossed to the model and back: never a row, a count or a figure from
+the user's money, because those never reach the model either. Nothing here is
 read back into a prompt, and the folder isn't in a backup or an export.
+
+Every question notes its calls in memory, dev mode or not; that costs a dict
+per call and no I/O. Only write() touches the disk, and only in dev mode.
 """
 
 import json
@@ -35,19 +39,22 @@ class Turn:
     calls: list[dict] = field(default_factory=list)
 
     def chat(self, step: str, system: str, messages: list[dict], schema: dict | None = None) -> str:
-        """model.chat(), noted down with the time it took. step is "plan",
-        "repair" or "write"."""
+        """model.chat()'s text, noted down with the time it took and the
+        server's usage. step is "plan", "repair" or "write"."""
         call = {"step": step, "system": system, "messages": list(messages)}
         self.calls.append(call)
         started = time.monotonic()
         try:
-            call["reply"] = self.model.chat(system, messages, schema)
+            reply = self.model.chat(system, messages, schema)
         except models.ModelError as e:
             call["error"] = str(e)
             raise
         finally:
             call["seconds"] = round(time.monotonic() - started, 2)
-        return call["reply"]
+        call["reply"] = reply.text
+        if reply.usage:
+            call["usage"] = reply.usage
+        return reply.text
 
     def verdict(self, text: str) -> None:
         """What the engine made of the last reply."""

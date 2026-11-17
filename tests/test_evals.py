@@ -1,6 +1,7 @@
 """evals/run.py's cases and scoring, against scripted models. The eval itself
 asks a real model and is run by hand; these keep it honest in CI."""
 
+import dataclasses
 import importlib.util
 import json
 from pathlib import Path
@@ -16,6 +17,12 @@ spec.loader.exec_module(run)
 SUITE = run.load()  # also proves every case's expected plan fits the grammar
 
 
+@pytest.fixture(autouse=True)
+def no_ollama_lookup(monkeypatch):
+    """The stamp asks Ollama for a digest; tests never reach a model server."""
+    monkeypatch.setattr(run, "ollama_about", lambda base_url, model: {"digest": "500a1f067a9f", "server": "ollama 0.40.5"})
+
+
 class Scripted:
     def __init__(self, *replies):
         self.replies = list(replies)
@@ -24,7 +31,7 @@ class Scripted:
         reply = self.replies.pop(0)
         if isinstance(reply, Exception):
             raise reply
-        return reply if isinstance(reply, str) else json.dumps(reply, default=str)
+        return models.Reply(reply if isinstance(reply, str) else json.dumps(reply, default=str))
 
 
 def _case(case_id: str) -> dict:
@@ -92,7 +99,7 @@ class Adapter:
         self.model, self.base_url = model, base_url
 
     def chat(self, system, messages, schema=None):
-        return self.reply
+        return models.Reply(self.reply)
 
 
 def test_a_server_that_sends_back_nothing_stops_the_run_and_leaves_it_partial(tmp_path, monkeypatch):
@@ -118,3 +125,130 @@ def test_the_writers_refusals_are_reported_by_rule():
     summary = {"intents": [{"intent": "spending_summary", "category": "Groceries"}]}
     result = run.run_case(Scripted(summary, "{label} rose to {latest}."), _case("summary-category"), SUITE)
     assert result["writer"]["verdict"] == "typed a comparison: 'rose'"
+
+
+def test_every_line_of_a_run_carries_its_stamp(tmp_path, monkeypatch):
+    plan = {"intents": [{"intent": "show_transactions", "filter": {"tag": "PNW"}}]}
+    monkeypatch.setitem(models.ADAPTERS, "ollama", type("Right", (Adapter,), {"reply": json.dumps(plan)}))
+    monkeypatch.setattr(run, "RUNS", tmp_path)
+    run.main(["ollama", "right", "--only", "show-"])
+    lines = [json.loads(line) for line in next(tmp_path.iterdir()).read_text().splitlines()]
+    assert len(lines) > 1
+    stamp = {key: lines[0][key] for key in ["suite", "suite_hash", "prompt", "provider", "model", "settings", "think", "digest", "server"]}
+    assert stamp == {
+        "suite": "planner", "suite_hash": run.suite_version(), "prompt": run.prompt_version(),
+        "provider": "ollama", "model": "right",
+        "settings": {"temperature": 0, "num_ctx": 8192, "timeout": models.TIMEOUT_SECONDS},
+        "think": "off", "digest": "500a1f067a9f", "server": "ollama 0.40.5",
+    }
+    assert lines[0]["machine"] and "started" in lines[0] and "git" in lines[0] and "dirty" in lines[0]
+    assert all({key: line[key] for key in stamp} == stamp for line in lines)
+
+
+def test_todays_prompts_have_a_name_in_the_prompt_log():
+    log = run.prompt_log()
+    assert run.prompt_version() in log, "a prompt or the plan grammar changed: add an entry to evals/prompts.toml"
+    assert all({"name", "date", "changed"} <= set(entry) for entry in log.values())
+
+
+class Counted(Scripted):
+    """A scripted model that also reports usage, as the adapters do."""
+
+    def chat(self, system, messages, schema=None):
+        return models.Reply(super().chat(system, messages, schema).text, {"tokens_in": 900, "tokens_out": 40})
+
+
+def test_the_servers_usage_is_kept_with_each_call_and_counted_per_case():
+    case = _case("decline-index-funds")
+    result = run.run_case(Counted({"intents": run.first_choice(case["expect"])}), case, SUITE)
+    assert result["calls"][0]["usage"] == {"tokens_in": 900, "tokens_out": 40}
+    assert run.tokens(result) == (900, 40)
+    assert run.tally([result])["tokens"] == (900, 40)
+    assert run.tokens({"calls": [{"step": "plan", "reply": "{}"}]}) is None  # older runs kept none
+
+
+def _recorded(case_id: str, plan: dict, writer: str | None = None) -> dict:
+    """One line of a run, as run_case() wrote it."""
+    model = Scripted(plan, writer) if writer else Scripted(plan)
+    return run.run_case(model, _case(case_id), SUITE)
+
+
+def _with_expect(case_id: str, expect: list[dict]) -> run.Suite:
+    """Today's suite, with one case's answer changed since a run."""
+    cases = [{**case, "expect": expect} if case["id"] == case_id else case for case in SUITE.cases]
+    return dataclasses.replace(SUITE, cases=cases)
+
+
+def test_a_stored_run_is_scored_again_against_todays_key():
+    uber = _recorded("show-merchant", {"intents": [{"intent": "show_transactions", "filter": {"text": "uber"}}]})
+    assert uber["outcome"] == "pass"
+    edited = _with_expect("show-merchant", [{"intent": "show_transactions", "filter": {"text": "uber", "category": "Transport"}}])
+    [now] = run.rescore([uber], edited)
+    assert (now["outcome"], now["why"]) == ("wrong", "filter.category is None, expected 'Transport'")
+    assert run.rescore([uber], SUITE) == [uber]
+
+
+def test_rescoring_leaves_out_cases_gone_from_the_key_and_keeps_runs_with_no_plan():
+    gone = {**_recorded("show-tag", {"intents": [{"intent": "show_transactions", "filter": {"tag": "PNW"}}]}), "case": "since-deleted"}
+    timeout = run.run_case(Scripted(models.ModelError("couldn't reach the model")), _case("show-tag"), SUITE)
+    assert run.rescore([gone, timeout], SUITE) == [timeout]
+
+
+def test_a_writer_sentence_is_judged_again_by_todays_fill():
+    summary = {"intents": [{"intent": "spending_summary", "category": "Groceries"}]}
+    result = _recorded("summary-category", summary, "{label} averaged {average}.")
+    assert result["writer"]["verdict"] == "kept"
+    stored = {**result, "writer": {**result["writer"], "reply": "{label} rose to {latest}."}}
+    [now] = run.rescore([stored], SUITE)
+    assert now["writer"]["verdict"] == "typed a comparison: 'rose'"
+
+
+def test_the_report_names_cases_that_score_differently_today(tmp_path):
+    uber = _recorded("show-merchant", {"intents": [{"intent": "show_transactions", "filter": {"text": "uber"}}]})
+    path = tmp_path / "old.jsonl"
+    path.write_text(json.dumps({"provider": "ollama", "model": "m", "prompt": run.prompt_version(), **uber}) + "\n")
+    edited = _with_expect("show-merchant", [{"intent": "show_transactions", "filter": {"text": "lyft"}}])
+    text = run.report([path], edited)
+    assert "| 0/1 (0%) |" in text
+    assert "- m (ollama): 1 passed at run time, 0 today; scored differently: show-merchant" in text
+    assert f"v1 ({run.prompt_version()})" in text
+
+
+def _run_file(path: Path, stamp: dict, results: list[dict]) -> Path:
+    path.write_text("".join(json.dumps(stamp | result) + "\n" for result in results))
+    return path
+
+
+def test_compare_lists_what_a_change_fixed_broke_and_moved(tmp_path):
+    right = {"intents": [{"intent": "show_transactions", "filter": {"text": "uber"}}]}
+    this_month = {"intents": [{"intent": "show_transactions", "filter": {"text": "uber", "start": "2026-11-01"}}]}
+    tag = {"intents": [{"intent": "show_transactions", "filter": {"tag": "PNW"}}]}
+    tag_and_dates = {"intents": [{"intent": "show_transactions", "filter": {"tag": "PNW", "end": "2026-10-31"}}]}
+    tag_and_coffee = {"intents": [{"intent": "show_transactions", "filter": {"tag": "PNW", "category": "Coffee"}}]}
+    decline = {"intents": [{"intent": "decline", "reason": "investment_advice"}]}
+    stamp = {"provider": "ollama", "model": "qwen3:8b", "prompt": "cbdc6dc4", "think": "off"}
+    old = _run_file(tmp_path / "old.jsonl", stamp, [
+        _recorded("show-merchant", this_month), _recorded("show-tag", tag_and_dates), _recorded("decline-index-funds", decline),
+    ])
+    new = _run_file(tmp_path / "new.jsonl", stamp | {"prompt": "0badc0de"}, [
+        _recorded("show-merchant", right), _recorded("show-tag", tag_and_coffee), _recorded("decline-index-funds", tag),
+    ])
+    text = run.compare(old, new)
+    assert "- prompt: v1 (cbdc6dc4) → 0badc0de (not in prompts.toml)" in text
+    assert "Passed 1 → 1 of the 3 cases both asked: fixed 1, broke 1, 1 still wrong for another reason." in text
+    assert "Broke (passed before, not now). Each needs a sentence in the PR:\n- decline-index-funds: wrong: intents" in text
+    assert "Fixed:\n- show-merchant" in text
+    assert "- show-tag: wrong: filter.end is 2026-10-31, expected None → wrong: filter.category is 'Coffee', expected None" in text
+
+
+def test_two_runs_that_differ_in_nothing_say_so(tmp_path):
+    stamp = {"provider": "ollama", "model": "qwen3:8b", "prompt": "cbdc6dc4"}
+    results = [_recorded("show-tag", {"intents": [{"intent": "show_transactions", "filter": {"tag": "PNW"}}]})]
+    text = run.compare(_run_file(tmp_path / "a.jsonl", stamp, results), _run_file(tmp_path / "b.jsonl", stamp, results))
+    assert "Nothing recorded differs between the runs" in text
+    assert "fixed 0, broke 0, 0 still wrong" in text
+
+
+def test_p90_of_one_case_is_that_case():
+    assert run._p90([4.2]) == 4.2
+    assert run._p90([float(n) for n in range(1, 11)]) == pytest.approx(9.1)

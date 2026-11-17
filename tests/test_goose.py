@@ -38,7 +38,7 @@ class FakeModel:
         reply = self.replies.pop(0)
         if isinstance(reply, Exception):
             raise reply
-        return reply if isinstance(reply, str) else json.dumps(reply)
+        return models.Reply(reply if isinstance(reply, str) else json.dumps(reply))
 
 
 @pytest.fixture(autouse=True)

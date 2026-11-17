@@ -4,6 +4,7 @@ model, so it's run by hand, never in CI.
     uv run python evals/run.py ollama qwen3:8b
     uv run python evals/run.py anthropic claude-haiku-5-5
     uv run python evals/run.py --report evals/runs/*.jsonl
+    uv run python evals/run.py --compare OLD.jsonl NEW.jsonl
 
 Each case in planner.toml is a question, asked against made-up labels, and
 the plan a careful reader would make. The question goes through the same
@@ -14,19 +15,28 @@ to the writer, and fill()'s rules say whether its sentence would be shown.
 
 A run writes one JSON line per case to evals/runs/, with the model's calls
 as a dev trace has them (traces.Turn, minus the system prompt, which is the
-same for every case) and a hash of the prompts, so runs before and after a
-prompt change can be told apart. Then it prints the report.
+same for every case). Every line carries the run's stamp: the answer key's
+and the prompts' hashes, the commit, the model and its digest, the settings
+sent, and the machine. Then it prints the report.
+
+A run keeps every plan and writer sentence, so --report and --compare score
+them again against today's planner.toml and fill(), without asking a model.
 """
 
 import argparse
 import hashlib
 import json
+import platform
 import statistics
+import subprocess
 import sys
 import tomllib
 from dataclasses import dataclass
 from datetime import date, datetime
 from pathlib import Path
+
+import httpx
+from pydantic import ValidationError
 
 from blitzave import assistant, traces
 from blitzave.refine import spending
@@ -35,11 +45,14 @@ from blitzave.words import goose as words
 
 HERE = Path(__file__).parent
 CASES = HERE / "planner.toml"
+PROMPTS = HERE / "prompts.toml"
 RUNS = HERE / "runs"
 GROUPS = ["show", "tag", "category", "summary", "clarify", "decline", "multi"]
 LENIENT = {"months"}  # the model's pick, unless the case names it
 EMPTY = "the model server sent back nothing"
 EMPTY_IN_A_ROW = 3  # this many cases of nothing in a row, and the run stops
+# The stamp's fields --compare lines up: what can make two runs differ.
+COMPARED = ["provider", "model", "digest", "server", "prompt", "think", "settings", "machine"]
 
 
 @dataclass(frozen=True)
@@ -158,6 +171,12 @@ def writer_facts(label: str) -> dict[str, str]:
     return words.summary_facts(spending.summary(amounts, months, "2026-11"), label, 2026)
 
 
+def writer_label(case: dict) -> str:
+    """What a summary case is about, as the writer's {label} reads."""
+    scope = first_choice(case["expect"])[0]
+    return scope.get("category") or scope.get("tag") or "your spending"
+
+
 def run_case(model: models.ChatModel, case: dict, suite: Suite) -> dict:
     question = case["question"]
     turn = traces.Turn(model, question)
@@ -186,9 +205,7 @@ def run_case(model: models.ChatModel, case: dict, suite: Suite) -> dict:
         plan=plan.model_dump(mode="json") if plan else None,
     )
     if case["group"] == "summary":
-        scope = first_choice(case["expect"])[0]
-        label = scope.get("category") or scope.get("tag") or "your spending"
-        assistant._phrase(turn, question, writer_facts(label))
+        assistant._phrase(turn, question, writer_facts(writer_label(case)))
         call = turn.calls[-1]
         result["writer"] = {
             "reply": call.get("reply"),
@@ -199,10 +216,135 @@ def run_case(model: models.ChatModel, case: dict, suite: Suite) -> dict:
     return result
 
 
+# --- the stamp: what a run ran on -------------------------------------------------------
+
+
 def prompt_version() -> str:
     """Changes whenever what the planner or the writer is told changes."""
     told = assistant.PLANNER + assistant.WRITER + json.dumps(assistant.Plan.model_json_schema(), sort_keys=True)
     return hashlib.sha256(told.encode()).hexdigest()[:8]
+
+
+def suite_version(path: Path = CASES) -> str:
+    """Changes whenever the answer key changes."""
+    return hashlib.sha256(path.read_bytes()).hexdigest()[:8]
+
+
+def prompt_log(path: Path = PROMPTS) -> dict[str, dict]:
+    """prompts.toml: each prompt hash's name, date, and what changed."""
+    return tomllib.loads(path.read_text())
+
+
+def prompt_name(prompt: str | None, log: dict[str, dict]) -> str:
+    if prompt in log:
+        return f"{log[prompt]['name']} ({prompt})"
+    return f"{prompt} (not in prompts.toml)" if prompt else "not recorded"
+
+
+def stamp(provider: str, model: str, base_url: str, think: str) -> dict:
+    """Written into every line of a run, so any two runs can be lined up and
+    any one reproduced. Called once per run, by the eval only."""
+    commit, dirty = git_state()
+    found = {
+        "suite": "planner",
+        "suite_hash": suite_version(),
+        "prompt": prompt_version(),
+        "git": commit,
+        "dirty": dirty,
+        "provider": provider,
+        "model": model,
+        "settings": settings_sent(provider),
+        "machine": machine(),
+        "started": datetime.now().isoformat(timespec="seconds"),
+    }
+    if provider == "ollama":
+        found["think"] = think  # runs from before 2026-11-16 left it to Ollama
+        found |= ollama_about(base_url, model)
+    return found
+
+
+def settings_sent(provider: str) -> dict:
+    """What the adapter sends besides the prompt. None means it isn't sent,
+    so the provider's default applies (test_models checks Claude gets no
+    temperature)."""
+    if provider == "ollama":
+        return {**models.OLLAMA_OPTIONS, "timeout": models.TIMEOUT_SECONDS}
+    return {"temperature": None, "max_tokens": models.CLAUDE_MAX_TOKENS, "timeout": models.TIMEOUT_SECONDS}
+
+
+def git_state() -> tuple[str | None, bool | None]:
+    """The commit the code is at, and whether tracked files differ from it.
+    Run files are untracked, so a new one doesn't count."""
+    try:
+        commit = _command("git", "rev-parse", "--short", "HEAD")
+        changed = _command("git", "status", "--porcelain", "--untracked-files=no")
+    except (OSError, subprocess.CalledProcessError):
+        return None, None
+    return commit, bool(changed)
+
+
+def machine() -> str:
+    """The chip and memory: seconds are only comparable on one machine."""
+    if sys.platform == "darwin":
+        try:
+            memory = int(_command("sysctl", "-n", "hw.memsize"))
+            return f"{_command('sysctl', '-n', 'machdep.cpu.brand_string')}, {memory // 2**30} GB"
+        except (OSError, subprocess.CalledProcessError, ValueError):
+            pass
+    return platform.machine() or "unknown"
+
+
+def _command(*args: str) -> str:
+    return subprocess.run(args, cwd=HERE, capture_output=True, text=True, check=True).stdout.strip()
+
+
+def ollama_about(base_url: str, model: str) -> dict:
+    """The model's digest, which changes when `ollama pull` brings new weights
+    under the same name, and Ollama's version. None when Ollama won't say."""
+    try:
+        listed = httpx.get(f"{base_url}/api/tags", timeout=10).json()["models"]
+        version = httpx.get(f"{base_url}/api/version", timeout=10).json()["version"]
+    except (httpx.HTTPError, ValueError, KeyError, TypeError):
+        return {"digest": None, "server": None}
+    names = {model, f"{model}:latest"}
+    digest = next((m.get("digest") for m in listed if m.get("name") in names), None)
+    return {"digest": digest[:12] if digest else None, "server": f"ollama {version}"}
+
+
+# --- scoring a stored run again --------------------------------------------------------
+
+
+def rescore(results: list[dict], suite: Suite) -> list[dict]:
+    """A run's results as today's planner.toml and fill() score them. A case
+    that's no longer in the key is left out. A case with no plan (no plan,
+    error) stays as it was: there's nothing to score again."""
+    cases = {case["id"]: case for case in suite.cases}
+    return [_rescore(result, cases[result["case"]], suite) for result in results if result["case"] in cases]
+
+
+def _rescore(result: dict, case: dict, suite: Suite) -> dict:
+    now = dict(result)
+    if result.get("plan") is not None:
+        try:
+            plan = assistant.Plan.model_validate(result["plan"], context=suite.labels.names())
+        except ValidationError:
+            why = "the plan doesn't fit today's labels"
+        else:
+            why = mismatch(plan, case["expect"], suite.today)
+        now["outcome"] = "wrong" if why else "pass"
+        now.pop("why", None)
+        if why:
+            now["why"] = why
+    writer = result.get("writer")
+    if writer and isinstance(writer.get("reply"), str) and case["group"] == "summary":
+        verdict = assistant.refusal(writer["reply"], writer_facts(writer_label(case))) or "kept"
+        now["writer"] = {**writer, "verdict": verdict}
+    return now
+
+
+def _scored(result: dict) -> tuple:
+    """What a case came to: outcome, reason, and the writer's verdict."""
+    return result["outcome"], result.get("why"), _verdict(result)
 
 
 # --- the report -----------------------------------------------------------------------
@@ -215,16 +357,37 @@ def read_run(path: Path) -> list[dict]:
     return [json.loads(line) for line in path.read_text().splitlines() if line.strip()]
 
 
+def tokens(result: dict) -> tuple[int, int] | None:
+    """Tokens in and out over every call a case made, or None when the server
+    never said (runs from before 2026-11-17 didn't keep them)."""
+    usages = [call["usage"] for call in result.get("calls", []) if "usage" in call]
+    if not usages:
+        return None
+    return sum(u.get("tokens_in", 0) for u in usages), sum(u.get("tokens_out", 0) for u in usages)
+
+
+def _p90(values: list[float]) -> float:
+    """The 90th percentile; with one value, that value."""
+    if len(values) < 2:
+        return values[0]
+    return statistics.quantiles(values, n=10, method="inclusive")[-1]
+
+
 def tally(results: list[dict]) -> dict:
     """A run's counts, in plain Python. charts.py checks its own against these."""
     written = [r["writer"] for r in results if "writer" in r]
     seconds = [r["seconds"] for r in results]
+    counted = [t for t in map(tokens, results) if t]
     return {
         "cases": len(results),
         **{outcome: sum(r["outcome"] == outcome for r in results) for outcome in OUTCOMES},
         "repaired": sum(r["repaired"] for r in results),
         "median_seconds": statistics.median(seconds),
+        "p90_seconds": _p90(seconds),
         "max_seconds": max(seconds),
+        "tokens": (
+            (statistics.median([t[0] for t in counted]), statistics.median([t[1] for t in counted])) if counted else None
+        ),
         "writer_kept": sum(w["verdict"] == "kept" for w in written),
         "writer_total": len(written),
         "groups": {
@@ -237,37 +400,139 @@ def tally(results: list[dict]) -> dict:
     }
 
 
-def report(paths: list[Path]) -> str:
-    """Markdown tables, one row per run."""
+def report(paths: list[Path], suite: Suite | None = None) -> str:
+    """Markdown tables, one row per run, every run scored against today's
+    planner.toml and fill(). Where that differs from what a run recorded, a
+    note under the tables names the cases."""
+    suite = suite or load()
+    log = prompt_log()
     head = (
-        "| Model | Prompt | Passed | Wrong plan | No plan | Error | Repaired | Median s | Slowest s | Writer kept |\n"
-        "|---|---|---|---|---|---|---|---|---|---|"
+        "| Model | Prompt | Passed | Wrong plan | No plan | Error | Repaired "
+        "| Median s | p90 s | Slowest s | Tokens in/out | Writer kept |\n"
+        "|---|---|---|---|---|---|---|---|---|---|---|---|"
     )
-    rows, by_group, misses, kept_sentences = [], [], [], []
+    rows, by_group, notes, misses, kept_sentences = [], [], [], [], []
     for path in paths:
-        results = read_run(path)
+        recorded = read_run(path)
+        results = rescore(recorded, suite)
         if not results:
             continue
-        first = results[0]
+        first = recorded[0]
         name = f"{first['model']} ({first['provider']})"
+        notes += changes_since(name, recorded, results, suite)
         t = tally(results)
+        used = f"{t['tokens'][0]:.0f}/{t['tokens'][1]:.0f}" if t["tokens"] else "not kept"
         written = [r["writer"] for r in results if "writer" in r]
         rows.append(
-            f"| {name} | {first['prompt']} | {t['pass']}/{t['cases']} ({t['pass'] / t['cases']:.0%}) "
-            f"| {t['wrong']} | {t['no plan']} | {t['error']} "
-            f"| {t['repaired']} | {t['median_seconds']:.1f} | {t['max_seconds']:.1f} "
-            f"| {t['writer_kept']}/{t['writer_total']} |"
+            f"| {name} | {prompt_name(first.get('prompt'), log)} "
+            f"| {t['pass']}/{t['cases']} ({t['pass'] / t['cases']:.0%}) "
+            f"| {t['wrong']} | {t['no plan']} | {t['error']} | {t['repaired']} "
+            f"| {t['median_seconds']:.1f} | {t['p90_seconds']:.1f} | {t['max_seconds']:.1f} "
+            f"| {used} | {t['writer_kept']}/{t['writer_total']} |"
         )
         by_group.append(f"| {name} | " + " | ".join(f"{p}/{n}" for p, n in t["groups"].values()) + " |")
         refusals = [w["verdict"] for w in written if w["verdict"] != "kept"]
         misses.append(f"- {name}: " + ("; ".join(refusals) if refusals else "none"))
         kept_sentences += [f"- {name}: {w['reply']}" for w in written if w["verdict"] == "kept"]
     groups_head = "| Model | " + " | ".join(GROUPS) + " |\n|---|" + "---|" * len(GROUPS)
+    lines = [head, *rows, "", groups_head, *by_group, ""]
+    if notes:
+        lines += ["Scored against today's planner.toml and fill(), not as recorded:", *notes, ""]
     return "\n".join([
-        head, *rows, "", groups_head, *by_group, "",
+        *lines,
         "Writer sentences refused:", *misses, "",
         "Writer sentences kept (fill() checks they're safe, not that they read well):", *kept_sentences,
     ])
+
+
+def changes_since(name: str, recorded: list[dict], now: list[dict], suite: Suite) -> list[str]:
+    """How today's key scores a run differently from the run itself: cases
+    that score differently, cases no longer in the key, and cases the run
+    never asked."""
+    then = {r["case"]: r for r in recorded}
+    notes = []
+    moved = [r["case"] for r in now if _scored(r) != _scored(then[r["case"]])]
+    if moved:
+        before = sum(then[r["case"]]["outcome"] == "pass" for r in now)
+        after = sum(r["outcome"] == "pass" for r in now)
+        notes.append(f"- {name}: {before} passed at run time, {after} today; scored differently: {', '.join(moved)}")
+    kept = {r["case"] for r in now}
+    gone = [case for case in then if case not in kept]
+    if gone:
+        notes.append(f"- {name}: left out, no longer in planner.toml: {', '.join(gone)}")
+    unasked = [case["id"] for case in suite.cases if case["id"] not in then]
+    if unasked:
+        notes.append(f"- {name}: didn't ask {len(unasked)} of today's {len(suite.cases)} cases")
+    return notes
+
+
+# --- two runs, case by case -----------------------------------------------------------------
+
+
+def compare(old_path: Path, new_path: Path, suite: Suite | None = None) -> str:
+    """Two runs, case by case, both scored against today's planner.toml:
+    what differs in their stamps, then which cases the change fixed, which
+    it broke, and which are still wrong for another reason."""
+    suite = suite or load()
+    log = prompt_log()
+    old_recorded, new_recorded = read_run(old_path), read_run(new_path)
+    if not (old_recorded and new_recorded):
+        raise SystemExit("one of the runs has no cases in it")
+    old = {r["case"]: r for r in rescore(old_recorded, suite)}
+    new = {r["case"]: r for r in rescore(new_recorded, suite)}
+    both = [case["id"] for case in suite.cases if case["id"] in old and case["id"] in new]
+    if not both:
+        raise SystemExit("the runs have no case of today's planner.toml in common")
+
+    def passed(run: dict, case: str) -> bool:
+        return run[case]["outcome"] == "pass"
+
+    def shown(key: str, value) -> str:
+        if value is None:
+            return "not recorded"
+        if key == "prompt":
+            return prompt_name(value, log)
+        return json.dumps(value) if isinstance(value, dict) else str(value)
+
+    fixed = [c for c in both if not passed(old, c) and passed(new, c)]
+    broke = [c for c in both if passed(old, c) and not passed(new, c)]
+    other = [c for c in both if not passed(old, c) and not passed(new, c) and _miss(old[c]) != _miss(new[c])]
+    lost = [c for c in both if _verdict(old[c]) == "kept" and _verdict(new[c]) not in (None, "kept")]
+    won = [c for c in both if _verdict(new[c]) == "kept" and _verdict(old[c]) not in (None, "kept")]
+    a, b = old_recorded[0], new_recorded[0]
+    differs = [f"- {key}: {shown(key, a.get(key))} → {shown(key, b.get(key))}" for key in COMPARED if a.get(key) != b.get(key)]
+    seconds = [statistics.median([run[c]["seconds"] for c in both]) for run in (old, new)]
+    totals = (
+        f"Passed {sum(passed(old, c) for c in both)} → {sum(passed(new, c) for c in both)} of the {len(both)} cases "
+        f"both asked: fixed {len(fixed)}, broke {len(broke)}, {len(other)} still wrong for another reason. "
+        f"Median seconds {seconds[0]:.1f} → {seconds[1]:.1f}."
+    )
+    if differs:
+        what = ["What differs between the runs:", *differs]
+    else:
+        what = ["Nothing recorded differs between the runs, so any flip below is the model's own variation."]
+    lines = [f"{old_path.name} → {new_path.name}, both scored against today's planner.toml.", "", *what, "", totals]
+    sections = [
+        ("Broke (passed before, not now). Each needs a sentence in the PR:", [f"- {c}: {_miss(new[c])}" for c in broke]),
+        ("Fixed:", [f"- {c}" for c in fixed]),
+        ("Still wrong, for another reason:", [f"- {c}: {_miss(old[c])} → {_miss(new[c])}" for c in other]),
+        ("Writer sentence kept before, refused now:", [f"- {c}: {_verdict(new[c])}" for c in lost]),
+        ("Writer sentence refused before, kept now:", [f"- {c}" for c in won]),
+        ("Only in the first run:", [f"- {c}" for c in old if c not in new]),
+        ("Only in the second run:", [f"- {c}" for c in new if c not in old]),
+    ]
+    for title, items in sections:
+        if items:
+            lines += ["", title, *items]
+    return "\n".join(lines)
+
+
+def _miss(result: dict) -> str:
+    return f"{result['outcome']}: {result['why']}" if result.get("why") else result["outcome"]
+
+
+def _verdict(result: dict) -> str | None:
+    return (result.get("writer") or {}).get("verdict")
 
 
 # --- the command ----------------------------------------------------------------------
@@ -285,12 +550,19 @@ def main(argv: list[str] | None = None) -> None:
     )
     parser.add_argument("--only", help="run only the cases whose id starts with this")
     parser.add_argument("--report", nargs="+", type=Path, metavar="RUN", help="print the report for these runs")
+    parser.add_argument(
+        "--compare", nargs=2, type=Path, metavar=("OLD", "NEW"),
+        help="two runs, case by case: what a change fixed and what it broke",
+    )
     args = parser.parse_args(argv)
     if args.report:
         print(report(args.report))
         return
+    if args.compare:
+        print(compare(*args.compare))
+        return
     if not (args.provider and args.model):
-        parser.error("name a provider and a model, or --report some runs")
+        parser.error("name a provider and a model, or --report or --compare some runs")
 
     suite = load()
     cases = [c for c in suite.cases if not args.only or c["id"].startswith(args.only)]
@@ -309,13 +581,13 @@ def main(argv: list[str] | None = None) -> None:
     # Written as .partial until every case is in, so an unfinished run never
     # matches runs/*.jsonl and can't be charted by mistake.
     partial = path.with_name(path.name + ".partial")
-    stamp = {"provider": args.provider, "model": args.model, "prompt": prompt_version()}
-    if args.provider == "ollama":
-        stamp["think"] = args.think  # runs from before 2026-11-16 left it to Ollama
+    stamped = stamp(args.provider, args.model, model.base_url, args.think)
+    if stamped["prompt"] not in prompt_log():
+        print(f"Prompt {stamped['prompt']} isn't in evals/prompts.toml yet: add it before this change lands.")
     empty = 0
     with partial.open("w", encoding="utf-8") as out:
         for n, case in enumerate(cases, start=1):
-            result = stamp | run_case(model, case, suite)
+            result = stamped | run_case(model, case, suite)
             out.write(json.dumps(result) + "\n")
             out.flush()  # a long run interrupted still keeps what it finished
             why = f"  {result['why']}" if result["outcome"] != "pass" else ""
@@ -329,7 +601,7 @@ def main(argv: list[str] | None = None) -> None:
                 )
     partial.rename(path)
     print(f"\n{path.relative_to(HERE.parent) if path.is_relative_to(HERE.parent) else path}\n")
-    print(report([path]))
+    print(report([path], suite))
 
 
 if __name__ == "__main__":

@@ -27,7 +27,7 @@ class Scripted:
         reply = self.replies.pop(0)
         if isinstance(reply, Exception):
             raise reply
-        return reply if isinstance(reply, str) else json.dumps(reply, default=str)
+        return models.Reply(reply if isinstance(reply, str) else json.dumps(reply, default=str))
 
 
 def _case(case_id):
