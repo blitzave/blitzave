@@ -35,6 +35,7 @@ from pydantic import (
     model_validator,
 )
 
+from blitzave import traces
 from blitzave.api.money import format_cents
 from blitzave.refine import spending
 from blitzave.refine.savings import month_key
@@ -297,21 +298,25 @@ class Labels:
 
 
 def ask(question: str) -> list[dict]:
-    """The cards for one question, in plan order."""
+    """The cards for one question, in plan order. Every model call goes
+    through one Turn, which dev mode writes down (traces.py)."""
     today = date.today()
     conn = db.connect()
     try:
-        model = _model(conn)
-        labels = Labels.load(conn)
-        plan = _plan(model, question, labels, today)
-        if plan is None:
-            return [{"type": "message", "text": words.NO_PLAN}]
-        return [_run(conn, model, intent, labels, question, today) for intent in plan.intents]
+        turn = traces.Turn(_model(conn), question)
+        try:
+            labels = Labels.load(conn)
+            plan = _plan(turn, question, labels, today)
+            if plan is None:
+                return [{"type": "message", "text": words.NO_PLAN}]
+            return [_run(conn, turn, intent, labels, question, today) for intent in plan.intents]
+        finally:
+            traces.write(turn)
     finally:
         conn.close()
 
 
-def _plan(model: models.ChatModel, question: str, labels: Labels, today: date) -> Plan | None:
+def _plan(turn: traces.Turn, question: str, labels: Labels, today: date) -> Plan | None:
     """One call, and one repair if the reply doesn't validate. The repair
     quotes the model's own reply and what was wrong with it, and nothing
     from the database. None after two misses."""
@@ -319,29 +324,33 @@ def _plan(model: models.ChatModel, question: str, labels: Labels, today: date) -
     system = labels.prompt()
     schema = plan_schema(names)
     messages = [{"role": "user", "content": f"Today is {today:%A}, {today.isoformat()}.\n\n{question}"}]
-    for _ in range(2):
-        reply = model.chat(system, messages, schema)
+    for step in ("plan", "repair"):
+        reply = turn.chat(step, system, messages, schema)
         try:
-            return Plan.model_validate_json(reply, context=names)
+            plan = Plan.model_validate_json(reply, context=names)
         except ValidationError as e:
             problems = "; ".join(
                 f"{'.'.join(map(str, err['loc'])) or 'reply'}: {err['msg']}" for err in e.errors()[:3]
             )
+            turn.verdict(f"doesn't fit: {problems}")
             messages = [
                 *messages,
                 {"role": "assistant", "content": reply},
                 {"role": "user", "content": f"That plan doesn't fit: {problems}. Reply with a corrected plan."},
             ]
+        else:
+            turn.verdict("fits")
+            return plan
     return None
 
 
-def _run(conn, model, intent, labels: Labels, question: str, today: date) -> dict:
+def _run(conn, turn: traces.Turn, intent, labels: Labels, question: str, today: date) -> dict:
     if intent.intent == "show_transactions":
         return _show(conn, intent.filter, labels)
     if intent.intent in ("propose_tag", "propose_category"):
         return _propose(conn, intent, labels)
     if intent.intent == "spending_summary":
-        return _summarize(conn, model, intent, labels, question, today)
+        return _summarize(conn, turn, intent, labels, question, today)
     if intent.intent == "clarify":
         return {"type": "clarify", "text": words.clarify(intent.field), "options": intent.options}
     return {"type": "message", "text": words.DECLINE[intent.reason]}
@@ -409,7 +418,7 @@ def _propose(conn, intent: ProposeTag | ProposeCategory, labels: Labels) -> dict
     }
 
 
-def _summarize(conn, model, intent: SpendingSummary, labels: Labels, question: str, today: date) -> dict:
+def _summarize(conn, turn: traces.Turn, intent: SpendingSummary, labels: Labels, question: str, today: date) -> dict:
     first = transactions.first_posted_on(conn)
     months = spending.whole_months(today, date.fromisoformat(first) if first else None, intent.months)
     start = f"{months[0]}-01" if months else today.replace(day=1).isoformat()
@@ -433,7 +442,7 @@ def _summarize(conn, model, intent: SpendingSummary, labels: Labels, question: s
     return {
         "type": "summary",
         "chips": words.summary_chips(scope, months, today.year),
-        "text": _phrase(model, question, shown) or words.summary_sentence(shown),
+        "text": _phrase(turn, question, shown) or words.summary_sentence(shown),
         "figure": shown.get("average", shown["so_far"]),
         "figure_label": "a month on average" if months else "so far this month",
         "months": [
@@ -443,15 +452,16 @@ def _summarize(conn, model, intent: SpendingSummary, labels: Labels, question: s
     }
 
 
-def _phrase(model: models.ChatModel, question: str, shown: dict[str, str]) -> str | None:
+def _phrase(turn: traces.Turn, question: str, shown: dict[str, str]) -> str | None:
     """The model's wording of a summary, if it passes fill(). The model gets
     every slot's name and meaning, never a value, so the request is the same
     whatever the figures are; only fill() sees them."""
     facts = "\n".join(f"{{{key}}}: {meaning}" for key, meaning in words.SLOTS.items())
     try:
-        reply = model.chat(WRITER, [{"role": "user", "content": f"Question: {question}\n\nFacts:\n{facts}"}])
+        reply = turn.chat("write", WRITER, [{"role": "user", "content": f"Question: {question}\n\nFacts:\n{facts}"}])
     except ModelError:
         return None
+    turn.verdict(refusal(reply, shown) or "kept")
     return fill(reply, shown)
 
 
@@ -484,16 +494,32 @@ NOT_ALLY = re.compile(
 def fill(sentence: str, facts: dict[str, str]) -> str | None:
     """The writer's sentence with each {slot} replaced by the engine's own
     display string, or None, meaning: show words/'s sentence instead."""
-    sentence = sentence.strip()
-    if not sentence or len(sentence) > 280 or len(re.findall(r"[.!?](?:\s|$)", sentence)) > 2:
+    if refusal(sentence, facts):
         return None
-    if any(key not in facts for key in SLOT.findall(sentence)):
-        return None
-    typed = SLOT.sub("", sentence)  # the words the model wrote itself
-    if TYPED_FIGURE.search(typed) or TYPED_COMPARISON.search(typed) or NOT_ALLY.search(sentence):
-        return None
-    filled = SLOT.sub(lambda m: facts[m.group(1)], sentence)
+    filled = SLOT.sub(lambda m: facts[m.group(1)], sentence.strip())
     return filled[:1].upper() + filled[1:]
+
+
+def refusal(sentence: str, facts: dict[str, str]) -> str | None:
+    """The first rule a writer's sentence breaks, or None when fill() would
+    show it. The reason quotes only the model's own words, never a figure."""
+    sentence = sentence.strip()
+    if not sentence:
+        return "empty"
+    if len(sentence) > 280:
+        return "longer than 280 characters"
+    if len(re.findall(r"[.!?](?:\s|$)", sentence)) > 2:
+        return "more than two sentences"
+    unknown = [key for key in SLOT.findall(sentence) if key not in facts]
+    if unknown:
+        return f"a slot this summary doesn't have: {{{unknown[0]}}}"
+    typed = SLOT.sub("", sentence)  # the words the model wrote itself
+    for rule, pattern in (("typed a figure", TYPED_FIGURE), ("typed a comparison", TYPED_COMPARISON)):
+        if found := pattern.search(typed):
+            return f"{rule}: {found.group(0)!r}"
+    if found := NOT_ALLY.search(sentence):
+        return f"a scorekeeper word: {found.group(0)!r}"
+    return None
 
 
 # --- Apply and Undo ------------------------------------------------------------------------
