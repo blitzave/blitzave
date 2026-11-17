@@ -46,6 +46,57 @@ def test_ollama_holds_the_plan_to_the_schema_with_its_grammar(sent):
     assert sent["body"]["options"]["num_ctx"] == 8192
 
 
+@pytest.fixture
+def ollama(monkeypatch):
+    """A fake Ollama: /api/show reports the capabilities the test sets, and
+    /api/chat answers. Records every request, in order."""
+    state = {"capabilities": ["completion", "thinking"], "show": 200, "requests": []}
+
+    def fake_post(url, json, headers, timeout):
+        state["requests"].append((url.rsplit("/", 1)[-1], json))
+        if url.endswith("/api/show"):
+            return httpx.Response(state["show"], json={"capabilities": state["capabilities"]})
+        return httpx.Response(200, json={"message": {"content": "{}"}})
+
+    monkeypatch.setattr(httpx, "post", fake_post)
+    monkeypatch.setattr(models, "_thinks", {})
+    return state
+
+
+def _chats(state):
+    return [body for path, body in state["requests"] if path == "chat"]
+
+
+def test_a_model_that_can_think_is_asked_not_to_and_ollama_is_asked_once(ollama):
+    qwen = models.Ollama("qwen3:8b")
+    qwen.chat("rules", MESSAGES, SCHEMA)
+    qwen.chat("rules", MESSAGES)
+    assert [path for path, _ in ollama["requests"]] == ["show", "chat", "chat"]
+    assert all(body["think"] is False for body in _chats(ollama))
+
+
+def test_a_model_that_cant_think_is_never_sent_think(ollama):
+    ollama["capabilities"] = ["completion"]
+    models.Ollama("llama3.2").chat("rules", MESSAGES)
+    assert "think" not in _chats(ollama)[0]
+
+
+def test_think_can_be_left_to_ollama(ollama, monkeypatch):
+    monkeypatch.setattr(models, "OLLAMA_THINK", None)
+    models.Ollama("qwen3:8b").chat("rules", MESSAGES)
+    assert [path for path, _ in ollama["requests"]] == ["chat"]  # not even asked
+    assert "think" not in _chats(ollama)[0]
+
+
+def test_a_failed_ask_sends_no_think_and_is_asked_again_next_time(ollama):
+    ollama["show"] = 500
+    models.Ollama("qwen3:8b").chat("rules", MESSAGES)
+    assert "think" not in _chats(ollama)[0]
+    ollama["show"] = 200
+    models.Ollama("qwen3:8b").chat("rules", MESSAGES)
+    assert _chats(ollama)[1]["think"] is False
+
+
 def test_claude_holds_the_plan_to_the_schema_with_structured_outputs(sent, fake_keyring):
     models.save_api_key("sk-ant-test")
     sent["reply"] = httpx.Response(200, json={

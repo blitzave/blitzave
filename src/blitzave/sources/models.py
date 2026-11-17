@@ -28,6 +28,12 @@ KEYRING_SERVICE = "blitzave"
 KEYRING_USERNAME = "anthropic_api_key"
 LOOPBACK = {"127.0.0.1", "localhost", "::1"}
 TIMEOUT_SECONDS = 120  # a local model can take this long to load
+# Whether an Ollama model that can think does so before it answers. qwen3
+# thinks by default, which for a short JSON plan only costs time: on an M1,
+# qwen3:8b spent 57 seconds thinking its way to {"ok": true}, and answered in
+# 1.5 without. qwen3 takes no level in between ("low" thinks just as long).
+# None leaves it to Ollama. A model that can't think is never sent this.
+OLLAMA_THINK: bool | None = False
 
 
 class ModelError(Exception):
@@ -70,10 +76,29 @@ class Ollama:
         }
         if schema is not None:
             body["format"] = schema  # becomes a grammar: only JSON that fits can be sampled
+        if OLLAMA_THINK is not None and ollama_thinks(self.base_url, self.model):
+            body["think"] = OLLAMA_THINK
         content = (_post(f"{self.base_url}/api/chat", body, {}).get("message") or {}).get("content")
         if not isinstance(content, str):
             raise ModelError("Ollama's answer had no message in it")
         return content
+
+
+_thinks: dict[tuple[str, str], bool] = {}  # (base_url, model) -> can it think
+
+
+def ollama_thinks(base_url: str, model: str) -> bool:
+    """Whether Ollama lists "thinking" among the model's capabilities. Asked
+    once per model. An ask that fails counts as no and isn't remembered, so
+    the next question asks again."""
+    key = (base_url, model)
+    if key not in _thinks:
+        try:
+            info = _post(f"{base_url}/api/show", {"model": model}, {})
+        except ModelError:
+            return False
+        _thinks[key] = "thinking" in (info.get("capabilities") or [])
+    return _thinks[key]
 
 
 @dataclass(frozen=True)
