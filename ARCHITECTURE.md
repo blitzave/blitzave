@@ -376,7 +376,9 @@ The guarantees say what a model can't do. These two say how well it does its job
   `evals/prompts.toml` names each prompt hash, and CI fails until today's has an entry.
   `evals/charts.py` (the `eval` dependency group, installed in CI) draws a run's
   figures with pandas and matplotlib, after checking its counts against `run.py`'s
-  own. `tests/test_evals.py` checks in CI that every case is a valid plan and that a
+  own: outcomes, pass rate by group, kinds of miss, seconds per case, and, for runs
+  that kept usage, where a question's seconds went by stage, with median tokens.
+  `--compare OLD NEW` draws one square per case, colored where it was fixed or broke. `tests/test_evals.py` checks in CI that every case is a valid plan and that a
   planner answering as expected passes them all.
 
 A real question worth keeping goes from the trace into `planner.toml` only after it's

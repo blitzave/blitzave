@@ -366,6 +366,23 @@ def tokens(result: dict) -> tuple[int, int] | None:
     return sum(u.get("tokens_in", 0) for u in usages), sum(u.get("tokens_out", 0) for u in usages)
 
 
+STAGES = ["load_seconds", "prompt_seconds", "output_seconds", "other_seconds"]
+
+
+def stage_seconds(result: dict) -> dict[str, float] | None:
+    """Where a case's planning seconds went, by the server's own timings:
+    loading the model, reading the prompt, writing the reply, and the rest
+    (the network, the server's other work, BlitZave). None when the server
+    didn't time its stages (Claude, and runs from before 2026-11-17)."""
+    planning = [call for call in result.get("calls", []) if call["step"] in ("plan", "repair")]
+    timed = [call["usage"] for call in planning if any(stage in call.get("usage", {}) for stage in STAGES[:3])]
+    if not timed:
+        return None
+    split = {stage: sum(usage.get(stage, 0) for usage in timed) for stage in STAGES[:3]}
+    split["other_seconds"] = max(result["seconds"] - sum(split.values()), 0)
+    return split
+
+
 def _p90(values: list[float]) -> float:
     """The 90th percentile; with one value, that value."""
     if len(values) < 2:
@@ -474,18 +491,69 @@ def compare(old_path: Path, new_path: Path, suite: Suite | None = None) -> str:
     what differs in their stamps, then which cases the change fixed, which
     it broke, and which are still wrong for another reason."""
     suite = suite or load()
-    log = prompt_log()
     old_recorded, new_recorded = read_run(old_path), read_run(new_path)
     if not (old_recorded and new_recorded):
         raise SystemExit("one of the runs has no cases in it")
     old = {r["case"]: r for r in rescore(old_recorded, suite)}
     new = {r["case"]: r for r in rescore(new_recorded, suite)}
-    both = [case["id"] for case in suite.cases if case["id"] in old and case["id"] in new]
+    found = flips(old, new, suite)
+    both = found["both"]
     if not both:
         raise SystemExit("the runs have no case of today's planner.toml in common")
+    differs = stamp_differences(old_recorded[0], new_recorded[0], prompt_log())
+    seconds = [statistics.median([run[c]["seconds"] for c in both]) for run in (old, new)]
+    totals = (
+        f"Passed {sum(old[c]['outcome'] == 'pass' for c in both)} → {sum(new[c]['outcome'] == 'pass' for c in both)} "
+        f"of the {len(both)} cases both asked: fixed {len(found['fixed'])}, broke {len(found['broke'])}, "
+        f"{len(found['moved'])} still wrong for another reason. Median seconds {seconds[0]:.1f} → {seconds[1]:.1f}."
+    )
+    if differs:
+        what = ["What differs between the runs:", *(f"- {line}" for line in differs)]
+    else:
+        what = ["Nothing recorded differs between the runs, so any flip below is the model's own variation."]
+    lines = [f"{old_path.name} → {new_path.name}, both scored against today's planner.toml.", "", *what, "", totals]
+    sections = [
+        ("Broke (passed before, not now). Each needs a sentence in the PR:", [f"- {c}: {_miss(new[c])}" for c in found["broke"]]),
+        ("Fixed:", [f"- {c}" for c in found["fixed"]]),
+        ("Still wrong, for another reason:", [f"- {c}: {_miss(old[c])} → {_miss(new[c])}" for c in found["moved"]]),
+        ("Writer sentence kept before, refused now:", [f"- {c}: {_verdict(new[c])}" for c in found["writer lost"]]),
+        ("Writer sentence refused before, kept now:", [f"- {c}" for c in found["writer won"]]),
+        ("Only in the first run:", [f"- {c}" for c in found["only first"]]),
+        ("Only in the second run:", [f"- {c}" for c in found["only second"]]),
+    ]
+    for title, items in sections:
+        if items:
+            lines += ["", title, *items]
+    return "\n".join(lines)
 
-    def passed(run: dict, case: str) -> bool:
-        return run[case]["outcome"] == "pass"
+
+FLIPS = ["passed both", "fixed", "broke", "wrong both"]  # every case both runs asked is in one
+
+
+def flips(old: dict[str, dict], new: dict[str, dict], suite: Suite) -> dict[str, list[str]]:
+    """Two runs' results, keyed by case and already scored against today's
+    key, sorted case by case into lists of case ids, in planner.toml order.
+    charts.py checks its own count of these against this one."""
+    both = [case["id"] for case in suite.cases if case["id"] in old and case["id"] in new]
+    before = {c for c in both if old[c]["outcome"] == "pass"}
+    after = {c for c in both if new[c]["outcome"] == "pass"}
+    return {
+        "both": both,
+        "passed both": [c for c in both if c in before and c in after],
+        "fixed": [c for c in both if c not in before and c in after],
+        "broke": [c for c in both if c in before and c not in after],
+        "wrong both": [c for c in both if c not in before and c not in after],
+        "moved": [c for c in both if c not in before and c not in after and _miss(old[c]) != _miss(new[c])],
+        "writer lost": [c for c in both if _verdict(old[c]) == "kept" and _verdict(new[c]) not in (None, "kept")],
+        "writer won": [c for c in both if _verdict(new[c]) == "kept" and _verdict(old[c]) not in (None, "kept")],
+        "only first": [c for c in old if c not in new],
+        "only second": [c for c in new if c not in old],
+    }
+
+
+def stamp_differences(a: dict, b: dict, log: dict[str, dict]) -> list[str]:
+    """What differs between two runs' stamps, one "field: before → after"
+    per line. Empty when nothing recorded differs."""
 
     def shown(key: str, value) -> str:
         if value is None:
@@ -494,37 +562,7 @@ def compare(old_path: Path, new_path: Path, suite: Suite | None = None) -> str:
             return prompt_name(value, log)
         return json.dumps(value) if isinstance(value, dict) else str(value)
 
-    fixed = [c for c in both if not passed(old, c) and passed(new, c)]
-    broke = [c for c in both if passed(old, c) and not passed(new, c)]
-    other = [c for c in both if not passed(old, c) and not passed(new, c) and _miss(old[c]) != _miss(new[c])]
-    lost = [c for c in both if _verdict(old[c]) == "kept" and _verdict(new[c]) not in (None, "kept")]
-    won = [c for c in both if _verdict(new[c]) == "kept" and _verdict(old[c]) not in (None, "kept")]
-    a, b = old_recorded[0], new_recorded[0]
-    differs = [f"- {key}: {shown(key, a.get(key))} → {shown(key, b.get(key))}" for key in COMPARED if a.get(key) != b.get(key)]
-    seconds = [statistics.median([run[c]["seconds"] for c in both]) for run in (old, new)]
-    totals = (
-        f"Passed {sum(passed(old, c) for c in both)} → {sum(passed(new, c) for c in both)} of the {len(both)} cases "
-        f"both asked: fixed {len(fixed)}, broke {len(broke)}, {len(other)} still wrong for another reason. "
-        f"Median seconds {seconds[0]:.1f} → {seconds[1]:.1f}."
-    )
-    if differs:
-        what = ["What differs between the runs:", *differs]
-    else:
-        what = ["Nothing recorded differs between the runs, so any flip below is the model's own variation."]
-    lines = [f"{old_path.name} → {new_path.name}, both scored against today's planner.toml.", "", *what, "", totals]
-    sections = [
-        ("Broke (passed before, not now). Each needs a sentence in the PR:", [f"- {c}: {_miss(new[c])}" for c in broke]),
-        ("Fixed:", [f"- {c}" for c in fixed]),
-        ("Still wrong, for another reason:", [f"- {c}: {_miss(old[c])} → {_miss(new[c])}" for c in other]),
-        ("Writer sentence kept before, refused now:", [f"- {c}: {_verdict(new[c])}" for c in lost]),
-        ("Writer sentence refused before, kept now:", [f"- {c}" for c in won]),
-        ("Only in the first run:", [f"- {c}" for c in old if c not in new]),
-        ("Only in the second run:", [f"- {c}" for c in new if c not in old]),
-    ]
-    for title, items in sections:
-        if items:
-            lines += ["", title, *items]
-    return "\n".join(lines)
+    return [f"{key}: {shown(key, a.get(key))} → {shown(key, b.get(key))}" for key in COMPARED if a.get(key) != b.get(key)]
 
 
 def _miss(result: dict) -> str:

@@ -252,3 +252,34 @@ def test_two_runs_that_differ_in_nothing_say_so(tmp_path):
 def test_p90_of_one_case_is_that_case():
     assert run._p90([4.2]) == 4.2
     assert run._p90([float(n) for n in range(1, 11)]) == pytest.approx(9.1)
+
+
+def test_stage_seconds_split_a_cases_planning_time_and_leave_the_rest_as_other():
+    timed = {"seconds": 3.0, "calls": [
+        {"step": "plan", "usage": {"load_seconds": 0.5, "prompt_seconds": 0.4, "output_seconds": 1.0}},
+        {"step": "repair", "usage": {"prompt_seconds": 0.1, "output_seconds": 0.5}},
+        {"step": "write", "usage": {"output_seconds": 9.0}},  # the writer isn't planning time
+    ]}
+    split = run.stage_seconds(timed)
+    assert split == pytest.approx({"load_seconds": 0.5, "prompt_seconds": 0.5, "output_seconds": 1.5, "other_seconds": 0.5})
+    assert run.stage_seconds({"seconds": 1.7, "calls": [{"step": "plan", "usage": {"tokens_in": 2000}}]}) is None
+
+
+def test_flips_sort_every_shared_case_into_one_list():
+    def result(case, outcome, why=None):
+        return {"case": case, "outcome": outcome, **({"why": why} if why else {})}
+
+    old = {r["case"]: r for r in [
+        result("show-tag", "pass"), result("show-merchant", "wrong", "a"), result("show-account", "wrong", "b"),
+        result("show-since", "pass"), result("show-yesterday", "wrong", "c"),
+    ]}
+    new = {r["case"]: r for r in [
+        result("show-tag", "wrong", "d"), result("show-merchant", "pass"), result("show-account", "wrong", "e"),
+        result("show-since", "pass"), result("show-yesterday", "wrong", "c"), result("show-typos", "pass"),
+    ]}
+    found = run.flips(old, new, SUITE)
+    assert found["broke"] == ["show-tag"] and found["fixed"] == ["show-merchant"]
+    assert found["passed both"] == ["show-since"]
+    assert found["wrong both"] == ["show-account", "show-yesterday"] and found["moved"] == ["show-account"]
+    assert found["only second"] == ["show-typos"]
+    assert sorted(case for flip in run.FLIPS for case in found[flip]) == sorted(found["both"])

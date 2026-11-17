@@ -149,6 +149,7 @@ uv run python evals/run.py anthropic claude-haiku-5-5  # uses the key saved in G
 uv run python evals/run.py --report evals/runs/*.jsonl
 uv run python evals/run.py --compare BEFORE.jsonl AFTER.jsonl
 uv run --group eval python evals/charts.py evals/runs/*.jsonl --out figures/
+uv run --group eval python evals/charts.py --compare BEFORE.jsonl AFTER.jsonl --out figures/
 ```
 
 If you change Goose's prompts or plan grammar, run the eval before and after,
