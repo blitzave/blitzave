@@ -3,8 +3,6 @@ title: "Meet Goose"
 description: "BlitZave has an assistant now. Ask about your own money in plain words. The AI behind it never sees a single transaction."
 tag: Product
 date: 2026-11-16 00:50:00 -0600
-# Kept off the site until it's ready. Delete this line to publish it.
-published: false
 ---
 
 BlitZave has a new member of the family. Its name is Goose.
@@ -81,5 +79,5 @@ Goose can't explain *why* July ran high, because explaining means reading your t
 
 If you want the full story of how it's built, from the diagrams to the tests to a leak I caught in my own design, it's all in [Goose plans. BlitZave does.](../goose-plans-blitzave-does/)
 
-**Try it.** Install BlitZave from the [guide](../../guide/), open Home, and press **Ask Goose about your money**. Then tell me what it got wrong on [Discord](https://discord.gg/akSZ794XxG).
+**Try it.** Install BlitZave and set up Goose from the [guide](../../guide/#goose), then open Home and press **Ask Goose about your money**. Then tell me what it got wrong on [Discord](https://discord.gg/akSZ794XxG).
 {: .note}
