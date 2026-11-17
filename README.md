@@ -69,6 +69,19 @@ tap from the detail.
 <tr>
 <td width="50%" valign="top">
 
+**Ask Goose about your own money**<br>
+Goose is the ally you can ask: "How's my grocery spending?", "Tag May 13–27 as
+PNW." A model turns your words into a plan, and BlitZave runs it on your laptop.
+The model never sees a transaction, every number comes from BlitZave's own
+math, and nothing changes until you press Apply. Use a model on your laptop
+through Ollama, or Claude if you opt in.
+
+</td>
+<td width="50%"><img src="docs/assets/blog/meet-goose/summary.webp" alt="Goose, asked How's my grocery spending?, answers with October's total, and chips showing how it read the question"></td>
+</tr>
+<tr>
+<td width="50%" valign="top">
+
 **Goals with a home**<br>
 Each goal lives in a real savings account, a **goal account**, so its progress
 is that account's balance. An emergency fund gets one to itself; a trip and a
@@ -243,6 +256,22 @@ If you close the tab, open http://127.0.0.1:8742 again while BlitZave is running
   fills them from the top, in the order you choose, and **Change order** moves
   the money with them.
 
+### 7. Ask Goose
+
+Goose needs a model before its first question. For one on your laptop, install
+[Ollama](https://ollama.com/download), open it, and download a model:
+
+```bash
+ollama pull qwen3:8b
+```
+
+Then open Home, press **Ask Goose about your money**, keep **Ollama, on this
+laptop**, type `qwen3:8b`, and press **Save**. To use Claude instead, choose
+**Claude, from Anthropic** and paste an API key. BlitZave lists what each
+question would send (never a transaction or an amount), and nothing goes until
+you tick **That's fine, send those**. The [guide](https://blitzave.github.io/blitzave/guide/#goose)
+has the rest.
+
 ### Day to day
 
 BlitZave syncs every time it starts, so the latest is waiting when you open it.
@@ -253,7 +282,7 @@ Use **Sync now** in the top bar any time, or the per-month sync for history.
 | What | Where |
 |---|---|
 | Your database | `~/BlitZave/blitzave.db` (one SQLite file) |
-| Your SimpleFIN credential | Your OS keychain, under the service name `blitzave` |
+| Your SimpleFIN credential, and a Claude API key if you add one | Your OS keychain, under the service name `blitzave` |
 | Everything else | Nowhere. There's no server. |
 
 Set `BLITZAVE_HOME` to keep the data folder somewhere else:
@@ -299,12 +328,13 @@ way. Or skip all that and choose **Watch → Custom → Releases** on the
 ### Uninstall
 
 Stop BlitZave, uninstall it, delete `~/BlitZave/`, then remove the keychain
-entry. On macOS you can also delete the item named `blitzave` in
-**Keychain Access**.
+entries (the last line only if you added a Claude key). On macOS you can also
+delete the items named `blitzave` in **Keychain Access**.
 
 ```bash
 uv tool uninstall blitzave
 uvx keyring del blitzave simplefin_access_url
+uvx keyring del blitzave anthropic_api_key
 ```
 
 ### Troubleshooting
@@ -317,6 +347,8 @@ uvx keyring del blitzave simplefin_access_url
 | "SimpleFIN access was revoked" | Create a new setup token in SimpleFIN. Then open http://127.0.0.1:8742/docs, expand `POST /api/connect`, choose *Try it out*, and send `{"setup_token": "<your new token>"}`. It replaces the old credential. |
 | "Your SimpleFIN subscription needs payment" | Renew your SimpleFIN Bridge subscription, then sync again. |
 | An account shows the wrong type | Open the account's `⋯` menu and correct it. |
+| Goose: "couldn't reach the model at 127.0.0.1:11434" | Ollama isn't running. Open the Ollama app and ask again. |
+| Goose: "the model answered 404" | Ollama doesn't have that model. Run `ollama pull` with the name you typed, or fix it under **Model** in the Goose drawer. |
 | Keychain errors on Linux | Make sure a Secret Service provider (GNOME Keyring or KWallet) is running. |
 
 Still stuck? Ask on [Discord](https://discord.gg/akSZ794XxG).
