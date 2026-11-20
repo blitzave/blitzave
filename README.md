@@ -18,7 +18,7 @@ A calm, open-source personal finance app that runs on your own laptop.
 
 <br>
 
-<a href="https://blitzave.github.io/blitzave/#tour"><img src="docs/assets/tour.gif" alt="A tour of BlitZave: Home's one sentence, a goal account's line of goals, reordering them so the money follows, and answering “Was that the PS5?”" width="880"></a>
+<a href="https://blitzave.github.io/blitzave/#tour"><img src="docs/assets/tour.gif" alt="A tour of BlitZave: Home's one sentence, asking Goose about grocery spending, tagging a few dinners and undoing it, and a goal account's line of goals" width="880"></a>
 
 <sub>Every screenshot uses made-up data from fictional banks. [Watch the full tour](https://blitzave.github.io/blitzave/#tour) (under two minutes).</sub>
 
@@ -65,6 +65,19 @@ tap from the detail.
 
 </td>
 <td width="50%"><img src="docs/assets/guide/home.webp" alt="Home: a ring for November with the words Japan trip: halfway there, and three figures below"></td>
+</tr>
+<tr>
+<td width="50%" valign="top">
+
+**Ask Goose about your own money**<br>
+Goose is the ally you can ask: "How's my grocery spending?", "Tag May 13–27 as
+PNW." A model turns your words into a plan, and BlitZave runs it on your laptop.
+The model never sees a transaction, every number comes from BlitZave's own
+math, and nothing changes until you press Apply. Use a model on your laptop
+through Ollama, or Claude if you opt in.
+
+</td>
+<td width="50%"><img src="docs/assets/blog/meet-goose/summary.webp" alt="Goose, asked How's my grocery spending?, answers with October's total, and chips showing how it read the question"></td>
 </tr>
 <tr>
 <td width="50%" valign="top">
@@ -145,8 +158,8 @@ BlitZave opens in your browser at **http://127.0.0.1:8742**. Paste your SimpleFI
 setup token, and you're done. Run `blitzave` from any terminal whenever you want
 to open it.
 
-> BlitZave is built and tested on macOS. Linux should work with a running
-> Secret Service keychain; Windows is untested. Reports are welcome either way.
+> BlitZave is built on macOS, and CI starts it on macOS, Linux and Windows.
+> There's nothing extra to install on any of them. Reports are welcome.
 
 ## Setup guide
 
@@ -188,7 +201,9 @@ you, not to us. SimpleFIN charges a small subscription, paid directly to them.
 3. Create a new app connection and copy the **setup token** it gives you.
 
 The setup token is one-time: BlitZave exchanges it for an access credential and
-stores that credential only in your operating system's keychain.
+stores that credential in your operating system's keychain. On a machine with
+no keychain (a Linux server, WSL), it goes in `~/BlitZave/credentials.json`
+instead, readable only by you, and BlitZave says so when it starts.
 
 ### 4. Start BlitZave
 
@@ -243,6 +258,22 @@ If you close the tab, open http://127.0.0.1:8742 again while BlitZave is running
   fills them from the top, in the order you choose, and **Change order** moves
   the money with them.
 
+### 7. Ask Goose
+
+Goose needs a model before its first question. For one on your laptop, install
+[Ollama](https://ollama.com/download), open it, and download a model:
+
+```bash
+ollama pull qwen3:8b
+```
+
+Then open Home, press **Ask Goose about your money**, keep **Ollama, on this
+laptop**, type `qwen3:8b`, and press **Save**. To use Claude instead, choose
+**Claude, from Anthropic** and paste an API key. BlitZave lists what each
+question would send (never a transaction or an amount), and nothing goes until
+you tick **That's fine, send those**. The [guide](https://blitzave.github.io/blitzave/guide/#goose)
+has the rest.
+
 ### Day to day
 
 BlitZave syncs every time it starts, so the latest is waiting when you open it.
@@ -253,7 +284,7 @@ Use **Sync now** in the top bar any time, or the per-month sync for history.
 | What | Where |
 |---|---|
 | Your database | `~/BlitZave/blitzave.db` (one SQLite file) |
-| Your SimpleFIN credential | Your OS keychain, under the service name `blitzave` |
+| Your SimpleFIN credential, and a Claude API key if you add one | Your OS keychain, under the service name `blitzave`. With no keychain: `~/BlitZave/credentials.json`, readable only by you |
 | Everything else | Nowhere. There's no server. |
 
 Set `BLITZAVE_HOME` to keep the data folder somewhere else:
@@ -299,12 +330,13 @@ way. Or skip all that and choose **Watch → Custom → Releases** on the
 ### Uninstall
 
 Stop BlitZave, uninstall it, delete `~/BlitZave/`, then remove the keychain
-entry. On macOS you can also delete the item named `blitzave` in
-**Keychain Access**.
+entries (the last line only if you added a Claude key). On macOS you can also
+delete the items named `blitzave` in **Keychain Access**.
 
 ```bash
 uv tool uninstall blitzave
 uvx keyring del blitzave simplefin_access_url
+uvx keyring del blitzave anthropic_api_key
 ```
 
 ### Troubleshooting
@@ -317,7 +349,9 @@ uvx keyring del blitzave simplefin_access_url
 | "SimpleFIN access was revoked" | Create a new setup token in SimpleFIN. Then open http://127.0.0.1:8742/docs, expand `POST /api/connect`, choose *Try it out*, and send `{"setup_token": "<your new token>"}`. It replaces the old credential. |
 | "Your SimpleFIN subscription needs payment" | Renew your SimpleFIN Bridge subscription, then sync again. |
 | An account shows the wrong type | Open the account's `⋯` menu and correct it. |
-| Keychain errors on Linux | Make sure a Secret Service provider (GNOME Keyring or KWallet) is running. |
+| Goose: "couldn't reach the model at 127.0.0.1:11434" | Ollama isn't running. Open the Ollama app and ask again. |
+| Goose: "the model answered 404" | Ollama doesn't have that model. Run `ollama pull` with the name you typed, or fix it under **Model** in the Goose drawer. |
+| "No system keychain here" when it starts | Nothing's wrong: BlitZave keeps its secrets in `~/BlitZave/credentials.json`, readable only by you. To use a keychain instead, run GNOME Keyring or KWallet, then connect again. |
 
 Still stuck? Ask on [Discord](https://discord.gg/akSZ794XxG).
 
@@ -326,7 +360,7 @@ Still stuck? Ask on [Discord](https://discord.gg/akSZ794XxG).
 - **Local-only server.** BlitZave listens on `127.0.0.1` only, never on your network.
 - **Read-only bank access.** SimpleFIN can see balances and transactions; it can never move money.
 - **One network call by default.** Syncing with your own SimpleFIN account is the only thing that touches the internet. Two others stay off until you turn them on: a daily update check against GitHub, which sends nothing about you, and Claude, if you pick it as Goose's model, which gets your question and your category and tag names but never a transaction or an amount. No telemetry, no analytics, no remote fonts.
-- **Your keychain, not our database.** The SimpleFIN credential, and a Claude API key if you add one, live in the OS keychain, never in the database, logs or exports.
+- **Your keychain, not our database.** The SimpleFIN credential, and a Claude API key if you add one, live in the OS keychain (or, where there's none, a file only you can read), never in the database, logs or exports.
 - **No account, no server.** We don't hold your data. We can't sell what we never have.
 
 ### What Goose sends a model, and the proof

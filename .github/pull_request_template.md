@@ -9,4 +9,5 @@
 - [ ] User-facing copy is an ally, never a scorekeeper (no scolding, no streaks, red only for real failures)
 - [ ] No new network calls, telemetry, or remote assets (an optional call must be off by default, explained in plain words, and send the minimum)
 - [ ] No real financial data in code, fixtures, or screenshots
+- [ ] A user-facing feature says above whether it gets a tour scene, a guide chapter, or a homepage block. "Not yet" is an answer.
 - [ ] I've read and agree to the [CLA](../CLA.md)
