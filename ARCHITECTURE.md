@@ -129,7 +129,7 @@ flowchart TB
 | `store/transactions.py` | The transaction list (filters, sort, paging), split categories, tags, and the category summary. Goose's category Apply and Undo (`set_category`, `restore_categories`). |
 | `store/transfers.py` | Matched pairs: list, link, unlink, and the unlinked legs the matcher looks at. |
 | `store/export.py` | Export every table to one JSON document; import one into an empty database, all or nothing. Leaves out the connection hash and generated columns. |
-| `store/settings.py` | `settings.json` in Live's folder (0600): what Live and Demo share, today Goose's model. Never a secret. |
+| `store/settings.py` | `settings.json` in Live's folder (0600): what Live and Demo share, today Goose's model. Never a secret, and not in exports. A file, not a table, since every table lives in one profile's database (maintainer call, 2026-11-20). |
 | `store/tags.py`, `store/users.py` | Tags (with Goose's additive `tag_transactions`, its undo, and a tag's monthly totals), and the single local user (with its `meta` settings). |
 | `store/migrations/` | `001` … `009`, numbered SQL files. The only way the schema changes. |
 | `refine/categorize.py` | `match_key()` normalizes a description; `is_match()` compares keys. |

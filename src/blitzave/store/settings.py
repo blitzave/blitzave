@@ -3,6 +3,11 @@ today, which model Goose uses ({"goose": {...}}). Each profile has its own
 database, and Demo's starts over, so these can't live in either one.
 
 Never a secret: a Claude API key stays in the keychain.
+
+A file, not a table (maintainer call, 2026-11-20): every table lives in one
+profile's database. In Live's, saving a model from Demo on a fresh install
+would create a Live database, and the next start would open an empty Live.
+In each profile's, Demo's copy would vanish every time it starts over.
 """
 
 import json
