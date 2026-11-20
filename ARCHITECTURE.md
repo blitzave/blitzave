@@ -473,6 +473,16 @@ All under `/api`. Interactive docs at `http://127.0.0.1:8742/docs` while BlitZav
   every path: the API, `/docs`, `/dev` and the UI. Without it, DNS rebinding (a site
   pointing its own name at 127.0.0.1) would let any web page read and change the
   user's data. Only the name is checked, not the port. `tests/test_trusted_host.py`.
+- **Only our own page can write.** `same_origin_writes` in `__main__.py` refuses (403)
+  any non-GET request whose `Origin` isn't this server's own, so a site the user visits
+  can't make their browser change data (a blind `POST /api/sync`, say). No `Origin`
+  means no browser page, so curl and the tests go through. Every answer but the API
+  docs also carries a CSP (own files only, no framing), `nosniff` and
+  `no-referrer`. `tests/test_same_origin.py`.
+- **Outside addresses are checked before they're trusted.** A setup token and the
+  access URL it returns must be `https`, and a failed call's body is never shown. An
+  imported export never carries Goose's settings, and a Claude key only ever goes to
+  `api.anthropic.com`.
 - **The credential lives in the OS keychain**, or, on a machine with none, in
   `credentials.json` (0600) in the data folder. It's never in the database, logs or
   exports. The database stores only a hash of it (`users.simplefin_hash`).

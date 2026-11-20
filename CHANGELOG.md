@@ -35,6 +35,15 @@ To update: `uv tool upgrade blitzave`, then start `blitzave` as usual.
   `~/BlitZave/settings.json` the first time you start this version.
 - In `blitzave --demo`, a Claude API key you give Goose is kept in memory and
   forgotten when you stop it. Goose's settings say so.
+- **The guide is one click away.** A **Guide** link at the bottom of the
+  sidebar opens it in a new tab. Nothing goes online until you click it.
+- **Safer on your own laptop.** No other website you visit can change your
+  BlitZave data, or show BlitZave inside its own page. A setup token only ever
+  connects over https, and an error from it no longer repeats what the server
+  said. New files BlitZave makes are readable by you alone.
+- **Importing an export no longer brings Goose's model settings along.** Choose
+  your model again after you move to a new laptop. Your Claude API key only
+  ever goes to Anthropic.
 
 ## 0.1.3 (2026-11-08)
 

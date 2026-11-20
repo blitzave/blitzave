@@ -1,4 +1,5 @@
 import base64
+from datetime import date
 
 import httpx
 import pytest
@@ -38,6 +39,56 @@ def test_claim_access_url_raises_on_other_errors(monkeypatch):
 def test_claim_access_url_rejects_bad_base64():
     with pytest.raises(simplefin.SimpleFinError):
         simplefin.claim_access_url("not valid base64!!")
+
+
+def _never(*args, **kwargs):
+    raise AssertionError("no request may be made")
+
+
+@pytest.mark.parametrize(
+    "claim_url",
+    [
+        "http://bridge.simplefin.org/claim/abc",  # no TLS
+        "http://192.168.1.1/admin",  # a box on the user's own network
+        "file:///etc/passwd",
+        "bridge.simplefin.org/claim/abc",  # no scheme at all
+    ],
+)
+def test_a_token_that_isnt_https_is_never_called(monkeypatch, claim_url):
+    monkeypatch.setattr(httpx, "post", _never)
+    with pytest.raises(simplefin.SimpleFinError):
+        simplefin.claim_access_url(_token_for(claim_url))
+
+
+def test_an_access_url_that_isnt_https_is_not_kept(monkeypatch):
+    # A made-up token whose "bridge" hands back its own plain-http address.
+    monkeypatch.setattr(httpx, "post", lambda *a, **k: httpx.Response(200, text="http://u:p@evil.example/sf"))
+    with pytest.raises(simplefin.SimpleFinError):
+        simplefin.connect(_token_for("https://evil.example/claim"))
+    assert simplefin.load_access_url() is None
+
+
+def test_a_failed_claim_never_repeats_what_the_server_said(monkeypatch):
+    monkeypatch.setattr(httpx, "post", lambda *a, **k: httpx.Response(500, text="internal-page secret=1"))
+    with pytest.raises(simplefin.SimpleFinError) as raised:
+        simplefin.claim_access_url(_token_for("https://bridge.simplefin.org/claim/abc"))
+    assert "secret" not in str(raised.value)
+    assert "500" in str(raised.value)
+
+
+def test_a_saved_access_url_that_isnt_https_is_never_called(monkeypatch):
+    simplefin.store_access_url("http://u:p@evil.example/sf")
+    monkeypatch.setattr(httpx, "get", _never)
+    with pytest.raises(simplefin.SimpleFinError):
+        simplefin.fetch(date(2026, 11, 1))
+
+
+def test_a_failed_fetch_never_repeats_what_the_server_said(monkeypatch):
+    simplefin.store_access_url("https://u:p@bridge.simplefin.org/simplefin")
+    monkeypatch.setattr(httpx, "get", lambda *a, **k: httpx.Response(500, text="internal-page secret=1"))
+    with pytest.raises(simplefin.SimpleFinError) as raised:
+        simplefin.fetch(date(2026, 11, 1))
+    assert "secret" not in str(raised.value)
 
 
 def test_access_url_hash_is_deterministic_and_does_not_leak_the_url():
