@@ -22,7 +22,8 @@ care most about:
 - Anything that lets a website, another local user, or another process read or
   change BlitZave data (for example cross-origin requests to the local API, or
   DNS rebinding).
-- The SimpleFIN access credential leaking out of the OS keychain into the
+- The SimpleFIN access credential leaking out of the OS keychain (or the 0600
+  `credentials.json` used where there's no keychain) into the
   database, logs, exports, or error messages.
 - Data leaving the machine other than the user's own SimpleFIN sync and the
   opt-in update check (a single request for the latest release, nothing sent).
