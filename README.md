@@ -22,6 +22,8 @@ A calm, open-source personal finance app that runs on your own laptop.
 
 <sub>Every screenshot uses made-up data from fictional banks. [Watch the full tour](https://blitzave.github.io/blitzave/#tour) (under two minutes).</sub>
 
+**Try it before you commit:** one line runs it on a made-up household, with no bank, no SimpleFIN and nothing installed for good. [Quick start](#quick-start).
+
 </div>
 
 ---
@@ -148,7 +150,8 @@ and import, and a full local API with interactive docs at `/docs`.
 
 You need **[uv](https://docs.astral.sh/uv/)** (it installs Python 3.12 for you).
 
-**Try it first, on made-up data.** Nothing is installed for good:
+**Try it first, on made-up data.** See whether BlitZave fits before you pay for
+SimpleFIN or connect a bank. Nothing is installed for good:
 
 ```bash
 uvx --from git+https://github.com/blitzave/blitzave blitzave --demo
@@ -195,6 +198,9 @@ On macOS you can also use `brew install uv`. For Windows and other options, see
 the [uv installation guide](https://docs.astral.sh/uv/getting-started/installation/).
 
 ### 2. Install BlitZave
+
+Haven't tried it yet? The one-line demo in [Quick start](#quick-start) needs
+only uv, from step 1. None of the steps below.
 
 ```bash
 uv tool install git+https://github.com/blitzave/blitzave

@@ -309,7 +309,7 @@
         <p class="lede">From nothing to your first calm month. Setup takes about ten minutes, most of it in SimpleFIN. After that, each chapter walks through one page of the app: what it shows, and the few things worth doing there.</p>
         <div class="needs" role="list">
           <div class="need" role="listitem"><b>Your own computer</b><span>macOS, Windows or Linux. Nothing else to set up.</span></div>
-          <div class="need" role="listitem"><b>A SimpleFIN account</b><span>Read-only bank access, a small subscription paid to SimpleFIN.</span></div>
+          <div class="need" role="listitem"><b>A SimpleFIN account</b><span>Read-only bank access, a small subscription paid to SimpleFIN. Not needed to <a href="#try-it-first">try the demo</a>.</span></div>
           <div class="need" role="listitem"><b>Ten minutes</b><span>One command to install, one token to paste.</span></div>
         </div>
         <details class="toc-mobile">
@@ -333,7 +333,7 @@
         <div class="chapter-head">
           <span class="chapter-num" aria-hidden="true">1</span>
           <h2 id="install-title">Install BlitZave</h2>
-          <p>Two commands, and BlitZave opens in your browser.</p>
+          <p>Try it on made-up data first if you like, then two commands for your own money.</p>
         </div>
 
         <ol class="steps">
@@ -341,6 +341,10 @@
             <b>Install uv.</b> uv runs Python apps and installs Python 3.12 for you if you need it. On a Mac you can also run <code>brew install uv</code>. On Windows, use the second command, in PowerShell.
             <div class="code"><pre><code>curl -LsSf https://astral.sh/uv/install.sh | sh</code></pre><button class="copy" type="button" aria-label="Copy command"><svg class="idle" viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg><svg class="done" viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg></button></div>
             <div class="code"><pre><code>powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"</code></pre><button class="copy" type="button" aria-label="Copy the Windows command"><svg class="idle" viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg><svg class="done" viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg></button></div>
+          </li>
+          <li id="try-it-first">
+            <b>Try it first, if you like.</b> Before you install anything for good or pay for SimpleFIN, this runs BlitZave once on a made-up household at <strong>127.0.0.1:8791</strong>: a few months of spending, budgets and goals. Every bank, merchant and amount is fictional, and a line at the top of every page says so. Goose works on it too, and an API key typed there is kept in memory only. <kbd>Ctrl</kbd>&nbsp;+&nbsp;<kbd>C</kbd> deletes all of it. Like it? Carry on below.
+            <div class="code"><pre><code>uvx --from git+https://github.com/blitzave/blitzave blitzave --demo</code></pre><button class="copy" type="button" aria-label="Copy command"><svg class="idle" viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg><svg class="done" viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg></button></div>
           </li>
           <li>
             <b>Install BlitZave.</b> This gives you a <code>blitzave</code> command that works from any folder. There's nothing to clone.
@@ -357,12 +361,6 @@
             <img src="../assets/guide/onboarding-welcome.webp" width="2560" height="1600" loading="lazy" decoding="async" alt="BlitZave's welcome screen: the name, the line 'Clarity over money', a Get started button, and a link to bring in an export from another laptop."></div>
           <figcaption>Choose <span class="ui">connect your bank</span> in the demo's top line to get here. The next chapter starts from <span class="ui">Get started</span>.</figcaption>
         </figure>
-
-        <h3 id="try-it-first">Try it first</h3>
-        <div class="prose">
-          <p>Want a look before installing anything or paying for SimpleFIN? This runs BlitZave once, on a made-up household at <strong>127.0.0.1:8791</strong>. Every bank, merchant and amount is fictional; a line at the top of every page says so. Goose works on it too, and an API key typed there is kept in memory only. <kbd>Ctrl</kbd>&nbsp;+&nbsp;<kbd>C</kbd> deletes all of it.</p>
-        </div>
-        <div class="code"><pre><code>uvx --from git+https://github.com/blitzave/blitzave blitzave --demo</code></pre><button class="copy" type="button" aria-label="Copy command"><svg class="idle" viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg><svg class="done" viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg></button></div>
 
         <h3>Day to day</h3>
         <div class="prose">

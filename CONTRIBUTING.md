@@ -116,6 +116,7 @@ git clone https://github.com/blitzave/blitzave.git
 cd blitzave
 uv sync                  # install, including dev tools
 uv run blitzave          # http://127.0.0.1:8742 (API docs at /docs)
+uv run blitzave --demo   # a made-up household on :8791; Ctrl+C deletes it
 uv run pytest            # tests
 uv run ruff check .      # lint
 ```
