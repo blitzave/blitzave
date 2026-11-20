@@ -42,6 +42,7 @@ from blitzave.refine.savings import month_key
 from blitzave.sources import models
 from blitzave.sources.models import ModelError
 from blitzave.store import accounts, categories, db, tags, transactions, users
+from blitzave.store import settings as shared_settings
 from blitzave.words import goose as words
 from blitzave.words import month_name
 
@@ -303,7 +304,7 @@ def ask(question: str) -> list[dict]:
     today = date.today()
     conn = db.connect()
     try:
-        turn = traces.Turn(_model(conn), question)
+        turn = traces.Turn(_model(), question)
         try:
             labels = Labels.load(conn)
             plan = _plan(turn, question, labels, today)
@@ -589,15 +590,16 @@ def undo(proposal_id: str) -> dict:
 
 
 # --- which model ------------------------------------------------------------------------------
-# Saved in users.meta["goose"]; a Claude API key lives only in the keychain.
+# Saved in the settings file Live and Demo share (store/settings.py), so it's
+# set once for both. A Claude API key lives only in the keychain.
 
 
-def _saved(conn) -> dict:
-    return users.get_meta(conn, users.get_or_create_user(conn)).get("goose") or {}
+def _saved() -> dict:
+    return shared_settings.read(jobs.shared_folder()).get("goose") or {}
 
 
-def _model(conn) -> models.ChatModel:
-    saved = _saved(conn)
+def _model() -> models.ChatModel:
+    saved = _saved()
     if not saved:
         raise NotSetUpError("Choose a model for Goose first.")
     if models.is_remote(saved["base_url"]) and not saved.get("remote_ok"):
@@ -607,19 +609,28 @@ def _model(conn) -> models.ChatModel:
 
 def settings() -> dict:
     """What the settings screen shows. The API key never comes back."""
-    conn = db.connect()
-    try:
-        saved = _saved(conn)
-    finally:
-        conn.close()
+    saved = _saved()
     return {
         "provider": saved.get("provider"),
         "model": saved.get("model"),
         "base_url": saved.get("base_url"),
         "remote": bool(saved) and models.is_remote(saved["base_url"]),
         "key_saved": models.has_api_key(),
-        "disclosure": words.DISCLOSURE if jobs.DEMO is None else words.DEMO_DISCLOSURE,
+        # Only `blitzave --demo` keeps the key in memory; Demo shares the keychain.
+        "disclosure": words.DISCLOSURE if jobs.LIVE is not None else words.DEMO_DISCLOSURE,
     }
+
+
+def model_names(provider: str, base_url: str | None) -> list[str]:
+    """The model names the settings screen offers. Claude's are a short
+    fixed list; Ollama's are what it has, asked only on this laptop. Empty
+    when Ollama can't be asked, and the screen takes a typed name instead."""
+    if provider == "anthropic":
+        return list(models.CLAUDE_MODELS)
+    try:
+        return models.ollama_models(base_url or models.OLLAMA_URL)
+    except ModelError:
+        return []
 
 
 def save_settings(provider: str, model: str, base_url: str | None, api_key: str | None, remote_ok: bool) -> dict:
@@ -639,13 +650,8 @@ def save_settings(provider: str, model: str, base_url: str | None, api_key: str 
         models.save_api_key(api_key.strip())
     if provider == "anthropic" and not models.has_api_key():
         raise SettingsError("Claude needs an API key.")
-    conn = db.connect()
-    try:
-        users.update_meta(
-            conn,
-            users.get_or_create_user(conn),
-            {"goose": {"provider": provider, "model": model.strip(), "base_url": base_url, "remote_ok": remote}},
-        )
-    finally:
-        conn.close()
+    shared_settings.update(
+        jobs.shared_folder(),
+        {"goose": {"provider": provider, "model": model.strip(), "base_url": base_url, "remote_ok": remote}},
+    )
     return settings()

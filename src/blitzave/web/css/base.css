@@ -303,6 +303,97 @@ h3 {
   color: var(--accent);
 }
 
+/* The bottom of the sidebar: the profile row, then the footer's divider. */
+.sidebar-bottom {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+/* This laptop, which profile is showing (Live or Demo), and the way into
+   Settings. A nav link too, so it lights up on #/settings. */
+.sidebar-profile {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--line-faint);
+  border-radius: var(--radius-nav);
+  background: var(--bg-raised);
+  color: var(--text-primary);
+  transition: background var(--t-fast) var(--ease-out),
+    border-color var(--t-fast) var(--ease-out);
+}
+
+.sidebar-profile:hover {
+  border-color: var(--line-accent);
+}
+
+.sidebar-profile.is-active {
+  background: var(--bg-lift);
+  border-color: var(--line-accent);
+}
+
+.sidebar-profile-avatar {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  flex: none;
+  border-radius: 50%;
+  background: var(--bg-well);
+  color: var(--text-secondary);
+}
+
+.sidebar-profile-avatar svg,
+.sidebar-profile-gear {
+  width: 16px;
+  height: 16px;
+  flex: none;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 1.75;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.sidebar-profile-gear {
+  color: var(--text-secondary);
+}
+
+.sidebar-profile-text {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  line-height: var(--leading-tight);
+}
+
+.sidebar-profile-name {
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+}
+
+.sidebar-profile-sub {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--text-xs);
+  color: var(--text-secondary);
+}
+
+.sidebar-profile-dot {
+  width: 6px;
+  height: 6px;
+  flex: none;
+  border-radius: 50%;
+  background: var(--text-faint);
+}
+
+.sidebar-profile-dot.is-live {
+  background: var(--success);
+}
+
 .sidebar-footer {
   display: flex;
   flex-direction: column;
@@ -581,8 +672,24 @@ h3 {
   }
 
   .sidebar-brand-text,
-  .sidebar-footer {
+  .sidebar-footer,
+  .sidebar-profile-avatar,
+  .sidebar-profile-text {
     display: none;
+  }
+
+  .sidebar-profile {
+    width: 44px;
+    height: 44px;
+    padding: 0;
+    justify-content: center;
+    border-color: transparent;
+    background: transparent;
+  }
+
+  .sidebar-profile-gear {
+    width: 20px;
+    height: 20px;
   }
 
   .sidebar-nav {

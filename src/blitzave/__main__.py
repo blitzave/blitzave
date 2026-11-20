@@ -11,7 +11,6 @@ from contextlib import asynccontextmanager
 from datetime import date
 from pathlib import Path
 
-import keyring
 import uvicorn
 from fastapi import FastAPI, Request
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
@@ -104,16 +103,17 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     # "The ally shows up when you open it" — sync on startup so there's
     # something to see with no button to press. A failed/skipped sync must
     # never take the API down (AGENTS.md: "the API reports an honest 'last
-    # synced'"), so this only logs.
+    # synced'"), so this only logs. It only ever syncs Live: a saved token
+    # always opens Live, and Demo has no bank.
     try:
         jobs.sync()
     except jobs.SyncError as e:
         logger.info("startup sync skipped: %s", e)
 
     # Opt-in and at most once a day (see jobs.check_for_update). Offline or
-    # no release yet just means there's nothing new to show. Never in demo
-    # mode: a demo touches the network for nothing.
-    if jobs.DEMO is None:
+    # no release yet just means there's nothing new to show. Never in Demo:
+    # it would touch the network for nothing.
+    if jobs.PROFILE is jobs.LIVE:
         try:
             jobs.check_for_update(date.today())
         except jobs.UpdateCheckError as e:
@@ -152,28 +152,12 @@ class BrowserOpeningServer(uvicorn.Server):
         webbrowser.open(f"http://{HOST}:{self.config.port}")
 
 
-def _fresh_install() -> bool:
-    """No database yet and nothing in the keychain: someone who has never
-    connected a bank. Anyone with real data never sees made-up numbers, even
-    if their keychain entry went missing."""
-    return not db.database_exists() and not jobs.simplefin_connected()
-
-
-def _start_demo(can_connect: bool) -> None:
-    """Made-up data in a temporary folder, removed however the process ends:
-    Ctrl+C arrives as a KeyboardInterrupt and kill as SIGTERM, which uvicorn
-    raises again after shutting down. Both end in atexit. can_connect: the
-    keychain is read before the swap, so connecting can go back to it."""
-    started = jobs.start_demo(keyring.get_keyring() if can_connect else None)
-    atexit.register(shutil.rmtree, started.home, ignore_errors=True)
+def _remove_on_exit(folder: Path) -> None:
+    """`blitzave --demo` keeps nothing, however the process ends: Ctrl+C
+    arrives as a KeyboardInterrupt and kill as SIGTERM, which uvicorn raises
+    again after shutting down. Both end in atexit."""
+    atexit.register(shutil.rmtree, folder, ignore_errors=True)
     signal.signal(signal.SIGTERM, lambda signum, frame: sys.exit(0))
-    demo.set_up(app)
-    then = "Connect your bank in the app" if can_connect else "Stop it (Ctrl+C) and run `blitzave`"
-    print(
-        "BlitZave is showing a made-up household. Nothing here is yours, and it's "
-        f"deleted when you stop. {then} when you're ready.",
-        file=sys.stderr,
-    )
 
 
 def main() -> None:
@@ -189,18 +173,27 @@ def main() -> None:
     # trace) is readable by this user alone, not only the folder it sits in.
     os.umask(0o077)
     if not args.demo:
-        # Before anything reads a secret (the fresh-install check below does):
-        # the OS keychain, or a file only the user can read when this machine
-        # has no keychain (keychain.py). Not for --demo, which has its own
+        # Before anything reads a secret (jobs.start checks for a token): the
+        # OS keychain, or a file only the user can read when this machine has
+        # no keychain (keychain.py). Not for --demo, which has its own
         # keychain and must never touch the real home folder.
         keychain.use_file_if_needed(db.home_dir())
     try:
-        port = PORT
+        jobs.start(demo_only=args.demo)
         if args.demo:
-            _start_demo(can_connect=False)
-            port = demo.PORT
-        elif _fresh_install():
-            _start_demo(can_connect=True)
+            _remove_on_exit(jobs.DEMO.home)
+            print(
+                "BlitZave is showing a made-up household. Nothing here is yours, and it's "
+                "deleted when you stop. Stop it (Ctrl+C) and run `blitzave` when you're ready.",
+                file=sys.stderr,
+            )
+        elif jobs.PROFILE is jobs.DEMO:
+            print(
+                "BlitZave is showing a made-up household. Nothing here is yours, and it "
+                "starts over each time you open it. Connect your bank in the app when you're ready.",
+                file=sys.stderr,
+            )
+        port = demo.PORT if args.demo else PORT
         BrowserOpeningServer(uvicorn.Config(app, host=HOST, port=port)).run()
     except KeyboardInterrupt:
         pass  # Ctrl+C: uvicorn has already shut down; this hides the traceback.

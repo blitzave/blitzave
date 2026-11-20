@@ -289,7 +289,7 @@ function renderConnect(panel, ctx) {
     .connectStatus()
     .then((status) => {
       if (!panel.isConnected) return;
-      // The demo's fictional bank counts as connected; the user's own doesn't yet.
+      // Connected means a SimpleFIN token is saved; Demo shows the form instead.
       if (status && status.connected && !status.demo) {
         renderAlreadyConnected(body, ctx);
       } else {

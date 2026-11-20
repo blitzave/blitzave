@@ -47,7 +47,7 @@ def test_connect_simplefin_raises_connect_error_on_bad_token(monkeypatch, isolat
     assert jobs.simplefin_connected() is False
 
 
-# --- the SOURCE seam: where a sync gets its data ---------------------------------
+# --- the profile's source: where a sync gets its data ---------------------------------
 
 
 class FakeSource:
@@ -80,31 +80,40 @@ def _one_account_one_charge():
     )
 
 
-def test_sync_reads_from_whatever_source_is_set(monkeypatch):
+def test_sync_reads_from_the_profiles_source(monkeypatch, isolated_home):
     def never(*args, **kwargs):
         raise AssertionError("SimpleFIN must not be asked when another source is set")
 
     monkeypatch.setattr(simplefin, "is_connected", never)
     monkeypatch.setattr(simplefin, "fetch", never)
     source = FakeSource(_one_account_one_charge())
-    monkeypatch.setattr(jobs, "SOURCE", source)
+    monkeypatch.setattr(jobs, "PROFILE", jobs.Profile("live", isolated_home, source))
 
     result = jobs.sync()
 
     assert result["accounts"] == 1
     assert result["transactions"] == 1
     assert len(source.asked) == 1
-    assert jobs.simplefin_connected() is True
 
 
-def test_sync_month_reads_from_the_source_too(monkeypatch):
+def test_sync_month_reads_from_the_profiles_source_too(monkeypatch, isolated_home):
     source = FakeSource(_one_account_one_charge())
-    monkeypatch.setattr(jobs, "SOURCE", source)
+    monkeypatch.setattr(jobs, "PROFILE", jobs.Profile("live", isolated_home, source))
 
     jobs.sync_month(2026, 11)
 
     assert source.asked == [(date(2026, 11, 1), date(2026, 12, 1))]
 
 
-def test_the_source_is_simplefin_unless_something_swaps_it():
-    assert jobs.SOURCE is simplefin
+def test_live_syncs_simplefin_until_start_picks_a_profile():
+    assert jobs.PROFILE is jobs.LIVE
+    assert jobs.PROFILE.source is simplefin
+
+
+def test_a_profile_with_no_bank_has_nothing_to_sync(monkeypatch, isolated_home):
+    monkeypatch.setattr(jobs, "PROFILE", jobs.Profile("demo", isolated_home, None))
+
+    with pytest.raises(jobs.SyncError, match="no bank"):
+        jobs.sync()
+    with pytest.raises(jobs.SyncError, match="no bank"):
+        jobs.sync_month(2026, 11)

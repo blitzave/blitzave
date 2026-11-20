@@ -168,8 +168,9 @@ blitzave
 
 BlitZave opens at **http://127.0.0.1:8742**, on the same made-up household
 until you connect. Choose **connect your bank** in the line at the top, paste
-your SimpleFIN setup token, and it switches to your own money. Run `blitzave`
-from any terminal whenever you want to open it.
+your SimpleFIN setup token, and it switches to your own money. The made-up
+household stays one switch away in **Settings**. Run `blitzave` from any
+terminal whenever you want to open it.
 
 > BlitZave is built on macOS, and CI starts it on macOS, Linux and Windows.
 > There's nothing extra to install on any of them. Reports are welcome.
@@ -226,9 +227,11 @@ blitzave
 
 It opens in your browser at **http://127.0.0.1:8742**. Until you connect a
 bank, the first run shows a made-up household, so you can look around first; a
-line at the top of every page says so, and it's deleted when you stop. Your
-data folder, `~/BlitZave/`, is created when you connect. Keep the terminal open
-while you use it; press `Ctrl+C` to stop.
+line at the top of every page says so, and it starts over each time you open
+it. Once you connect, BlitZave opens on your own money, and **Settings** (the
+row above the sidebar's footer) switches between the two. Your data lives in
+`~/BlitZave/`, with the made-up household in `~/BlitZave/demo/`. Keep the
+terminal open while you use it; press `Ctrl+C` to stop.
 
 ### 5. Onboard
 

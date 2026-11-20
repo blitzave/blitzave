@@ -16,6 +16,7 @@ const routes = [
   { pattern: "/savings/new", load: () => import("./pages/goal-form.js") },
   { pattern: "/savings/:id", load: () => import("./pages/goal-form.js") },
   { pattern: "/savings", load: () => import("./pages/savings.js") },
+  { pattern: "/settings", load: () => import("./pages/settings.js") },
 ];
 
 const DEFAULT_PATH = "/home";

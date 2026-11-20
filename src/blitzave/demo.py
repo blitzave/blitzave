@@ -1,27 +1,20 @@
-"""Demo mode: BlitZave on a made-up household, to try before connecting a bank.
+"""The Demo profile's made-up household, to try BlitZave before connecting a bank.
 
 Everything here is fictional: the banks, the employer, the merchants and every
-amount. Demo mode never touches the user's real setup:
+amount. Demo is a profile like Live (see jobs.Profile), in its own folder,
+~/BlitZave/demo. It has no bank, so nothing in it syncs, and it starts over
+every time it opens: jobs.start_demo_over loads build() and then set_up().
 
-- the data folder is a new temporary directory (never ~/BlitZave),
-- the keychain is a dict in memory (keyring's own set_keyring, no patching),
-- the bank is FictionalBank below, swapped in as jobs.SOURCE,
-- there's no update check.
-
-Two ways in: `blitzave --demo` is a demo and nothing else. Plain `blitzave` on
-a fresh install is one too, until the user connects their bank: then leave()
-puts their real keychain and data folder back (jobs.connect_simplefin).
+`blitzave --demo` is Demo alone: a temporary folder and a keychain in memory
+(start_throwaway), never the real ones, and no Live to switch to.
 
 Dates are relative to today, so Home always has something true to say.
 """
 
-import os
 import random
-import shutil
 import tempfile
 import warnings
 from calendar import monthrange
-from dataclasses import dataclass
 from datetime import date, timedelta
 from pathlib import Path
 
@@ -33,7 +26,7 @@ from keyring.backend import KeyringBackend
 from blitzave.sources.base import AccountRow, BalanceRow, Fetched, TxRow
 from blitzave.store import categories, db
 
-PORT = 8791  # so a demo can run beside a real BlitZave on 8742
+PORT = 8791  # so `blitzave --demo` can run beside a real BlitZave on 8742
 
 
 class DemoSetupError(Exception):
@@ -41,12 +34,12 @@ class DemoSetupError(Exception):
 
 
 class MemoryKeyring(KeyringBackend):
-    """A keychain that's a dict: whatever is saved in demo mode (a Goose API
-    key, say) is forgotten when the process ends."""
+    """A keychain that's a dict, for `blitzave --demo`: whatever is saved in
+    it (a Goose API key, say) is forgotten when the process ends."""
 
     # keyring only builds backends it can construct with no arguments, and
     # one with no priority isn't viable, so it never picks this on its own
-    # (on a Linux machine with no keychain, say). Only start() does.
+    # (on a Linux machine with no keychain, say). Only start_throwaway() does.
 
     def __init__(self, secrets: dict[tuple[str, str], str]):
         super().__init__()
@@ -63,56 +56,12 @@ class MemoryKeyring(KeyringBackend):
             raise keyring.errors.PasswordDeleteError("nothing saved under that name")
 
 
-class FictionalBank:
-    """What jobs.SOURCE needs (is_connected, fetch), answered from made-up data."""
-
-    def __init__(self, fetched: Fetched):
-        self.fetched = fetched
-
-    def is_connected(self) -> bool:
-        return True
-
-    def fetch(self, since: date, until: date | None = None) -> Fetched:
-        return self.fetched
-
-
-@dataclass
-class Demo:
-    """A running demo: its temporary data folder, and what to put back if
-    the user connects their real bank."""
-
-    home: Path
-    real_keyring: KeyringBackend | None  # None for --demo, which never turns real
-    home_before: str | None  # BLITZAVE_HOME as it was, usually unset
-
-    @property
-    def can_connect(self) -> bool:
-        return self.real_keyring is not None
-
-    def leave(self) -> None:
-        """Back to the user's real keychain and data folder. The demo's
-        folder, and every secret typed into it, are gone."""
-        keyring.set_keyring(self.real_keyring)
-        if self.home_before is None:
-            os.environ.pop("BLITZAVE_HOME", None)
-        else:
-            os.environ["BLITZAVE_HOME"] = self.home_before
-        shutil.rmtree(self.home, ignore_errors=True)
-
-
-def start(real_keyring: KeyringBackend | None = None) -> Demo:
-    """Enter demo mode. Call it before anything opens the database: db reads
-    BLITZAVE_HOME on every connect. Pass the keychain to go back to when the
-    user connects their bank, or nothing for a demo that never turns real.
-    The caller removes the folder on exit."""
-    started = Demo(
-        home=Path(tempfile.mkdtemp(prefix="blitzave-demo-")),
-        real_keyring=real_keyring,
-        home_before=os.environ.get("BLITZAVE_HOME"),
-    )
-    os.environ["BLITZAVE_HOME"] = str(started.home)
+def start_throwaway() -> Path:
+    """For `blitzave --demo`: a new temporary folder for Demo, and a keychain
+    in memory, so the real ones are never touched. The caller removes the
+    folder on exit."""
     keyring.set_keyring(MemoryKeyring({}))
-    return started
+    return Path(tempfile.mkdtemp(prefix="blitzave-demo-"))
 
 
 # --- The fictional household -----------------------------------------------------
@@ -362,19 +311,24 @@ EXPENSES = [
 ]
 
 
-def set_up(app: FastAPI) -> None:
-    """Make the household look like a few months of use: goal accounts,
-    categories the user taught, budgets and goals. Everything goes through the
-    API in-process, so each write is validated exactly as a user's would be."""
+def set_up() -> None:
+    """Make the household (already loaded from build()) look like a few
+    months of use: goal accounts, categories the user taught, budgets and
+    goals. Everything goes through the API in-process, so each write is
+    validated exactly as a user's would be."""
     with warnings.catch_warnings():
         # Starlette wants httpx2 for its TestClient. httpx still works, and
         # the warning would otherwise greet every demo user.
         warnings.filterwarnings("ignore", message="Using `httpx` with `starlette.testclient`")
         from fastapi.testclient import TestClient
+    # Imported here, not at the top: routes imports jobs, which imports this.
+    from blitzave.api.routes import router
+
+    api = FastAPI()  # just the routes: no startup sync, no update check
+    api.include_router(router)
 
     today = date.today()
-    # base_url: the app refuses any Host but its own (DNS rebinding).
-    with TestClient(app, base_url=f"http://127.0.0.1:{PORT}") as client:  # the lifespan syncs
+    with TestClient(api) as client:
 
         def ok(response):
             if response.status_code >= 300:

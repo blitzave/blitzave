@@ -1,0 +1,169 @@
+/* BlitZave — Settings (#/settings). Built on tokens.css / base.css — see
+   DESIGN.md. Namespaced .settings-*, since every page's CSS shares one
+   cascade. Two cards: the profile switch, and Goose's model. */
+
+.settings-page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+  max-width: 720px;
+}
+
+.settings-intro {
+  margin-bottom: var(--space-2);
+}
+
+.settings-intro-title {
+  font-size: var(--text-title);
+}
+
+.settings-intro-lede {
+  margin-top: var(--space-2);
+  color: var(--text-secondary);
+  font-size: var(--text-base);
+}
+
+.settings-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.settings-card-title {
+  font-size: var(--text-md);
+  font-weight: var(--weight-semibold);
+}
+
+.settings-hint,
+.settings-quiet {
+  color: var(--text-secondary);
+  font-size: var(--text-sm);
+  line-height: var(--leading-body);
+}
+
+/* Demo | Live: two choices, one showing. A segmented switch, not an on/off
+   toggle, so it reads as "which", never "is demo on". */
+.settings-switch {
+  display: inline-grid;
+  grid-template-columns: 1fr 1fr;
+  align-self: flex-start;
+  gap: var(--space-1);
+  padding: var(--space-1);
+  border-radius: var(--radius-chip);
+  background: var(--bg-well);
+}
+
+.settings-switch button {
+  min-width: 96px;
+  padding: var(--space-2) var(--space-5);
+  border-radius: var(--radius-chip);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+  color: var(--text-secondary);
+  transition: background var(--t-fast) var(--ease-out), color var(--t-fast) var(--ease-out);
+}
+
+.settings-switch button[aria-checked="true"] {
+  background: var(--bg-raised);
+  color: var(--text-primary);
+  box-shadow: var(--shadow-xs);
+}
+
+.settings-switch button:hover:not(:disabled):not([aria-checked="true"]) {
+  color: var(--text-primary);
+}
+
+.settings-switch button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.settings-goose {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.settings-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: var(--space-4);
+}
+
+.settings-key-row {
+  display: flex;
+  gap: var(--space-2);
+}
+
+.settings-key-row .input {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.settings-key-row .input:disabled {
+  cursor: not-allowed;
+  background: var(--bg-well);
+}
+
+/* What a remote model would be sent: the engine's words, and the OK. */
+.settings-disclosure {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-control);
+  background: var(--bg-well);
+  font-size: var(--text-sm);
+  line-height: var(--leading-body);
+  color: var(--text-secondary);
+}
+
+.settings-disclosure label {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--text-primary);
+  font-weight: var(--weight-medium);
+  cursor: pointer;
+}
+
+.settings-local {
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-control);
+  background: var(--success-soft);
+  color: var(--success);
+  font-size: var(--text-sm);
+}
+
+.settings-status-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.settings-status {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+}
+
+.settings-status-dot {
+  width: 7px;
+  height: 7px;
+  flex: none;
+  border-radius: 50%;
+  background: var(--text-faint);
+}
+
+.settings-status-dot.is-ready {
+  background: var(--success);
+}
+
+/* .field and the cards set display, which would beat [hidden]. */
+.settings-page [hidden] {
+  display: none !important;
+}
