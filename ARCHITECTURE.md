@@ -379,6 +379,9 @@ The guarantees say what a model can't do. These two say how well it does its job
   questions and every planner question, end to end through `assistant.ask()` in a
   throwaway `BLITZAVE_HOME`, with the tap passing each request on. One hit fails the
   run. Runs go to `evals/runs/privacy/`, every byte kept except the API key.
+  `evals/privacy_charts.py` draws four figures from those runs and searches every
+  recorded request again for the household's data, so a figure can show only what the
+  bytes hold; it refuses to draw if the leaky control wasn't caught.
 - **Reading runs.** A run keeps every plan and writer sentence, so `--report` and
   `--compare` score them again against today's `planner.toml` and `fill()`, without
   a model, and say which cases score differently from what was recorded. `--report`
