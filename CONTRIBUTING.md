@@ -148,6 +148,7 @@ uv run python evals/run.py ollama qwen3:8b             # a model on this laptop,
 uv run python evals/run.py anthropic claude-haiku-5-5  # uses the key saved in Goose's settings; a few cents
 uv run python evals/run.py --report evals/runs/*.jsonl
 uv run python evals/run.py --compare BEFORE.jsonl AFTER.jsonl
+uv run python evals/run.py --privacy ollama qwen3:8b   # privacy.toml: every byte sent, checked for the household's data
 uv run --group eval python evals/charts.py evals/runs/*.jsonl --out figures/
 uv run --group eval python evals/charts.py --compare BEFORE.jsonl AFTER.jsonl --out figures/
 ```

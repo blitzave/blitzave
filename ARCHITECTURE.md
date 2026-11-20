@@ -367,6 +367,18 @@ The guarantees say what a model can't do. These two say how well it does its job
   written as `.jsonl.partial` until every case is in, so an unfinished one is never
   charted. A case whose every reply was empty is the server's failure, not the
   model's: it's an error, and three in a row stop the run.
+- **The privacy proof.** `tests/test_privacy_wire.py` checks the bytes, not the
+  arguments to `chat()`: it taps httpx's transports, so every request the process
+  sends is recorded as it went out, and runs every intent through every adapter in
+  `models.ADAPTERS` against a canary household (CANARY in every description,
+  merchant, bank and account; odd account numbers and amounts; a fake SimpleFIN URL
+  and API key). Only the configured host is contacted, the key appears only in its
+  auth header, and no canary, account number or amount is in any URL, header or body.
+  A leaky test adapter must be caught, so a pass means something. The same check runs
+  on real models with `evals/run.py --privacy`: `privacy.toml`'s adversarial
+  questions and every planner question, end to end through `assistant.ask()` in a
+  throwaway `BLITZAVE_HOME`, with the tap passing each request on. One hit fails the
+  run. Runs go to `evals/runs/privacy/`, every byte kept except the API key.
 - **Reading runs.** A run keeps every plan and writer sentence, so `--report` and
   `--compare` score them again against today's `planner.toml` and `fill()`, without
   a model, and say which cases score differently from what was recorded. `--report`
