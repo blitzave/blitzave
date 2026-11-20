@@ -356,7 +356,8 @@ def health() -> dict[str, str]:
 
 @router.get("/connect")
 def connect_status() -> dict[str, bool]:
-    return {"connected": jobs.simplefin_connected()}
+    # The UI reads this at boot; `demo` tells it to show the made-up-data banner.
+    return {"connected": jobs.simplefin_connected(), "demo": jobs.DEMO}
 
 
 @router.post("/connect")

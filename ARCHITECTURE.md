@@ -82,6 +82,7 @@ The UI and the API share one origin, so there's no CORS and no second server.
 | `refine/` | compute: facts in, facts out | do any I/O |
 | `api/` | validate requests (Pydantic), call `store/` and `refine/`, format money for display | contain SQL, or call `sources/` directly |
 | `jobs.py` | orchestrate a sync: `sources/` → `store/` → `refine/` → `store/` | — |
+| `demo.py` | swap in made-up data, then set it up through the API | touch `~/BlitZave`, the real keychain or the network |
 | `assistant.py` | orchestrate Goose: a plan from `sources/models.py`, then lanes over `store/` and `refine/` | contain SQL, or give a model a row, a count or a result |
 | `web/` | show what the API returns | compute or format money, or call anything but `/api/*` |
 
@@ -108,8 +109,9 @@ flowchart TB
 
 | File | Job |
 |---|---|
-| `__main__.py` | The `blitzave` command. Builds the FastAPI app, refuses any `Host` but `127.0.0.1` or `localhost`, mounts `web/` at `/` (and `dev/` at `/dev` when it exists), runs the startup sync, binds `127.0.0.1:8742` and opens the browser. |
-| `jobs.py` | The sync pipeline (`sync`, `sync_month`), category-rule application, pair matching, and the opt-in daily update check. |
+| `__main__.py` | The `blitzave` command. Builds the FastAPI app, refuses any `Host` but `127.0.0.1` or `localhost`, mounts `web/` at `/` (and `dev/` at `/dev` when it exists), runs the startup sync, binds `127.0.0.1:8742` and opens the browser. `--demo` starts `demo.py` first and binds `8791` instead. |
+| `jobs.py` | The sync pipeline (`sync`, `sync_month`), category-rule application, pair matching, and the opt-in daily update check. `SOURCE` is where a sync fetches from: SimpleFIN, or the demo's fictional bank. |
+| `demo.py` | Demo mode: a made-up household (`build()`), set up through the API in-process (`set_up()`), in a temporary data folder with a keychain held in memory (`MemoryKeyring`). Swaps `jobs.SOURCE`, skips the update check, and touches nothing real. |
 | `assistant.py` | Goose (see [Goose](#goose)): the plan grammar, the planner prompt with one repair, the Show, Change and Summarize lanes, previews held in memory with Apply and Undo, `fill()` for a model's wording, and the model settings. |
 | `backup.py` | Copies the database before a migration and keeps the last three copies. |
 | `api/routes.py` | Every `/api/*` endpoint and its Pydantic request models. Maps store errors to 404, 409 and 422. |

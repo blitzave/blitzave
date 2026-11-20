@@ -16,6 +16,7 @@ INITIAL_LOOKBACK_DAYS = 90  # how far back the very first sync reaches, before a
 # fetch(since, until). Always SimpleFIN, except in demo mode, which swaps in
 # its fictional bank (blitzave.demo) with one assignment.
 SOURCE = simplefin
+DEMO = False  # True once blitzave.demo.start() has run: made-up data, nothing kept
 
 
 class ConnectError(Exception):

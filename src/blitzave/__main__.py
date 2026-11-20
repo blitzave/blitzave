@@ -1,4 +1,9 @@
+import argparse
+import atexit
 import logging
+import shutil
+import signal
+import sys
 import webbrowser
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
@@ -10,7 +15,7 @@ from fastapi import FastAPI
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from fastapi.staticfiles import StaticFiles
 
-from blitzave import jobs
+from blitzave import demo, jobs
 from blitzave.api.routes import router
 from blitzave.store import db, users
 
@@ -67,11 +72,13 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         logger.info("startup sync skipped: %s", e)
 
     # Opt-in and at most once a day (see jobs.check_for_update). Offline or
-    # no release yet just means there's nothing new to show.
-    try:
-        jobs.check_for_update(date.today())
-    except jobs.UpdateCheckError as e:
-        logger.info("update check skipped: %s", e)
+    # no release yet just means there's nothing new to show. Never in demo
+    # mode: a demo touches the network for nothing.
+    if not jobs.DEMO:
+        try:
+            jobs.check_for_update(date.today())
+        except jobs.UpdateCheckError as e:
+            logger.info("update check skipped: %s", e)
 
     yield
 
@@ -101,13 +108,36 @@ class BrowserOpeningServer(uvicorn.Server):
 
     async def startup(self, sockets=None):
         await super().startup(sockets)
-        webbrowser.open(URL)
+        webbrowser.open(f"http://{HOST}:{self.config.port}")
+
+
+def _start_demo() -> int:
+    """Made-up data in a temporary folder, removed however the process ends:
+    Ctrl+C arrives as a KeyboardInterrupt and kill as SIGTERM, which uvicorn
+    raises again after shutting down. Both end in atexit. Returns the port."""
+    home = demo.start()
+    atexit.register(shutil.rmtree, home, ignore_errors=True)
+    signal.signal(signal.SIGTERM, lambda signum, frame: sys.exit(0))
+    demo.set_up(app)
+    print(
+        "BlitZave demo: a made-up household. Nothing here is yours, "
+        "and it's all deleted when you stop it (Ctrl+C).",
+        file=sys.stderr,
+    )
+    return demo.PORT
 
 
 def main() -> None:
-    server = BrowserOpeningServer(uvicorn.Config(app, host=HOST, port=PORT))
+    parser = argparse.ArgumentParser(prog="blitzave", description="BlitZave, on your own machine.")
+    parser.add_argument(
+        "--demo",
+        action="store_true",
+        help="try it on a made-up household; nothing is kept, and your real setup is never touched",
+    )
+    args = parser.parse_args()
     try:
-        server.run()
+        port = _start_demo() if args.demo else PORT
+        BrowserOpeningServer(uvicorn.Config(app, host=HOST, port=port)).run()
     except KeyboardInterrupt:
         pass  # Ctrl+C: uvicorn has already shut down; this hides the traceback.
 
