@@ -51,8 +51,24 @@ jobs:
           exit $failed
 
   install:
-    name: Install and start like a friend
-    runs-on: macos-latest
+    name: Install and start like a friend (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        # macOS: the null backend, since a runner's keychain can't be used.
+        # Ubuntu: no keychain at all, so this starts on the file fallback.
+        # Windows: its own Credential Locker.
+        include:
+          - os: macos-latest
+            keyring: keyring.backends.null.Keyring
+          - os: ubuntu-latest
+            keyring: ""
+          - os: windows-latest
+            keyring: ""
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: bash
     steps:
       - uses: actions/checkout@v7
       - uses: astral-sh/setup-uv@v10.3.3 # exact pin: setup-uv stopped publishing @vN tags in v8
@@ -61,10 +77,14 @@ jobs:
       - name: Start it and check the API, the page and its JavaScript
         env:
           BLITZAVE_HOME: ${{ runner.temp }}/blitzave-home
-          PYTHON_KEYRING_BACKEND: keyring.backends.null.Keyring # no keychain on CI
+          KEYRING: ${{ matrix.keyring }}
           BROWSER: "true" # a no-op command instead of opening a browser tab
         run: |
-          "$(uv tool dir --bin)/blitzave" > "$RUNNER_TEMP/blitzave.log" 2>&1 &
+          # Set only when named: keyring fails on an empty PYTHON_KEYRING_BACKEND.
+          if [ -n "$KEYRING" ]; then export PYTHON_KEYRING_BACKEND="$KEYRING"; fi
+          bin=$(uv tool dir --bin)
+          if command -v cygpath > /dev/null; then bin=$(cygpath -u "$bin"); fi # Windows
+          "$bin/blitzave" > "$RUNNER_TEMP/blitzave.log" 2>&1 &
           server=$!
           for _ in $(seq 1 60); do
             curl -sf http://127.0.0.1:8742/api/health > /dev/null && break
@@ -74,6 +94,8 @@ jobs:
           curl -sf http://127.0.0.1:8742/ | grep -q 'src="/js/main.js"'
           curl -sf -o /dev/null http://127.0.0.1:8742/js/main.js
           kill "$server"
+          # Linux runners have no keychain, so this one must have used the file.
+          if [ "$RUNNER_OS" = Linux ]; then grep -q "No system keychain here" "$RUNNER_TEMP/blitzave.log"; fi
       - name: Server log
         if: failure()
         run: |

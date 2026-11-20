@@ -115,6 +115,7 @@ flowchart TB
 | `api/routes.py` | Every `/api/*` endpoint and its Pydantic request models. Maps store errors to 404, 409 and 422. |
 | `api/money.py` | `parse_amount()` (text → integer cents) and `format_cents()` (cents → "$1,200.00"). The only money conversions. |
 | `sources/base.py` | Normalized row types: `AccountRow`, `TxRow`, `BalanceRow`, `Fetched`. |
+| `keychain.py` | Where secrets live. The OS keychain when it answers; when it doesn't (a Linux server, WSL), `FileKeyring` keeps them in `credentials.json` (0600) in the data folder. `main()` decides once, at startup; everything else calls `keyring` as usual. |
 | `sources/simplefin.py` | Claims a setup token, keeps the access URL in the keychain, and fetches accounts, balances and transactions. Guesses each account's type from its name. |
 | `sources/github.py` | One bare GET for the latest release, when the update check is on. |
 | `sources/models.py` | Goose's model adapters: `Ollama` and `Claude`, each one `chat(system, messages, schema)`; `make_model()` picks one from `ADAPTERS`. `is_remote()` decides by host. The Claude API key lives in the keychain. |
@@ -407,7 +408,8 @@ All under `/api`. Interactive docs at `http://127.0.0.1:8742/docs` while BlitZav
   every path: the API, `/docs`, `/dev` and the UI. Without it, DNS rebinding (a site
   pointing its own name at 127.0.0.1) would let any web page read and change the
   user's data. Only the name is checked, not the port. `tests/test_trusted_host.py`.
-- **The credential lives in the OS keychain.** It's never in the database, logs or
+- **The credential lives in the OS keychain**, or, on a machine with none, in
+  `credentials.json` (0600) in the data folder. It's never in the database, logs or
   exports. The database stores only a hash of it (`users.simplefin_hash`).
 - **Bank access is read-only.** SimpleFIN can't move money, and neither can BlitZave.
 - **Goose's model plans and never reads.** It sees the question and your labels, never a
@@ -432,6 +434,7 @@ All under `/api`. Interactive docs at `http://127.0.0.1:8742/docs` while BlitZav
 | `~/BlitZave/blitzave.db` | Everything: accounts, transactions, categories, goals, rules, pairs, balances. |
 | `~/BlitZave/backups/blitzave-vNNN-YYYY-MM-DD.db` | A copy taken before migrating from version NNN. The last three are kept. |
 | OS keychain, service `blitzave` | The SimpleFIN access URL, and a Claude API key if you add one for Goose. |
+| `~/BlitZave/credentials.json` | The same secrets, only on a machine with no keychain. 0600. Never exported or backed up. |
 
 `BLITZAVE_HOME` moves the data folder. The tests use it to get a fresh folder each.
 It doesn't move the keychain entry, so a fresh folder still syncs the real bank;

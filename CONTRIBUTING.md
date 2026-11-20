@@ -45,7 +45,8 @@ accurate. In practice:
   on by default is the user's own bank sync. The one optional call, a daily
   update check, stays off until the user turns it on and sends nothing about
   them. No telemetry, no analytics, no remote fonts or CDNs in the UI.
-- **Secrets live in the OS keychain**, never in the database, logs, exports,
+- **Secrets live in the OS keychain** (or, with none, a 0600 file in the data
+  folder: `keychain.py`), never in the database, logs, exports,
   issues, or screenshots.
 
 **Not now (on purpose):** hosting and user accounts, payments, native or mobile
