@@ -116,6 +116,10 @@ def import_all(conn: sqlite3.Connection, document: dict) -> dict[str, int]:
                     dump["rows"],
                 )
             counts[table] = len(dump["rows"])
+        # Goose's model settings belong to the laptop they were chosen on,
+        # and so does the OK to send questions off it. An export may come
+        # from someone else, so Goose asks again instead of trusting it.
+        conn.execute("UPDATE users SET meta = json_remove(meta, '$.goose')")
     except sqlite3.Error as e:
         conn.rollback()
         raise ImportRefusedError(f"a row was refused: {e}") from e

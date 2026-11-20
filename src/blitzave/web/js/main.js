@@ -8,6 +8,10 @@
 import * as api from "./api.js";
 import { startRouter, navigate } from "./router.js";
 
+// The how-to guide lives on the public site, not in the app: a link goes
+// online only when it's clicked, in a new tab, and is never framed in here.
+const GUIDE_URL = "https://blitzave.github.io/blitzave/guide/";
+
 // Line icons in the Lucide idiom (24px viewBox, currentColor stroke, round
 // caps) — sized and colored by .sidebar-link-icon in base.css.
 const ICON_ACCOUNTS = `
@@ -146,7 +150,8 @@ function shellMarkup() {
         <div class="sidebar-footer">
           <p class="sidebar-footer-note">${ICON_LOCK}<span>Runs on this laptop. Bank access is read-only.</span></p>
           <p class="sidebar-footer-meta">Open source · self-hosted</p>
-          <p class="sidebar-footer-meta"><a class="link" href="${api.exportUrl()}" download>Export your data</a></p>
+          <p class="sidebar-footer-meta"><a class="link" href="${api.exportUrl()}" download>Export your data</a> ·
+            <a class="link" href="${GUIDE_URL}" target="_blank" rel="noopener noreferrer">Guide</a></p>
           <div class="sidebar-updates" id="sidebar-updates" hidden></div>
         </div>
       </aside>

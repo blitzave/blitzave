@@ -171,6 +171,11 @@ ADAPTERS = {"ollama": Ollama, "anthropic": Claude}
 
 def make_model(provider: str, model: str, base_url: str) -> ChatModel:
     """The factory. A new provider is one class above and one entry in ADAPTERS."""
+    if provider == "anthropic":
+        # The API key only ever goes to Anthropic, whatever address was saved:
+        # an imported or hand-edited settings row must not be able to aim it
+        # somewhere else.
+        base_url = ANTHROPIC_URL
     return ADAPTERS[provider](model, base_url)
 
 

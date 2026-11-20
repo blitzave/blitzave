@@ -1,6 +1,7 @@
 import argparse
 import atexit
 import logging
+import os
 import shutil
 import signal
 import sys
@@ -12,8 +13,9 @@ from pathlib import Path
 
 import keyring
 import uvicorn
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
+from fastapi.responses import PlainTextResponse
 from fastapi.staticfiles import StaticFiles
 
 from blitzave import demo, jobs, keychain
@@ -41,6 +43,42 @@ URL = f"http://{HOST}:{PORT}"
 # gets a 400. Only the name is checked: a page can't make the browser send
 # 127.0.0.1 or localhost unless it really was opened there.
 ALLOWED_HOSTS = [HOST, "localhost"]
+
+# Methods that only read. Everything else is a write, and gets checked below.
+SAFE_METHODS = {"GET", "HEAD", "OPTIONS"}
+
+# FastAPI's API docs load their script from a CDN, so they're left out of
+# the page rules below (which would block it).
+DOCS_PATHS = {"/docs", "/docs/oauth2-redirect", "/redoc"}
+
+# Sent with every page and answer. The page runs only its own files, no
+# other site may show it inside a frame (where it could be clicked by
+# trickery), and the sites it links to aren't told where it was opened.
+# Inline styles stay allowed: the UI writes style="" attributes in markup.
+SECURITY_HEADERS = {
+    "Content-Security-Policy": (
+        "default-src 'self'; style-src 'self' 'unsafe-inline'; object-src 'none'; "
+        "base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
+    ),
+    "X-Content-Type-Options": "nosniff",
+    "Referrer-Policy": "no-referrer",
+}
+
+
+async def same_origin_writes(request: Request, call_next):
+    """Cross-site writes: any website the user visits can make their browser
+    send a request here. It can't read the answer (there's no CORS), but a
+    write would still land. A browser always says which page a write came
+    from, in Origin, so a write from any page but this one gets a 403. A
+    request with no Origin didn't come from a web page (curl, the tests)."""
+    origin = request.headers.get("origin")
+    ours = f"http://{request.headers.get('host')}"
+    if request.method not in SAFE_METHODS and origin is not None and origin != ours:
+        return PlainTextResponse("Cross-origin request refused", status_code=403)
+    response = await call_next(request)
+    if request.url.path not in DOCS_PATHS:
+        response.headers.update(SECURITY_HEADERS)
+    return response
 
 
 class RevalidatingStaticFiles(StaticFiles):
@@ -86,7 +124,9 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 
 def create_app() -> FastAPI:
     app = FastAPI(title="BlitZave", lifespan=lifespan)
-    # Wraps everything below: the API, /docs, /dev and the UI.
+    app.middleware("http")(same_origin_writes)
+    # Added last, so it runs first and wraps everything below: the API,
+    # /docs, /dev and the UI.
     app.add_middleware(TrustedHostMiddleware, allowed_hosts=ALLOWED_HOSTS)
     app.include_router(router)
     if DEV_DIR.is_dir():
@@ -145,6 +185,9 @@ def main() -> None:
         "and your real setup is never touched",
     )
     args = parser.parse_args()
+    # Every file BlitZave makes from here on (the database, its backups, a dev
+    # trace) is readable by this user alone, not only the folder it sits in.
+    os.umask(0o077)
     if not args.demo:
         # Before anything reads a secret (the fresh-install check below does):
         # the OS keychain, or a file only the user can read when this machine

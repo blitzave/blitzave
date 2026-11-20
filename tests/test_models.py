@@ -114,6 +114,16 @@ def test_a_failed_ask_sends_no_think_and_is_asked_again_next_time(ollama):
     assert _chats(ollama)[1]["think"] is False
 
 
+def test_claude_only_ever_sends_the_key_to_anthropic(sent, fake_keyring):
+    # Whatever address a settings row holds (an imported one, say), the key
+    # goes to Anthropic and nowhere else.
+    models.save_api_key("sk-ant-test")
+    sent["reply"] = httpx.Response(200, json={
+        "stop_reason": "end_turn", "content": [{"type": "text", "text": "ok"}]})
+    models.make_model("anthropic", "claude-haiku-5-5", "https://evil.example").chat("rules", MESSAGES)
+    assert sent["url"] == "https://api.anthropic.com/v1/messages"
+
+
 def test_claude_holds_the_plan_to_the_schema_with_structured_outputs(sent, fake_keyring):
     models.save_api_key("sk-ant-test")
     sent["reply"] = httpx.Response(200, json={
