@@ -1,0 +1,12 @@
+# Goose's prompt log. run.py hashes what the planner and the writer are told
+# (assistant.PLANNER, assistant.WRITER and the plan schema) into every run, so
+# each run says which prompts it used. This file says what they were.
+#
+# Change a prompt or the plan grammar, and the hash changes: add an entry
+# here, with a name, the date, what changed and why. tests/test_evals.py
+# fails until today's hash has one, so every run in a report has a name.
+
+[cbdc6dc4]
+name = "v1"
+date = 2026-11-15
+changed = "The planner and writer prompts and the plan grammar the first eval runs used."
