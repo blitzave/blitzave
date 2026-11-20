@@ -14,17 +14,27 @@ To update: `uv tool upgrade blitzave`, then start `blitzave` as usual.
   `uvx --from git+https://github.com/blitzave/blitzave blitzave --demo`. Nothing
   is kept: `Ctrl+C` deletes it all, and it never touches your real data, your
   keychain or your bank. It runs beside a real BlitZave, on its own port.
-- **A fresh install opens on the demo too.** Until you connect a bank, plain
-  `blitzave` shows the same made-up household, with one calm line at the top
-  saying so. Choose **connect your bank** there, paste your SimpleFIN token,
-  and it switches to your own money, no restart. Bringing in an export from
-  another laptop works the same way. If you already use BlitZave, nothing
-  changes: you never see the demo.
+- **Demo and Live, side by side.** Until you connect a bank, plain `blitzave`
+  opens on Demo, the same made-up household, with one calm line at the top
+  saying so. It starts over every time you open it, so try anything. Choose
+  **connect your bank**, paste your SimpleFIN token, and Live, your own money,
+  opens with no restart. Bringing in an export from another laptop works the
+  same way. Demo is never deleted: it stays one switch away. If you already
+  use BlitZave, it opens on your money as before.
+- **Settings.** A row above the sidebar's footer shows which one you're in and
+  opens Settings: the Demo | Live switch, and Goose's model in one place. Pick
+  a provider, then a model from a list (what your Ollama has, or Claude's
+  models), or type another. An API key locks once saved; **Reset** opens it
+  again. Goose's drawer sends you here to choose.
 
 ### Good to know
 
-- In the demo, a Claude API key you give Goose is kept in memory and forgotten
-  when you stop BlitZave. Goose's settings say so.
+- Sync is greyed out in Demo: it has no bank. Live still syncs when you open
+  BlitZave.
+- Goose's model is set once for both. It moves out of the database into
+  `~/BlitZave/settings.json` the first time you start this version.
+- In `blitzave --demo`, a Claude API key you give Goose is kept in memory and
+  forgotten when you stop it. Goose's settings say so.
 
 ## 0.1.3 (2026-11-08)
 
