@@ -10,7 +10,7 @@ from fastapi import FastAPI
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from fastapi.staticfiles import StaticFiles
 
-from blitzave import jobs
+from blitzave import jobs, keychain
 from blitzave.api.routes import router
 from blitzave.store import db, users
 
@@ -105,6 +105,9 @@ class BrowserOpeningServer(uvicorn.Server):
 
 
 def main() -> None:
+    # Before anything reads a secret: the OS keychain, or a file only the
+    # user can read when this machine has no keychain (keychain.py).
+    keychain.use_file_if_needed(db.home_dir())
     server = BrowserOpeningServer(uvicorn.Config(app, host=HOST, port=PORT))
     try:
         server.run()

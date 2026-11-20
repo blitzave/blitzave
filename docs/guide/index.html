@@ -206,6 +206,7 @@
     .shot figcaption { margin-top: 12px; font-size: 14px; color: var(--text-faint); max-width: var(--measure); }
     .pair { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; max-width: 920px; margin: 30px 0 8px; }
     .pair .shot { margin: 0; }
+    .shot.narrow { max-width: 460px; }
 
     table.plain { width: 100%; max-width: 760px; border-collapse: collapse; margin-top: 16px; font-size: 15.5px; }
     table.plain th { text-align: left; font-size: 13px; font-weight: 600; color: var(--text-faint); padding: 0 16px 10px 0; border-bottom: 1px solid var(--line-strong); }
@@ -284,7 +285,7 @@
 
   <div class="layout">
     <nav class="rail" aria-label="Chapters">
-      <p class="rail-title">Eight short chapters</p>
+      <p class="rail-title">Nine short chapters</p>
       <div class="rail-line">
       <span class="rail-fill" aria-hidden="true"></span>
       <ol>
@@ -295,7 +296,8 @@
         <li><a href="#categories"><span class="stop">5</span>Categories and budgets</a></li>
         <li><a href="#goals"><span class="stop">6</span>Goals and Savings</a></li>
         <li><a href="#home"><span class="stop">7</span>Home</a></li>
-        <li><a href="#data"><span class="stop">8</span>Your data</a></li>
+        <li><a href="#goose"><span class="stop">8</span>Ask Goose</a></li>
+        <li><a href="#data"><span class="stop">9</span>Your data</a></li>
       </ol>
       </div>
       <p class="rail-note">Every screen here uses made-up data from fictional banks.</p>
@@ -306,7 +308,7 @@
         <h1 id="guide-title">The BlitZave guide</h1>
         <p class="lede">From nothing to your first calm month. Setup takes about ten minutes, most of it in SimpleFIN. After that, each chapter walks through one page of the app: what it shows, and the few things worth doing there.</p>
         <div class="needs" role="list">
-          <div class="need" role="listitem"><b>A Mac</b><span>Linux should work. Windows is untested.</span></div>
+          <div class="need" role="listitem"><b>Your own computer</b><span>macOS, Windows or Linux. Nothing else to set up.</span></div>
           <div class="need" role="listitem"><b>A SimpleFIN account</b><span>Read-only bank access, a small subscription paid to SimpleFIN.</span></div>
           <div class="need" role="listitem"><b>Ten minutes</b><span>One command to install, one token to paste.</span></div>
         </div>
@@ -320,6 +322,7 @@
             <li><a href="#categories">Categories and budgets</a></li>
             <li><a href="#goals">Goals and Savings</a></li>
             <li><a href="#home">Home</a></li>
+            <li><a href="#goose">Ask Goose</a></li>
             <li><a href="#data">Your data</a></li>
           </ol>
         </details>
@@ -335,8 +338,9 @@
 
         <ol class="steps">
           <li>
-            <b>Install uv.</b> uv runs Python apps and installs Python 3.12 for you if you need it. On a Mac you can also run <code>brew install uv</code>.
+            <b>Install uv.</b> uv runs Python apps and installs Python 3.12 for you if you need it. On a Mac you can also run <code>brew install uv</code>. On Windows, use the second command, in PowerShell.
             <div class="code"><pre><code>curl -LsSf https://astral.sh/uv/install.sh | sh</code></pre><button class="copy" type="button" aria-label="Copy command"><svg class="idle" viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg><svg class="done" viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg></button></div>
+            <div class="code"><pre><code>powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"</code></pre><button class="copy" type="button" aria-label="Copy the Windows command"><svg class="idle" viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg><svg class="done" viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg></button></div>
           </li>
           <li>
             <b>Install BlitZave.</b> This gives you a <code>blitzave</code> command that works from any folder. There's nothing to clone.
@@ -422,7 +426,7 @@ blitzave</code></pre><button class="copy" type="button" aria-label="Copy command
           </figure>
         </div>
 
-        <div class="note"><b>Where the token goes.</b> The setup token works once. BlitZave trades it for an access credential and keeps that only in your Mac's keychain, under the name <code>blitzave</code>. It's never in the database, the logs, or an export.</div>
+        <div class="note"><b>Where the token goes.</b> The setup token works once. BlitZave trades it for an access credential and keeps it in your computer's keychain, under the name <code>blitzave</code>. On a machine with no keychain, such as a Linux server, it goes in <code>~/BlitZave/credentials.json</code> instead, which only you can read. It's never in the database, the logs, or an export.</div>
 
         <h3>The last two steps</h3>
         <div class="prose">
@@ -713,13 +717,99 @@ blitzave</code></pre><button class="copy" type="button" aria-label="Copy command
           </ul>
         </div>
 
-        <p class="next"><span>Next</span><a href="#data">Your data<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg></a></p>
+        <p class="next"><span>Next</span><a href="#goose">Ask Goose<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg></a></p>
       </section>
 
       <!-- 8 -->
-      <section class="chapter" id="data" aria-labelledby="data-title">
+      <section class="chapter" id="goose" aria-labelledby="goose-title">
         <div class="chapter-head">
           <span class="chapter-num" aria-hidden="true">8</span>
+          <h2 id="goose-title">Ask Goose</h2>
+          <p>Ask about your own money in plain words. A model plans; BlitZave does the math.</p>
+        </div>
+
+        <div class="prose">
+          <p>Goose turns your question into a plan, and BlitZave runs that plan here on your laptop. The model gets your question, today's date and your category and tag names. It never sees a transaction, an amount or an answer, and every number you read comes from BlitZave.</p>
+          <p>Goose needs a model before its first question. You pick one once.</p>
+        </div>
+
+        <h3>A model on your laptop, with Ollama</h3>
+        <div class="prose"><p>Nothing leaves your machine. A small model misreads you more often than a big one, which is why every answer shows how Goose read your question.</p></div>
+        <ol class="steps">
+          <li><b>Install Ollama</b> from <a href="https://ollama.com/download" target="_blank" rel="noopener noreferrer">ollama.com</a> and open it. It runs in the background.</li>
+          <li>
+            <b>Download a model.</b> qwen3:8b is a few gigabytes; it only downloads once.
+            <div class="code"><pre><code>ollama pull qwen3:8b</code></pre><button class="copy" type="button" aria-label="Copy command"><svg class="idle" viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg><svg class="done" viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg></button></div>
+          </li>
+          <li>In BlitZave, open Home and press <span class="ui">Ask Goose about your money</span>. The first time, it asks for a model: keep <span class="ui">Ollama, on this laptop</span>, type <code>qwen3:8b</code> as the model name, and press <span class="ui">Save</span>.</li>
+        </ol>
+
+        <h3>Or Claude, if you opt in</h3>
+        <div class="prose">
+          <p>Choose <span class="ui">Claude, from Anthropic</span>, paste an API key from your Anthropic account, and keep <code>claude-opus-5-5</code> or type <code>claude-haiku-5-5</code>, which costs less. The key goes to your computer's keychain, never the database.</p>
+          <p>Claude isn't on your laptop, so before the first question BlitZave lists exactly what each question sends, and what it never will. Nothing goes until you tick <span class="ui">That's fine, send those</span>.</p>
+        </div>
+        <figure class="shot narrow">
+          <div class="frame"><img src="../assets/blog/meet-goose/disclosure.webp" width="928" height="1537" loading="lazy" decoding="async" alt="Goose's model settings with Claude chosen. A box reads: This model isn't on your laptop, so each question sends it: your question and today's date; your category and tag names, goals included; and your accounts as types only, like A1 (checking). Never sent: a transaction, a description or merchant, an amount or total, a balance, an account number, or your bank's name. Below it, a checkbox: That's fine, send those."></div>
+          <figcaption>You can switch models any time with <span class="ui">Model</span> at the top of the drawer.</figcaption>
+        </figure>
+
+        <h3>What you can ask</h3>
+        <div class="table-scroll">
+          <table class="plain">
+            <thead><tr><th scope="col">Goose can</th><th scope="col">For example</th></tr></thead>
+            <tbody>
+              <tr><td>Find transactions</td><td class="said">Show what I spent at Greenleaf Market in October</td></tr>
+              <tr><td>Add up spending, by category, tag or all of it</td><td class="said">How's my grocery spending?</td></tr>
+              <tr><td>Tag transactions</td><td class="said">Tag May 13–27 as PNW</td></tr>
+              <tr><td>File them under a category</td><td class="said">Put the Lantern Bistro dinners under Dining out</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="prose" style="margin-top: 22px;">
+          <p>Under every answer, chips show how Goose read you: the dates, the category, the words it searched for. If one is wrong, ask again in other words.</p>
+        </div>
+
+        <h3>Nothing changes until you press Apply</h3>
+        <div class="pair">
+          <figure class="shot">
+            <div class="frame"><img src="../assets/blog/meet-goose/tag-preview.webp" width="930" height="1282" loading="lazy" decoding="async" alt="Goose, asked to tag the Lantern Bistro dinners as date night, asks: Tag these 7 transactions &quot;date night&quot; (a new tag)? Seven Lantern Bistro rows from April to October, each with a ticked box, and Apply and Cancel buttons."></div>
+            <figcaption>A tag or a category starts as a preview. Untick any row you want left alone.</figcaption>
+          </figure>
+          <figure class="shot">
+            <div class="frame"><img src="../assets/blog/meet-goose/tagged.webp" width="928" height="1292" loading="lazy" decoding="async" alt="The same seven rows after Apply, with the line: Tagged 7 transactions &quot;date night&quot;, and an Undo button."></div>
+            <figcaption>Undo takes back exactly what Apply wrote.</figcaption>
+          </figure>
+        </div>
+
+        <h3>What Goose won't do</h3>
+        <div class="prose">
+          <ul>
+            <li><strong>Explain why.</strong> Why July ran high would mean reading your transactions, and the model never does.</li>
+            <li><strong>Remember.</strong> Each question starts fresh.</li>
+            <li><strong>Give investment advice.</strong> BlitZave tracks your money; it doesn't manage it, and Goose says so.</li>
+          </ul>
+        </div>
+
+        <h3>If something's off</h3>
+        <div class="table-scroll">
+          <table class="plain">
+            <thead><tr><th scope="col">What you see</th><th scope="col">What to do</th></tr></thead>
+            <tbody>
+              <tr><td><code>couldn't reach the model at 127.0.0.1:11434</code></td><td>Ollama isn't running. Open the Ollama app and ask again.</td></tr>
+              <tr><td><code>the model answered 404</code></td><td>Ollama doesn't have that model yet. Run <code>ollama pull</code> with the name you typed, or fix the name under <span class="ui">Model</span>.</td></tr>
+              <tr><td>The first answer takes a while</td><td>A local model loads into memory on its first question. Later ones are quicker.</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <p class="next"><span>Next</span><a href="#data">Your data<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg></a></p>
+      </section>
+
+      <!-- 9 -->
+      <section class="chapter" id="data" aria-labelledby="data-title">
+        <div class="chapter-head">
+          <span class="chapter-num" aria-hidden="true">9</span>
           <h2 id="data-title">Your data, on your laptop</h2>
           <p>One file you own, and a way to take it with you.</p>
         </div>
@@ -729,7 +819,7 @@ blitzave</code></pre><button class="copy" type="button" aria-label="Copy command
             <thead><tr><th scope="col">What</th><th scope="col">Where</th></tr></thead>
             <tbody>
               <tr><td>Everything BlitZave knows</td><td><code>~/BlitZave/blitzave.db</code>, one SQLite file</td></tr>
-              <tr><td>Your SimpleFIN credential</td><td>Your Mac's keychain, under <code>blitzave</code></td></tr>
+              <tr><td>Your SimpleFIN credential, and a Claude API key if you add one</td><td>Your computer's keychain, under <code>blitzave</code>. With no keychain: <code>~/BlitZave/credentials.json</code>, readable only by you</td></tr>
               <tr><td>Copies made before an update</td><td><code>~/BlitZave/backups</code>, the last three</td></tr>
               <tr><td>Anything else</td><td>Nowhere. There's no server.</td></tr>
             </tbody>
@@ -754,14 +844,16 @@ blitzave</code></pre><button class="copy" type="button" aria-label="Copy command
           <ul>
             <li><strong>The bank sync,</strong> to your own SimpleFIN account. That's the only call BlitZave makes by default.</li>
             <li><strong>The update check,</strong> if you turned it on: one request to GitHub a day, which sends nothing about you or your money.</li>
+            <li><strong>Goose's questions,</strong> only if you chose Claude: your question, today's date, your category and tag names, and your accounts as types. Never a transaction or an amount. With Ollama on your laptop, nothing leaves.</li>
             <li><strong>Nothing else.</strong> BlitZave only answers on 127.0.0.1, so other devices on your network can't reach it. No analytics, no telemetry, no remote fonts.</li>
           </ul>
         </div>
 
         <h3>Uninstall</h3>
-        <div class="prose"><p>Stop BlitZave, uninstall it, delete <code>~/BlitZave</code>, then remove the keychain entry. On a Mac you can also delete the item named <code>blitzave</code> in Keychain Access.</p></div>
+        <div class="prose"><p>Stop BlitZave, uninstall it, delete <code>~/BlitZave</code>, then remove the keychain entries (the second line only matters if you added a Claude key). On a Mac you can also delete the items named <code>blitzave</code> in Keychain Access, and on Windows in Credential Manager. Without a keychain, deleting <code>~/BlitZave</code> removes them too.</p></div>
         <div class="code"><pre><code>uv tool uninstall blitzave
-uvx keyring del blitzave simplefin_access_url</code></pre><button class="copy" type="button" aria-label="Copy commands"><svg class="idle" viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg><svg class="done" viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg></button></div>
+uvx keyring del blitzave simplefin_access_url
+uvx keyring del blitzave anthropic_api_key</code></pre><button class="copy" type="button" aria-label="Copy commands"><svg class="idle" viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg><svg class="done" viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg></button></div>
       </section>
 
       <section class="end" aria-labelledby="end-title">

@@ -193,6 +193,8 @@
     .feature-copy p { color: var(--text-secondary); }
     .feature .frame { border-radius: 18px; box-shadow: 0 24px 48px -28px rgba(15, 23, 42, 0.3), 0 1px 3px rgba(15, 23, 42, 0.06); }
     .ticks { list-style: none; padding: 0; display: grid; gap: 10px; margin-top: 4px; }
+    /* Goose's drawer is narrow: show it at its own size, not stretched. */
+    .feature .frame-goose { justify-self: center; width: 100%; max-width: 456px; }
     .feature-link { justify-self: start; margin-top: 4px; font-size: 15px; font-weight: 600; color: var(--accent); text-decoration: none; }
     .feature-link:hover { text-decoration: underline; }
     .ticks li { display: flex; gap: 12px; font-size: 15px; color: var(--text-secondary); }
@@ -346,7 +348,7 @@
         <figure class="hero-shot" id="tour">
           <div class="frame">
             <div class="frame-bar" aria-hidden="true"><span class="frame-url"><svg viewBox="0 0 24 24"><path d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/></svg>127.0.0.1:8742</span></div>
-            <video controls muted playsinline preload="none" poster="assets/tour-poster.jpg" width="1600" height="1000" aria-label="A 100-second tour of BlitZave: Home, goals, transactions, budgets and accounts">
+            <video controls playsinline preload="none" poster="assets/tour-poster.jpg" width="1600" height="1000" aria-label="A 110-second narrated tour of BlitZave: Home, Goose, goals, transactions, budgets and accounts">
               <source src="assets/tour.mp4" type="video/mp4">
             </video>
           </div>
@@ -450,6 +452,21 @@
 
         <div class="feature flip">
           <div class="feature-copy">
+            <p class="kicker">Goose</p>
+            <h3 class="h3">Ask about your own money</h3>
+            <p>Goose is the ally you can ask. How's your grocery spending going? Tag a trip's purchases? A model turns your words into a plan, and BlitZave runs that plan here on your laptop. The model never sees a transaction, and every number comes from BlitZave's own math.</p>
+            <ul class="ticks">
+              <li><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg>A model on your laptop through Ollama, or Claude if you opt in</li>
+              <li><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg>Every answer shows how it read your question</li>
+              <li><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg>Nothing changes until you press Apply, and Undo takes it back</li>
+            </ul>
+            <a class="feature-link" href="guide/#goose">Set up Goose</a>
+          </div>
+          <figure class="frame frame-goose"><img src="assets/blog/meet-goose/summary.webp" width="912" height="792" loading="lazy" decoding="async" alt="Goose, asked &quot;How's my grocery spending?&quot;, answers: Groceries came to $642.02 in October. Chips below read Category: Groceries, October, and This month left out of the average."></figure>
+        </div>
+
+        <div class="feature">
+          <div class="feature-copy">
             <p class="kicker">Savings</p>
             <h3 class="h3">Goals with a home</h3>
             <p>Each goal lives in a real savings account, so its progress is that account's balance. An emergency fund gets an account to itself; a trip and a new phone can share one, filling from the top in the order you choose.</p>
@@ -462,7 +479,7 @@
           <figure class="frame"><img src="assets/guide/savings-line.webp" width="2560" height="1600" loading="lazy" decoding="async" alt="A shared goal account with three goals in order: PS5 funded, Japan trip saving with a pace line, and New bike not started"></figure>
         </div>
 
-        <div class="feature">
+        <div class="feature flip">
           <div class="feature-copy">
             <p class="kicker">Transactions</p>
             <h3 class="h3">One calm month at a time</h3>
@@ -475,7 +492,7 @@
           <figure class="frame"><img src="assets/guide/transactions.webp" width="2560" height="1600" loading="lazy" decoding="async" alt="The ledger for November 2026, with a month stepper, a Sync November 2026 button, search and filters"></figure>
         </div>
 
-        <div class="feature flip">
+        <div class="feature">
           <div class="feature-copy">
             <p class="kicker">Rules</p>
             <h3 class="h3">Teach it once</h3>
@@ -488,7 +505,7 @@
           <figure class="frame"><img src="assets/guide/editor.webp" width="2560" height="1600" loading="lazy" decoding="async" alt="A transaction opened: Shopping chosen, All transactions like BOOKSHOP CORNER selected, with tags and Link to its other side"></figure>
         </div>
 
-        <div class="feature">
+        <div class="feature flip">
           <div class="feature-copy">
             <p class="kicker">Budgets</p>
             <h3 class="h3">Context, not alarms</h3>
@@ -498,7 +515,7 @@
           <figure class="frame"><img src="assets/guide/categories-open.webp" width="2560" height="1600" loading="lazy" decoding="async" alt="The Gifts budget, every 3 months, opened to show this round's spending, its pace, and the two rounds that closed this year"></figure>
         </div>
 
-        <div class="feature flip">
+        <div class="feature">
           <div class="feature-copy">
             <p class="kicker">Adjustments</p>
             <h3 class="h3">Every dollar counted once</h3>

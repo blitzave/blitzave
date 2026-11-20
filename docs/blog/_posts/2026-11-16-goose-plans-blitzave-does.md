@@ -3,8 +3,6 @@ title: "Goose plans. BlitZave does."
 description: "How BlitZave's assistant works without its model ever reading a transaction: an Action-Selector planner, a writer that never sees a number, five guarantees with a test behind each, and the leak I found in my own design."
 tag: Engineering
 date: 2026-11-16 01:00:00 -0600
-# Kept off the site until it's ready. Delete this line to publish it.
-published: false
 ---
 
 [Goose](../meet-goose/) is BlitZave's assistant. You ask about your own money in plain words, and it shows, tags, files or adds up. Under it is a language model: Ollama on your laptop by default, or Claude if you opt in.

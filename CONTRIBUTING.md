@@ -45,7 +45,8 @@ accurate. In practice:
   on by default is the user's own bank sync. The one optional call, a daily
   update check, stays off until the user turns it on and sends nothing about
   them. No telemetry, no analytics, no remote fonts or CDNs in the UI.
-- **Secrets live in the OS keychain**, never in the database, logs, exports,
+- **Secrets live in the OS keychain** (or, with none, a 0600 file in the data
+  folder: `keychain.py`), never in the database, logs, exports,
   issues, or screenshots.
 
 **Not now (on purpose):** hosting and user accounts, payments, native or mobile
@@ -167,6 +168,8 @@ the names changed.
 - [ ] No new network calls, telemetry, or remote assets. An optional call must
   be off by default, explained in plain words, and send the minimum.
 - [ ] No real financial data anywhere in the diff.
+- [ ] A user-facing feature says whether it gets a tour scene, a guide chapter,
+  or a homepage block. "Not yet" is an answer.
 - [ ] New dependencies are justified in the PR description. Fewer moving parts wins.
 
 ## Releasing (maintainers)
