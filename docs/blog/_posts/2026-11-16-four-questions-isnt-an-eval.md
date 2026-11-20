@@ -3,8 +3,6 @@ title: "Four questions isn't an eval"
 description: "A technical report on Goose's planner: 68 questions with an answer key, three models, every model call written down, and every chart drawn from the run files. Claude Haiku 5.5 planned 66 right. The models on my laptop, and the run that broke halfway, taught me more."
 tag: Engineering
 date: 2026-11-16 01:10:00 -0600
-# Kept off the site until it's ready. Delete this line to publish it.
-published: false
 ---
 
 <!-- EDIT: this post follows "Goose plans. BlitZave does." Publish that one first; the link below assumes it. -->
