@@ -224,9 +224,15 @@ function renderWelcome(panel, ctx) {
         <input type="file" accept="application/json,.json" data-role="import-file" hidden />
       </p>
       <p class="onboarding-import-status" aria-live="polite"></p>
+      ${window.__bz.demo
+        ? `<button type="button" class="btn btn-quiet onboarding-skip" data-action="demo">Back to the demo</button>`
+        : ""}
     </div>
   `;
   panel.querySelector('[data-action="next"]').addEventListener("click", () => ctx.goTo(2));
+  // Came here from the demo's "connect your bank" and changed their mind:
+  // back to the made-up Home, without marking onboarding done.
+  panel.querySelector('[data-action="demo"]')?.addEventListener("click", () => window.__bz.refreshShell());
 
   // Import: a file saved by "Export your data" goes into this fresh install,
   // all of it or none of it. The bank still needs connecting afterwards, so
@@ -247,6 +253,7 @@ function renderWelcome(panel, ctx) {
     }
     try {
       await api.importData(documentJson);
+      window.__bz.leftDemo(); // the export went to the real folder, not the demo's
       status.textContent = "Everything's in. Next, connect your bank so new transactions keep arriving.";
       window.setTimeout(() => ctx.goTo(2), 1200);
     } catch (err) {
@@ -282,7 +289,8 @@ function renderConnect(panel, ctx) {
     .connectStatus()
     .then((status) => {
       if (!panel.isConnected) return;
-      if (status && status.connected) {
+      // The demo's fictional bank counts as connected; the user's own doesn't yet.
+      if (status && status.connected && !status.demo) {
         renderAlreadyConnected(body, ctx);
       } else {
         renderConnectForm(body, ctx);
@@ -360,6 +368,7 @@ function renderConnectForm(body, ctx) {
 
     try {
       await api.connect(token);
+      window.__bz.leftDemo(); // the engine left the demo, if it was in one
       ctx.goTo(3);
     } catch (err) {
       if (!body.isConnected) return;

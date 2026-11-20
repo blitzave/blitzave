@@ -146,17 +146,30 @@ and import, and a full local API with interactive docs at `/docs`.
 
 ## Quick start
 
-You need **[uv](https://docs.astral.sh/uv/)** (it installs Python 3.12 for you)
-and a **[SimpleFIN Bridge](https://bridge.simplefin.org/)** account.
+You need **[uv](https://docs.astral.sh/uv/)** (it installs Python 3.12 for you).
+
+**Try it first, on made-up data.** Nothing is installed for good:
+
+```bash
+uvx --from git+https://github.com/blitzave/blitzave blitzave --demo
+```
+
+BlitZave opens at **http://127.0.0.1:8791** on a made-up household: a few
+months of spending, budgets, goals, and Goose to ask about it. Nothing there is
+yours, and `Ctrl+C` deletes all of it.
+
+**Then connect your real bank.** You'll need a
+**[SimpleFIN Bridge](https://bridge.simplefin.org/)** account.
 
 ```bash
 uv tool install git+https://github.com/blitzave/blitzave
 blitzave
 ```
 
-BlitZave opens in your browser at **http://127.0.0.1:8742**. Paste your SimpleFIN
-setup token, and you're done. Run `blitzave` from any terminal whenever you want
-to open it.
+BlitZave opens at **http://127.0.0.1:8742**, on the same made-up household
+until you connect. Choose **connect your bank** in the line at the top, paste
+your SimpleFIN setup token, and it switches to your own money. Run `blitzave`
+from any terminal whenever you want to open it.
 
 > BlitZave is built on macOS, and CI starts it on macOS, Linux and Windows.
 > There's nothing extra to install on any of them. Reports are welcome.
@@ -211,9 +224,11 @@ instead, readable only by you, and BlitZave says so when it starts.
 blitzave
 ```
 
-The first run creates your data folder at `~/BlitZave/`, syncs, and opens the
-app in your browser at **http://127.0.0.1:8742**. Keep the terminal open while
-you use it; press `Ctrl+C` to stop.
+It opens in your browser at **http://127.0.0.1:8742**. Until you connect a
+bank, the first run shows a made-up household, so you can look around first; a
+line at the top of every page says so, and it's deleted when you stop. Your
+data folder, `~/BlitZave/`, is created when you connect. Keep the terminal open
+while you use it; press `Ctrl+C` to stop.
 
 ### 5. Onboard
 
@@ -226,7 +241,7 @@ If you close the tab, open http://127.0.0.1:8742 again while BlitZave is running
 </tr>
 </table>
 
-1. Choose **Get started**.
+1. Choose **connect your bank** in the line at the top, then **Get started**.
 2. Paste your setup token and choose **Connect**. BlitZave runs its first sync,
    pulling the last 90 days. Checking, savings and credit card accounts are
    supported today; investment and loan accounts are skipped for now.

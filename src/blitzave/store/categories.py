@@ -106,6 +106,17 @@ def _plan_set_on(plan: dict) -> str | None:
     return date.today().isoformat() if plan["budget_cents"] is not None else None
 
 
+def backdate_plans(conn: sqlite3.Connection, on: str) -> None:
+    """Demo mode only: date every expense budget from `on`, as if it had been
+    set then, so the made-up household has closed rounds to show. Real plans
+    are always dated the day they're set (_plan_set_on)."""
+    conn.execute(
+        "UPDATE categories SET plan_set_on = ? WHERE kind = 'expense' AND budget_cents IS NOT NULL",
+        (on,),
+    )
+    conn.commit()
+
+
 def list_categories(conn: sqlite3.Connection) -> list[dict]:
     rows = conn.execute(f"{_SELECT} ORDER BY c.name COLLATE NOCASE").fetchall()
     return [_row_to_dict(r) for r in rows]

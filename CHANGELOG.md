@@ -4,6 +4,28 @@ What changed in each BlitZave version, in plain words. Newest first.
 
 To update: `uv tool upgrade blitzave`, then start `blitzave` as usual.
 
+## Unreleased
+
+### New
+
+- **Try it before you connect anything.** `blitzave --demo` opens BlitZave on a
+  made-up household at 127.0.0.1:8791: a few months of spending, budgets, goals,
+  and Goose to ask about it. One line runs it without installing:
+  `uvx --from git+https://github.com/blitzave/blitzave blitzave --demo`. Nothing
+  is kept: `Ctrl+C` deletes it all, and it never touches your real data, your
+  keychain or your bank. It runs beside a real BlitZave, on its own port.
+- **A fresh install opens on the demo too.** Until you connect a bank, plain
+  `blitzave` shows the same made-up household, with one calm line at the top
+  saying so. Choose **connect your bank** there, paste your SimpleFIN token,
+  and it switches to your own money, no restart. Bringing in an export from
+  another laptop works the same way. If you already use BlitZave, nothing
+  changes: you never see the demo.
+
+### Good to know
+
+- In the demo, a Claude API key you give Goose is kept in memory and forgotten
+  when you stop BlitZave. Goose's settings say so.
+
 ## 0.1.3 (2026-11-08)
 
 ### New

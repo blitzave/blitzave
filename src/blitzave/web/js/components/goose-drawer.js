@@ -242,7 +242,7 @@ function showSettings(note = "") {
                value="${esc(s.provider === "ollama" ? s.base_url : "http://127.0.0.1:11434")}" /></label>
       <label class="field" data-only="anthropic"><span class="field-label">API key</span>
         <input class="input" name="api_key" type="password" autocomplete="off"
-               placeholder="${s.key_saved ? "Saved in your keychain" : "sk-ant-…"}" /></label>
+               placeholder="${s.key_saved ? (window.__bz?.demo ? "Saved for this demo" : "Saved in your keychain") : "sk-ant-…"}" /></label>
       <div class="goose-disclosure" hidden>
         <p>${esc(s.disclosure || "")}</p>
         <label><input type="checkbox" name="remote_ok" /> That's fine, send those</label>
