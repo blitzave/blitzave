@@ -112,13 +112,14 @@ flowchart TB
 | `jobs.py` | The sync pipeline (`sync`, `sync_month`), category-rule application, pair matching, and the opt-in daily update check. |
 | `assistant.py` | Goose (see [Goose](#goose)): the plan grammar, the planner prompt with one repair, the Show, Change and Summarize lanes, previews held in memory with Apply and Undo, `fill()` for a model's wording, and the model settings. |
 | `backup.py` | Copies the database before a migration and keeps the last three copies. |
+| `traces.py` | Goose's dev-mode trace: a `Turn` notes each model call in memory (prompt, raw reply, seconds, the server's usage, the engine's verdict), and `write()` appends it to `traces/` when `BLITZAVE_DEV=1`. Nothing is written otherwise. |
 | `api/routes.py` | Every `/api/*` endpoint and its Pydantic request models. Maps store errors to 404, 409 and 422. |
 | `api/money.py` | `parse_amount()` (text → integer cents) and `format_cents()` (cents → "$1,200.00"). The only money conversions. |
 | `sources/base.py` | Normalized row types: `AccountRow`, `TxRow`, `BalanceRow`, `Fetched`. |
 | `keychain.py` | Where secrets live. The OS keychain when it answers; when it doesn't (a Linux server, WSL), `FileKeyring` keeps them in `credentials.json` (0600) in the data folder. `main()` decides once, at startup; everything else calls `keyring` as usual. |
 | `sources/simplefin.py` | Claims a setup token, keeps the access URL in the keychain, and fetches accounts, balances and transactions. Guesses each account's type from its name. |
 | `sources/github.py` | One bare GET for the latest release, when the update check is on. |
-| `sources/models.py` | Goose's model adapters: `Ollama` and `Claude`, each one `chat(system, messages, schema)`; `make_model()` picks one from `ADAPTERS`. `is_remote()` decides by host. The Claude API key lives in the keychain. |
+| `sources/models.py` | Goose's model adapters: `Ollama` and `Claude`, each one `chat(system, messages, schema)` returning a `Reply`: the text, and the usage the response already carries (tokens in and out; Ollama's load, prompt and output seconds; the model that answered). `make_model()` picks one from `ADAPTERS`. `is_remote()` decides by host. The Claude API key lives in the keychain. An Ollama model that can think (Ollama's `/api/show` lists the capability; asked once per model) is sent `think: false`: qwen3 thinks by default, which only costs time on a short JSON plan, and takes no level in between. |
 | `store/db.py` | Connects to the database (WAL, foreign keys on), runs pending migrations, and then denies schema changes for the rest of the connection. |
 | `store/ingest.py` | Upserts accounts, transactions and balances from a sync, and keeps sync watermarks. |
 | `store/accounts.py` | Lists accounts with their job and latest balance; corrects an account's type or job. |
@@ -154,6 +155,7 @@ flowchart TB
 | Path | Job |
 |---|---|
 | `dev/` | A throwaway debug page at `/dev`, served only from a source checkout. |
+| `evals/` | Goose's planner eval: `planner.toml` (made-up questions and labels, and the plan each should get), `prompts.toml` (a name for each prompt hash), `run.py` (asks a real model, scores, reports, compares) and `runs/` (one JSON line per case per run). Run by hand, never in CI, and never shipped: it's outside `src/`. |
 | `docs/` | The website on GitHub Pages: `index.html`, the setup guide at `guide/`, and their images and video in `assets/`. |
 
 ## Starting up
@@ -342,6 +344,62 @@ restart forgets it.
 | G4. Nothing changes without your click | Previews write nothing; Apply checks the rows; one commit; Undo | Apply outside the preview is a 422; a second Apply is a 404; Undo restores |
 | G5. Remote is decided by the host | `models.is_remote()`; saving a remote model needs `remote_ok`, sent after the disclosure | An Ollama at 192.168.1.5 needs consent; the key never reaches the database, its WAL, a backup or an export |
 
+### Watching Goose: the dev trace and the eval
+
+The guarantees say what a model can't do. These two say how well it does its job.
+
+- **The dev trace.** Start with `BLITZAVE_DEV=1 uv run blitzave` and every question
+  becomes one line in `~/BlitZave/traces/YYYY-MM-DD.jsonl`: each call's step (`plan`,
+  `repair`, `write`), the prompt, the model's raw reply, the seconds, and the
+  engine's verdict (`fits`, what didn't fit, `kept`, or which `fill()` rule refused
+  the sentence). It holds only what crossed to the model and back, so it's no more
+  private than the requests themselves, and grepping it for your own amounts is a way
+  to check G1 in real use. It's never read back into a prompt (G2) and isn't in a
+  backup or an export. Off by default, installs included.
+- **The eval.** `uv run python evals/run.py ollama qwen3:8b` puts every case in
+  `evals/planner.toml` through the same `_plan()`, repair included, and scores the
+  plan strictly: same intents, same order, every field as expected, and a filter the
+  question didn't ask for is a miss. Summary cases also go to the writer, and its
+  sentence is scored by `fill()`'s rules. A run is kept in `evals/runs/`, and every
+  line carries its stamp: hashes of the answer key and the prompts, the git commit and
+  whether the tree was dirty, the model (and for Ollama its digest, its version, and
+  whether thinking was off), the settings sent, and the machine. Each call keeps the
+  server's usage: tokens, and Ollama's load, prompt and output seconds. A run is
+  written as `.jsonl.partial` until every case is in, so an unfinished one is never
+  charted. A case whose every reply was empty is the server's failure, not the
+  model's: it's an error, and three in a row stop the run.
+- **The privacy proof.** `tests/test_privacy_wire.py` checks the bytes, not the
+  arguments to `chat()`: it taps httpx's transports, so every request the process
+  sends is recorded as it went out, and runs every intent through every adapter in
+  `models.ADAPTERS` against a canary household (CANARY in every description,
+  merchant, bank and account; odd account numbers and amounts; a fake SimpleFIN URL
+  and API key). Only the configured host is contacted, the key appears only in its
+  auth header, and no canary, account number or amount is in any URL, header or body.
+  A leaky test adapter must be caught, so a pass means something. The same check runs
+  on real models with `evals/run.py --privacy`: `privacy.toml`'s adversarial
+  questions and every planner question, end to end through `assistant.ask()` in a
+  throwaway `BLITZAVE_HOME`, with the tap passing each request on. One hit fails the
+  run. Runs go to `evals/runs/privacy/`, every byte kept except the API key.
+  `evals/privacy_charts.py` draws four figures from those runs and searches every
+  recorded request again for the household's data, so a figure can show only what the
+  bytes hold; it refuses to draw if the leaky control wasn't caught.
+- **Reading runs.** A run keeps every plan and writer sentence, so `--report` and
+  `--compare` score them again against today's `planner.toml` and `fill()`, without
+  a model, and say which cases score differently from what was recorded. `--report`
+  prints a row per run (pass rate, median, p90 and slowest seconds, median tokens).
+  `--compare OLD NEW` lines two runs up case by case: what differs in their stamps,
+  and which cases the change fixed, broke, or still gets wrong for another reason.
+  `evals/prompts.toml` names each prompt hash, and CI fails until today's has an entry.
+  `evals/charts.py` (the `eval` dependency group, installed in CI) draws a run's
+  figures with pandas and matplotlib, after checking its counts against `run.py`'s
+  own: outcomes, pass rate by group, kinds of miss, seconds per case, and, for runs
+  that kept usage, where a question's seconds went by stage, with median tokens.
+  `--compare OLD NEW` draws one square per case, colored where it was fixed or broke. `tests/test_evals.py` checks in CI that every case is a valid plan and that a
+  planner answering as expected passes them all.
+
+A real question worth keeping goes from the trace into `planner.toml` only after it's
+rewritten with made-up names: the repo is public.
+
 ## The UI
 
 | Route | Page | Endpoints it calls |
@@ -433,6 +491,7 @@ All under `/api`. Interactive docs at `http://127.0.0.1:8742/docs` while BlitZav
 |---|---|
 | `~/BlitZave/blitzave.db` | Everything: accounts, transactions, categories, goals, rules, pairs, balances. |
 | `~/BlitZave/backups/blitzave-vNNN-YYYY-MM-DD.db` | A copy taken before migrating from version NNN. The last three are kept. |
+| `~/BlitZave/traces/YYYY-MM-DD.jsonl` | Dev mode only (`BLITZAVE_DEV=1`): what each Goose question sent a model and got back. Safe to delete. |
 | OS keychain, service `blitzave` | The SimpleFIN access URL, and a Claude API key if you add one for Goose. |
 | `~/BlitZave/credentials.json` | The same secrets, only on a machine with no keychain. 0600. Never exported or backed up. |
 

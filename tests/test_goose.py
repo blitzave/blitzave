@@ -36,7 +36,9 @@ class FakeModel:
     def chat(self, system, messages, schema=None):
         self.requests.append({"system": system, "messages": messages, "schema": schema})
         reply = self.replies.pop(0)
-        return reply if isinstance(reply, str) else json.dumps(reply)
+        if isinstance(reply, Exception):
+            raise reply
+        return models.Reply(reply if isinstance(reply, str) else json.dumps(reply))
 
 
 @pytest.fixture(autouse=True)
@@ -277,6 +279,50 @@ def test_an_unknown_label_gets_one_repair_that_names_the_field(client, fake):
 def test_two_misses_end_in_the_engines_own_words(client, fake):
     [card] = _ask(client, fake, "hmm", "not json", '{"intents": []}')
     assert card == {"type": "message", "text": words.NO_PLAN}
+
+
+def _trace() -> list[dict]:
+    return [json.loads(line) for path in (db.home_dir() / "traces").glob("*.jsonl") for line in path.open()]
+
+
+def test_dev_mode_traces_each_call_with_only_what_the_model_saw(client, fake, monkeypatch):
+    monkeypatch.setenv("BLITZAVE_DEV", "1")
+    [card] = _ask(
+        client, fake, "groceries last month",
+        _plan({"intent": "spending_summary", "category": "Grocery"}),
+        _plan({"intent": "spending_summary", "category": "Groceries", "months": 1}),
+        "{label} came to $5.",
+    )
+    assert card["text"] == "Groceries came to $160.00 in October."  # the engine's sentence, not the writer's
+
+    [line] = _trace()  # one line per question
+    assert line["question"] == "groceries last month"
+    plan, repair, write = line["calls"]
+    assert (plan["step"], repair["step"], write["step"]) == ("plan", "repair", "write")
+    assert plan["verdict"].startswith("doesn't fit: ") and "must be one of: Dining, Groceries" in plan["verdict"]
+    assert repair["verdict"] == "fits"
+    assert (write["reply"], write["verdict"]) == ("{label} came to $5.", "typed a figure: '$'")
+    assert all(isinstance(call["seconds"], float) for call in line["calls"])
+    assert plan["messages"] == fake.requests[0]["messages"]  # what was sent, as it was sent
+
+    traced = json.dumps(line)
+    assert "CANARY" not in traced and "160" not in traced  # no row, and not the engine's figure
+    assert not any(month in traced for month in MONTHS)
+
+
+def test_dev_trace_keeps_a_call_the_model_never_answered(client, fake, monkeypatch):
+    monkeypatch.setenv("BLITZAVE_DEV", "1")
+    fake.replies.append(models.ModelError("couldn't reach the model at 127.0.0.1:11434"))
+    assert client.post("/api/goose", json={"question": "hmm"}).status_code == 502
+    [line] = _trace()
+    [call] = line["calls"]
+    assert call["error"] == "couldn't reach the model at 127.0.0.1:11434" and "reply" not in call
+
+
+def test_no_trace_without_dev_mode(client, fake, monkeypatch):
+    monkeypatch.delenv("BLITZAVE_DEV", raising=False)
+    _ask(client, fake, "should I buy index funds?", _plan({"intent": "decline", "reason": "investment_advice"}))
+    assert not (db.home_dir() / "traces").exists()
 
 
 def test_clarify_and_decline_come_back_in_the_engines_words(client, fake):

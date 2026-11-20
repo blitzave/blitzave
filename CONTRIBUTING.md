@@ -135,6 +135,33 @@ reason.
 **Never commit real financial data.** Fixtures, issues, screenshots and logs
 use synthetic or scrubbed data only.
 
+### Working on Goose
+
+`BLITZAVE_DEV=1 uv run blitzave` writes down every model call Goose makes, one
+line per question in `~/BlitZave/traces/`: the prompt, the model's raw reply,
+the seconds, and what BlitZave made of it. It holds only what the model saw and
+said, never a transaction or a figure.
+
+The tests use a scripted model. To see how a real one plans, run the eval:
+
+```bash
+uv run python evals/run.py ollama qwen3:8b             # a model on this laptop, thinking off as in the app
+uv run python evals/run.py anthropic claude-haiku-5-5  # uses the key saved in Goose's settings; a few cents
+uv run python evals/run.py --report evals/runs/*.jsonl
+uv run python evals/run.py --compare BEFORE.jsonl AFTER.jsonl
+uv run python evals/run.py --privacy ollama qwen3:8b   # privacy.toml: every byte sent, checked for the household's data
+uv run --group eval python evals/privacy_charts.py evals/runs/privacy/*.jsonl --out figures/   # the privacy runs, drawn
+uv run --group eval python evals/charts.py evals/runs/*.jsonl --out figures/
+uv run --group eval python evals/charts.py --compare BEFORE.jsonl AFTER.jsonl --out figures/
+```
+
+If you change Goose's prompts or plan grammar, run the eval before and after,
+on the same model and machine. Put both rows of the report in the PR, with what
+`--compare` says, and a sentence for every case it lists as broken. The change
+also needs an entry in `evals/prompts.toml`; CI fails until it has one. A
+question Goose misread is welcome as a new case in `evals/planner.toml`, with
+the names changed.
+
 ## Pull request checklist
 
 - [ ] The change is small and focused, and the PR says *why*.
