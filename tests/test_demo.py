@@ -199,6 +199,11 @@ def test_home_on_a_bad_month_still_reads_as_an_ally(in_demo):
 
 @pytest.mark.parametrize("stop", [signal.SIGINT, signal.SIGTERM], ids=["ctrl-c", "kill"])
 def test_stopping_the_demo_deletes_its_folder(tmp_path, stop):
+    try:
+        httpx.get(f"http://127.0.0.1:{demo.PORT}/api/health")
+        pytest.skip(f"something is already listening on {demo.PORT} (a demo running?)")
+    except httpx.TransportError:
+        pass  # free, as it should be
     env = {
         **os.environ,
         "TMPDIR": str(tmp_path),  # where mkdtemp puts the demo folder
@@ -350,3 +355,16 @@ def test_the_demo_flag_refuses_an_import(in_demo):
 
     assert response.status_code == 409
     assert jobs.DEMO is not None
+
+
+def test_goose_settings_say_where_the_key_really_goes(in_demo):
+    from blitzave.words import goose as words
+
+    demo.set_up(app)
+    with _client() as client:
+        disclosure = client.get("/api/goose/settings").json()["disclosure"]
+
+    assert disclosure == words.DEMO_DISCLOSURE
+    assert "keychain" not in disclosure
+    assert "forgotten when you stop" in disclosure
+    assert words.DEMO_DISCLOSURE != words.DISCLOSURE  # the replace found its sentence

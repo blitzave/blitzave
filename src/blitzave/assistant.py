@@ -35,6 +35,7 @@ from pydantic import (
     model_validator,
 )
 
+from blitzave import jobs
 from blitzave.api.money import format_cents
 from blitzave.refine import spending
 from blitzave.refine.savings import month_key
@@ -592,7 +593,7 @@ def settings() -> dict:
         "base_url": saved.get("base_url"),
         "remote": bool(saved) and models.is_remote(saved["base_url"]),
         "key_saved": models.has_api_key(),
-        "disclosure": words.DISCLOSURE,
+        "disclosure": words.DISCLOSURE if jobs.DEMO is None else words.DEMO_DISCLOSURE,
     }
 
 
