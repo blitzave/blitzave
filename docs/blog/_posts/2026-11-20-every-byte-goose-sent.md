@@ -175,46 +175,42 @@ That's 87 questions a run, plus the leaky adapter at the end, against the real m
 
 **0 canary hits** in 352 requests, across 261 questions on 3 models. Every request went to the model's own host and nowhere else, and the leaky adapter was caught in every run, so the check was watching. The claude-haiku-5-5 run, control included, used 288,165 tokens in and 21,743 out (answered by claude-haiku-5-5): about $0.04 at list price.
 
+Here is every one of those requests. Each square is one request as the tap recorded it, and each was searched again, after the run, for the household's descriptions, merchants, account numbers and amounts. A canary in a real request would show up in a different color. None does.
+
+<figure>
+  <img src="../../assets/blog/every-byte-goose-sent/requests.svg" width="680" alt="One square per request: 352 requests from 261 questions across three models, each searched again for the household's data. None holds any. The leaky adapter's requests, in orange, were caught in every run.">
+  <figcaption>Figure 1. Every request the three runs sent. The orange squares are the leaky adapter's. They are there because the check had to catch them.</figcaption>
+</figure>
+
 ### What the models tried
 
 The numbers are the proof. What the models did along the way is the interesting part.
 
 Asked for a balance, an account number or "everything you can see", the planner can only plan. It asks the engine to show you rows, or declines. The rows go to your screen. The model never sees them, so it has nothing to repeat.
 
+<figure>
+  <img src="../../assets/blog/every-byte-goose-sent/answers.svg" width="680" alt="Stacked bars of the cards the engine showed, per model. qwen3:1.7b: 35 listed rows, 15 summarized, 0 previewed a change, 3 asked which you meant, 49 said so in its own words. qwen3:8b: 24 listed rows, 29 summarized, 4 previewed a change, 0 asked which you meant, 40 said so in its own words. Claude Haiku 5.5: 28 listed rows, 17 summarized, 6 previewed a change, 3 asked which you meant, 39 said so in its own words.">
+  <figcaption>Figure 2. What the engine did with each question. The three models read the same questions differently, and in every case the rows, previews and sentences came from the engine.</figcaption>
+</figure>
+
 The writer is where small models get creative. Asked what the PNW trip cost "to the dollar", qwen3:1.7b wrote a sentence containing **$125.00**. The trip in the household cost **$11,518.57**. The model never saw that number, so it made one up, and `fill()`, the function that checks every model-written sentence before you'd see it, threw the sentence away (first for a slot that doesn't exist, and the typed figure would have been next). You'd have seen BlitZave's own sentence, with the real total. Claude Haiku 5.5, asked the same question, never typed a figure at all. It wrote that it didn't have the exact total in front of it, which is true.
 
 That's the second wall working. The first wall means the model can't leak your numbers, because it never has them. The second means it can't show you numbers it invented either. Across the runs, `fill()` threw away 35 of 61 writer sentences, for a typed figure, an invented slot, a comparison it couldn't know, or just rambling.
+
+<figure>
+  <img src="../../assets/blog/every-byte-goose-sent/writer.svg" width="680" alt="Stacked bars of what fill() did with the writer's sentences, per model. qwen3:1.7b: 4 invented a slot, 5 typed a figure or a comparison, 6 too long, or not allowed. qwen3:8b: 14 shown, 11 invented a slot, 2 typed a figure or a comparison, 2 too long, or not allowed. Claude Haiku 5.5: 12 shown, 5 invented a slot.">
+  <figcaption>Figure 3. What <code>fill()</code> did with each model's writer sentences. qwen3:1.7b had none shown. Claude Haiku had no typed figure at all, and five sentences with a slot the engine doesn't have.</figcaption>
+</figure>
 
 The injected tag went to the model as a label, as expected, and did nothing. The model can put a tag name in a plan. It can't make the engine send it anything.
 
 ### Everything Claude saw
 
-Here's one request, captured by the tap on its way to Anthropic during the claude-haiku-5-5 run, for "What's my checking balance right now?". It's 5,755 bytes. This is what those bytes are made of:
+Here's one request, captured by the tap on its way to Anthropic during the claude-haiku-5-5 run, for "What's my checking balance right now?". It's 5,755 bytes. Across all three models, a request is made of the same parts:
 
-<figure class="diagram">
-<div class="fig-wrap">
-<svg viewBox="0 0 1000 170" role="img" aria-label="One 5,755-byte request: instructions 1,491 bytes, labels 315, date 32, question 37, schema and framing 3,880.">
-<rect x="40.0" y="40" width="238.4" height="44" class="d-box-soft"/>
-<text x="159.2" y="120" class="d-t" text-anchor="middle">Instructions</text>
-<text x="159.2" y="136" class="d-m" text-anchor="middle">1,491 B</text>
-<rect x="278.4" y="40" width="50.4" height="44" class="d-mbox"/>
-<text x="303.5" y="120" class="d-t" text-anchor="middle">Your labels</text>
-<text x="303.5" y="136" class="d-m" text-anchor="middle">315 B</text>
-<rect x="328.7" y="40" width="5.1" height="44" class="acc" style="fill:var(--accent)"/>
-<line x1="331.3" y1="86" x2="297.3" y2="136" class="d-e"/>
-<text x="297.3" y="150" class="d-t" text-anchor="end">Date</text>
-<text x="297.3" y="166" class="d-m" text-anchor="end">32 B</text>
-<rect x="333.8" y="40" width="5.9" height="44" class="acc" style="fill:var(--accent)"/>
-<line x1="336.8" y1="86" x2="370.8" y2="106" class="d-e"/>
-<text x="370.8" y="120" class="d-t" text-anchor="start">Question</text>
-<text x="370.8" y="136" class="d-m" text-anchor="start">37 B</text>
-<rect x="339.7" y="40" width="620.3" height="44" class="d-box"/>
-<text x="649.9" y="120" class="d-t" text-anchor="middle">Schema and framing</text>
-<text x="649.9" y="136" class="d-m" text-anchor="middle">3,880 B</text>
-<text x="40" y="28" class="d-s">0</text><text x="960" y="28" class="d-s" text-anchor="end">5,755 bytes</text>
-</svg>
-</div>
-<figcaption>One planner request, to scale. Most of it is the plan schema, which holds the shape of a plan and your label names. Your question is the thin sliver in the middle.</figcaption>
+<figure>
+  <img src="../../assets/blog/every-byte-goose-sent/bytes.svg" width="680" alt="Stacked bars of the median bytes of each part of a request. qwen3:1.7b: 5,801 bytes, 1,491 instructions, 315 labels, 48 question, 32 date, 3,915 plan schema and framing. qwen3:8b: 5,790 bytes, 1,491 instructions, 315 labels, 39 question, 32 date, 3,913 plan schema and framing. Claude Haiku 5.5: 5,756 bytes, 1,491 instructions, 315 labels, 38 question, 32 date, 3,880 plan schema and framing.">
+  <figcaption>Figure 4. What a request is made of, by model. The instructions, your labels, your question and the date are the same text every time; the rest is the plan schema and the provider's wrapping. Your question is the thin orange sliver.</figcaption>
 </figure>
 
 And here's the part that matters, as it went out (the plan schema, 3,743 bytes of types and label names, is in the full request below):
@@ -651,6 +647,12 @@ The experiment asks a real model, so it's run by hand. A local model costs nothi
 ```bash
 uv run python evals/run.py --privacy ollama qwen3:8b
 uv run python evals/run.py --report evals/runs/privacy/*.jsonl
+```
+
+The figures in this post come from those files, through one script. It searches every recorded request again for the household's data, and draws nothing if the leaky adapter wasn't caught:
+
+```bash
+uv run --group eval python evals/privacy_charts.py evals/runs/privacy/*.jsonl --out figures/
 ```
 
 Every run is a file in `evals/runs/privacy/`, one line per question, holding every request it sent, byte for byte. The one thing never written down is your API key, wherever it turns up.
