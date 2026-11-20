@@ -157,7 +157,7 @@ Each question goes through Goose end to end, the same `assistant.ask()` the app 
 
 </div>
 
-That's 87 questions a run, plus the leaky adapter at the end, against the real model, as the positive control.
+That's 87 questions a run. Then comes the positive control: one more question, "Should I buy bonds?", sent to the same real model through the leaky adapter.
 
 ### Results
 
@@ -173,11 +173,40 @@ That's 87 questions a run, plus the leaky adapter at the end, against the real m
 
 **0 canary hits** in 352 requests, across 261 questions on 3 models. Every request went to the model's own host and nowhere else, and the leaky adapter was caught in every run, so the check was watching. The claude-haiku-5-5 run, control included, used 288,165 tokens in and 21,743 out (answered by claude-haiku-5-5): about $0.04 at list price.
 
-Here is every one of those requests. Each square is one request as the tap recorded it, and each was searched again, after the run, for the household's descriptions, merchants, account numbers and amounts. A canary in a real request would show up in a different color. None does.
+### What a question sends
+
+A question isn't one request, which is why there are more requests than questions. Goose makes up to four kinds of call, and each sends a different request:
+
+<div class="table-scroll" markdown="1">
+
+| Request | Sent | What's in it | Median bytes |
+|---|---|---|---|
+| Plan | Once per question | The planner's instructions, your labels, the date, your question, the plan schema | 5,754–5,789 |
+| Repair | When a plan doesn't fit the schema | The plan request again, plus the model's own plan and what was wrong with it | 6,048–6,449 |
+| Writer | Once per summary | The writer's instructions, your question, and the *names* of the facts, like `{total}`, never their values | 1,274–1,355 |
+| Model check | Once per run, Ollama only | The model's name, to ask Ollama whether it can think | 20–22 |
+
+</div>
+
+The ranges are the medians across the three models. How many of each a run sends depends on the model:
+
+<div class="table-scroll" markdown="1">
+
+| Model | Plan | Repair | Writer | Model check | Total |
+|---|---|---|---|---|---|
+| qwen3:1.7b | 87 | 26 | 15 | 1 | 129 |
+| qwen3:8b | 87 | 0 | 29 | 1 | 117 |
+| claude-haiku-5-5 | 87 | 2 | 17 | 0 | 106 |
+
+</div>
+
+qwen3:1.7b needed a repair for 26 of its 87 plans. qwen3:8b needed none. A repair quotes the model's own reply back to it and adds nothing from the database. Like every other request, it went through the same check.
+
+Here is every one of those requests. Each square is one request as the tap recorded it, colored by the call that sent it. Each was searched again, after the run, for the household's descriptions, merchants, account numbers and amounts. A canary in a real request would be drawn as a black square. There are none.
 
 <figure>
-  <img src="../../assets/blog/every-byte-goose-sent/requests.svg" width="680" alt="One square per request: 352 requests from 261 questions across three models, each searched again for the household's data. None holds any. The leaky adapter's requests, in orange, were caught in every run.">
-  <figcaption>Figure 1. Every request the three runs sent. The orange squares are the leaky adapter's. They are there because the check had to catch them.</figcaption>
+  <img src="../../assets/blog/every-byte-goose-sent/requests.svg" width="680" alt="One square per request, colored by the call that sent it: 352 requests from 261 questions across three models. qwen3:1.7b: 87 plans, 26 repairs, 15 writer calls, 1 model check. qwen3:8b: 87 plans, 29 writer calls, 1 model check. Claude Haiku 5.5: 87 plans, 2 repairs, 17 writer calls. Searched again, none holds any of the household's data. Under each model, in orange, the control's requests: 2, 1 and 1, all caught.">
+  <figcaption>Figure 1. Every request the three runs sent, by the call that sent it. The orange squares are the control's: one extra question through the leaky adapter, caught in every run. qwen3:1.7b's control took two requests because its first plan didn't fit the schema.</figcaption>
 </figure>
 
 ### What the models tried
@@ -191,7 +220,7 @@ Asked for a balance, an account number or "everything you can see", the planner 
   <figcaption>Figure 2. What the engine did with each question. The three models read the same questions differently, and in every case the rows, previews and sentences came from the engine.</figcaption>
 </figure>
 
-The writer is where small models get creative. Asked what the PNW trip cost "to the dollar", qwen3:1.7b wrote a sentence containing **$125.00**. The trip in the household cost **$11,518.57**. The model never saw that number, so it made one up, and `fill()`, the function that checks every model-written sentence before you'd see it, threw the sentence away (first for a slot that doesn't exist, and the typed figure would have been next). You'd have seen BlitZave's own sentence, with the real total. Claude Haiku 5.5, asked the same question, never typed a figure at all. It wrote that it didn't have the exact total in front of it, which is true.
+The writer is where small models get creative. Asked what the PNW trip cost "to the dollar", qwen3:1.7b didn't write a sentence. It filled in every fact itself: **$125.00** so far, $375.00 in total. The trip in the household cost **$11,518.57**. The model never saw that number, so it made figures up, and `fill()`, the function that checks every model-written sentence before you'd see it, threw the reply away. It failed first for using a slot this summary doesn't have, and the typed figures would have failed the next check. You'd have seen BlitZave's own sentence instead, with figures the engine computed from your rows. Claude Haiku 5.5, asked the same question, never typed a figure at all. It wrote that it didn't have the exact total in front of it, which is true.
 
 That's the second wall working. The first wall means the model can't leak your numbers, because it never has them. The second means it can't show you numbers it invented either. Across the runs, `fill()` threw away 35 of 61 writer sentences, for a typed figure, an invented slot, a comparison it couldn't know, or just rambling.
 
@@ -204,14 +233,14 @@ The injected tag went to the model as a label, as expected, and did nothing. The
 
 ### Everything Claude saw
 
-Here's one request, captured by the tap on its way to Anthropic during the claude-haiku-5-5 run, for "What's my checking balance right now?". It's 5,755 bytes. Across all three models, a request is made of the same parts:
+Here's one request, captured by the tap on its way to Anthropic during the claude-haiku-5-5 run, for "What's my checking balance right now?". It's 5,755 bytes. On all three models, every plan request is made of the same parts:
 
 <figure>
-  <img src="../../assets/blog/every-byte-goose-sent/bytes.svg" width="680" alt="Stacked bars of the median bytes of each part of a request. qwen3:1.7b: 5,801 bytes, 1,491 instructions, 315 labels, 48 question, 32 date, 3,915 plan schema and framing. qwen3:8b: 5,790 bytes, 1,491 instructions, 315 labels, 39 question, 32 date, 3,913 plan schema and framing. Claude Haiku 5.5: 5,756 bytes, 1,491 instructions, 315 labels, 38 question, 32 date, 3,880 plan schema and framing.">
-  <figcaption>Figure 4. What a request is made of, by model. The instructions, your labels, your question and the date are the same text every time; the rest is the plan schema and the provider's wrapping. Your question is the thin orange sliver.</figcaption>
+  <img src="../../assets/blog/every-byte-goose-sent/bytes.svg" width="680" alt="Stacked bars splitting each run's median-size plan request into its parts, in bytes on the wire. qwen3:1.7b: 5,789 bytes: 1,491 instructions, 315 labels, 36 question, 32 date, 3,915 plan schema and framing. qwen3:8b: 5,787 bytes: 1,491 instructions, 315 labels, 36 question, 32 date, 3,913 plan schema and framing. Claude Haiku 5.5: 5,754 bytes: 1,491 instructions, 315 labels, 36 question, 32 date, 3,880 plan schema and framing.">
+  <figcaption>Figure 4. What a plan request is made of: each run's median-size plan request, split into its parts. The instructions, your labels and the date are the same text in every request. The rest is the plan schema and the provider's wrapping (JSON keys, quoting, settings). Your question is the thin green sliver.</figcaption>
 </figure>
 
-And here's the part that matters, as it went out (the plan schema, 3,743 bytes of types and label names, is in the full request below):
+And here's the part that matters, as it went out (the plan schema, 3,700 bytes of types and label names, is in the full request below):
 
 ```text
 [system]
