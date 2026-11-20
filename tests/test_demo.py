@@ -311,6 +311,60 @@ def test_the_switch_only_knows_live_and_demo(home):
         assert client.put("/api/profile", json={"name": "other"}).status_code == 422
 
 
+# --- Goose is set up once, for both -------------------------------------------------
+
+OLLAMA = {"provider": "ollama", "model": "qwen3:8b", "base_url": "http://127.0.0.1:11434"}
+
+
+def test_goose_settings_are_shared_by_live_and_demo(home):
+    simplefin.store_access_url(ACCESS_URL)
+    jobs.start()
+
+    with _client() as client:
+        assert client.put("/api/goose/settings", json=OLLAMA).status_code == 200
+        client.put("/api/profile", json={"name": "demo"})
+        in_demo = client.get("/api/goose/settings").json()
+        client.put("/api/profile", json={"name": "demo"})  # Demo starts over...
+        after_restart = client.get("/api/goose/settings").json()  # ...Goose doesn't
+
+    assert in_demo["model"] == after_restart["model"] == "qwen3:8b"
+    path = home / "settings.json"
+    assert path.stat().st_mode & 0o777 == 0o600
+    assert not (home / "demo" / "settings.json").exists()
+
+
+def test_goose_settings_set_in_demo_are_there_in_live(home, monkeypatch):
+    jobs.start()  # a fresh install: Demo
+    with _client() as client:
+        assert client.put("/api/goose/settings", json=OLLAMA).status_code == 200
+
+    _claim_answers(monkeypatch, httpx.Response(200, text=ACCESS_URL))
+    with _client() as client:
+        client.post("/api/connect", json={"setup_token": CLAIM_TOKEN})
+        assert client.get("/api/goose/settings").json()["model"] == "qwen3:8b"
+    assert jobs.PROFILE is jobs.LIVE
+
+
+def test_saved_goose_settings_move_out_of_the_database_once(home):
+    conn = db.connect()
+    try:
+        user_id = users.get_or_create_user(conn)
+        users.update_meta(conn, user_id, {"goose": {**OLLAMA, "remote_ok": False}, "other": 1})
+    finally:
+        conn.close()
+
+    jobs.start()
+
+    with _client() as client:
+        assert client.get("/api/goose/settings").json()["model"] == "qwen3:8b"
+    conn = db.connect()
+    try:
+        meta = users.get_meta(conn, users.get_or_create_user(conn))
+    finally:
+        conn.close()
+    assert "goose" not in meta and meta["other"] == 1  # only Goose's key moved
+
+
 # --- `blitzave --demo`: Demo alone, and nothing real touched ------------------------
 
 
@@ -401,6 +455,14 @@ def test_the_demo_flag_refuses_an_import(throwaway):
 
     assert response.status_code == 409
     assert jobs.PROFILE is jobs.DEMO
+
+
+def test_the_demo_flag_keeps_goose_settings_in_its_own_folder(throwaway, tmp_path):
+    with _client() as client:
+        assert client.put("/api/goose/settings", json=OLLAMA).status_code == 200
+
+    assert (throwaway / "settings.json").exists()
+    assert not (tmp_path / "real-home" / "BlitZave").exists()
 
 
 def test_the_demo_flags_goose_settings_say_the_key_stays_in_memory(throwaway):

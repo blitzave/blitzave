@@ -10,7 +10,15 @@ from blitzave.refine import transfers as match
 from blitzave.refine.categorize import is_match, match_key
 from blitzave.sources import github, simplefin
 from blitzave.sources.base import Fetched
-from blitzave.store import categories, db, ingest, transactions, transfers, users
+from blitzave.store import (
+    categories,
+    db,
+    ingest,
+    settings,
+    transactions,
+    transfers,
+    users,
+)
 
 SYNC_JOB = "ingest"
 MATCH_JOB = "match_transfers"  # its watermark only records that the one full pass ran
@@ -78,7 +86,34 @@ def start(demo_only: bool = False) -> Profile:
         DEMO = Profile("demo", home / "demo", None)
     first = LIVE if live_has_data() else DEMO
     open_profile(first)
+    if first is LIVE:
+        _move_goose_settings_to_the_shared_file()
     return first
+
+
+def shared_folder() -> Path:
+    """Where what Live and Demo share is kept (store/settings.py): Live's
+    folder, or the temporary one for `blitzave --demo`. While Live is showing
+    that's where BLITZAVE_HOME points, which is also true before start()."""
+    if PROFILE is LIVE:
+        return db.home_path()
+    return LIVE.home if LIVE is not None else DEMO.home
+
+
+def _move_goose_settings_to_the_shared_file() -> None:
+    """Goose's settings used to be in users.meta, inside Live's database.
+    Both profiles read them from the shared file now; this moves them once."""
+    if "goose" in settings.read(shared_folder()):
+        return
+    conn = db.connect()
+    try:
+        user_id = users.get_or_create_user(conn)
+        saved = users.get_meta(conn, user_id).get("goose")
+        if saved:
+            settings.update(shared_folder(), {"goose": saved})
+            users.update_meta(conn, user_id, {"goose": None})  # None removes the key
+    finally:
+        conn.close()
 
 
 def live_has_data() -> bool:
