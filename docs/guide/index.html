@@ -308,7 +308,7 @@
         <h1 id="guide-title">The BlitZave guide</h1>
         <p class="lede">From nothing to your first calm month. Setup takes about ten minutes, most of it in SimpleFIN. After that, each chapter walks through one page of the app: what it shows, and the few things worth doing there.</p>
         <div class="needs" role="list">
-          <div class="need" role="listitem"><b>A Mac</b><span>Linux should work. Windows is untested.</span></div>
+          <div class="need" role="listitem"><b>Your own computer</b><span>macOS, Windows or Linux. Nothing else to set up.</span></div>
           <div class="need" role="listitem"><b>A SimpleFIN account</b><span>Read-only bank access, a small subscription paid to SimpleFIN.</span></div>
           <div class="need" role="listitem"><b>Ten minutes</b><span>One command to install, one token to paste.</span></div>
         </div>
@@ -338,8 +338,9 @@
 
         <ol class="steps">
           <li>
-            <b>Install uv.</b> uv runs Python apps and installs Python 3.12 for you if you need it. On a Mac you can also run <code>brew install uv</code>.
+            <b>Install uv.</b> uv runs Python apps and installs Python 3.12 for you if you need it. On a Mac you can also run <code>brew install uv</code>. On Windows, use the second command, in PowerShell.
             <div class="code"><pre><code>curl -LsSf https://astral.sh/uv/install.sh | sh</code></pre><button class="copy" type="button" aria-label="Copy command"><svg class="idle" viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg><svg class="done" viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg></button></div>
+            <div class="code"><pre><code>powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"</code></pre><button class="copy" type="button" aria-label="Copy the Windows command"><svg class="idle" viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg><svg class="done" viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg></button></div>
           </li>
           <li>
             <b>Install BlitZave.</b> This gives you a <code>blitzave</code> command that works from any folder. There's nothing to clone.
@@ -431,7 +432,7 @@ blitzave</code></pre><button class="copy" type="button" aria-label="Copy command
           </figure>
         </div>
 
-        <div class="note"><b>Where the token goes.</b> The setup token works once. BlitZave trades it for an access credential and keeps that only in your Mac's keychain, under the name <code>blitzave</code>. It's never in the database, the logs, or an export.</div>
+        <div class="note"><b>Where the token goes.</b> The setup token works once. BlitZave trades it for an access credential and keeps it in your computer's keychain, under the name <code>blitzave</code>. On a machine with no keychain, such as a Linux server, it goes in <code>~/BlitZave/credentials.json</code> instead, which only you can read. It's never in the database, the logs, or an export.</div>
 
         <h3>The last two steps</h3>
         <div class="prose">
@@ -751,7 +752,7 @@ blitzave</code></pre><button class="copy" type="button" aria-label="Copy command
 
         <h3>Or Claude, if you opt in</h3>
         <div class="prose">
-          <p>Choose <span class="ui">Claude, from Anthropic</span>, paste an API key from your Anthropic account, and keep <code>claude-opus-5-5</code> or type <code>claude-haiku-5-5</code>, which costs less. The key goes to your Mac's keychain, never the database.</p>
+          <p>Choose <span class="ui">Claude, from Anthropic</span>, paste an API key from your Anthropic account, and keep <code>claude-opus-5-5</code> or type <code>claude-haiku-5-5</code>, which costs less. The key goes to your computer's keychain, never the database.</p>
           <p>Claude isn't on your laptop, so before the first question BlitZave lists exactly what each question sends, and what it never will. Nothing goes until you tick <span class="ui">That's fine, send those</span>.</p>
         </div>
         <figure class="shot narrow">
@@ -824,7 +825,7 @@ blitzave</code></pre><button class="copy" type="button" aria-label="Copy command
             <thead><tr><th scope="col">What</th><th scope="col">Where</th></tr></thead>
             <tbody>
               <tr><td>Everything BlitZave knows</td><td><code>~/BlitZave/blitzave.db</code>, one SQLite file</td></tr>
-              <tr><td>Your SimpleFIN credential, and a Claude API key if you add one</td><td>Your Mac's keychain, under <code>blitzave</code></td></tr>
+              <tr><td>Your SimpleFIN credential, and a Claude API key if you add one</td><td>Your computer's keychain, under <code>blitzave</code>. With no keychain: <code>~/BlitZave/credentials.json</code>, readable only by you</td></tr>
               <tr><td>Copies made before an update</td><td><code>~/BlitZave/backups</code>, the last three</td></tr>
               <tr><td>Anything else</td><td>Nowhere. There's no server.</td></tr>
             </tbody>
@@ -855,7 +856,7 @@ blitzave</code></pre><button class="copy" type="button" aria-label="Copy command
         </div>
 
         <h3>Uninstall</h3>
-        <div class="prose"><p>Stop BlitZave, uninstall it, delete <code>~/BlitZave</code>, then remove the keychain entries (the second line only matters if you added a Claude key). On a Mac you can also delete the items named <code>blitzave</code> in Keychain Access.</p></div>
+        <div class="prose"><p>Stop BlitZave, uninstall it, delete <code>~/BlitZave</code>, then remove the keychain entries (the second line only matters if you added a Claude key). On a Mac you can also delete the items named <code>blitzave</code> in Keychain Access, and on Windows in Credential Manager. Without a keychain, deleting <code>~/BlitZave</code> removes them too.</p></div>
         <div class="code"><pre><code>uv tool uninstall blitzave
 uvx keyring del blitzave simplefin_access_url
 uvx keyring del blitzave anthropic_api_key</code></pre><button class="copy" type="button" aria-label="Copy commands"><svg class="idle" viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg><svg class="done" viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg></button></div>

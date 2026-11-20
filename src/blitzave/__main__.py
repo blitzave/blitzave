@@ -16,7 +16,7 @@ from fastapi import FastAPI
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from fastapi.staticfiles import StaticFiles
 
-from blitzave import demo, jobs
+from blitzave import demo, jobs, keychain
 from blitzave.api.routes import router
 from blitzave.store import db, users
 
@@ -145,6 +145,12 @@ def main() -> None:
         "and your real setup is never touched",
     )
     args = parser.parse_args()
+    if not args.demo:
+        # Before anything reads a secret (the fresh-install check below does):
+        # the OS keychain, or a file only the user can read when this machine
+        # has no keychain (keychain.py). Not for --demo, which has its own
+        # keychain and must never touch the real home folder.
+        keychain.use_file_if_needed(db.home_dir())
     try:
         port = PORT
         if args.demo:
