@@ -7,13 +7,14 @@ from blitzave import backup
 MIGRATIONS_DIR = Path(__file__).parent / "migrations"
 
 
-def _home_path() -> Path:
+def home_path() -> Path:
+    """The data folder, without creating it."""
     override = os.environ.get("BLITZAVE_HOME")
     return Path(override) if override else Path.home() / "BlitZave"
 
 
 def home_dir() -> Path:
-    path = _home_path()
+    path = home_path()
     path.mkdir(parents=True, exist_ok=True)
     os.chmod(path, 0o700)
     return path
@@ -25,7 +26,7 @@ def db_path() -> Path:
 
 def database_exists() -> bool:
     """Whether BlitZave has a database yet. Only looks: never creates the folder."""
-    return (_home_path() / "blitzave.db").exists()
+    return (home_path() / "blitzave.db").exists()
 
 
 def connect(path: Path | None = None) -> sqlite3.Connection:

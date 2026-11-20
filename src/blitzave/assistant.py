@@ -618,7 +618,8 @@ def settings() -> dict:
         "base_url": saved.get("base_url"),
         "remote": bool(saved) and models.is_remote(saved["base_url"]),
         "key_saved": models.has_api_key(),
-        "disclosure": words.DISCLOSURE if jobs.DEMO is None else words.DEMO_DISCLOSURE,
+        # Only `blitzave --demo` keeps the key in memory; Demo shares the keychain.
+        "disclosure": words.DISCLOSURE if jobs.LIVE is not None else words.DEMO_DISCLOSURE,
     }
 
 
