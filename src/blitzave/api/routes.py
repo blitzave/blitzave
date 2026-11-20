@@ -59,6 +59,10 @@ class ConnectRequest(BaseModel):
     setup_token: str
 
 
+class ProfileChoice(BaseModel):
+    name: Literal["live", "demo"]
+
+
 class UpdateCheckSetting(BaseModel):
     enabled: StrictBool  # true or false only; "yes" or 1 is a 422, not a guess
 
@@ -372,6 +376,33 @@ def connect(request: ConnectRequest) -> dict[str, bool]:
     except jobs.ConnectError as e:
         raise HTTPException(status_code=400, detail=str(e)) from e
     return {"connected": True}
+
+
+def _profile_status() -> dict:
+    return {
+        "name": jobs.PROFILE.name,  # what's showing: "live" or "demo"
+        "live_available": jobs.live_has_data(),  # can the switch open Live
+        "syncs": jobs.PROFILE.source is not None,  # Demo has no bank: no Sync button
+    }
+
+
+@router.get("/profile")
+def profile_status() -> dict:
+    return _profile_status()
+
+
+@router.put("/profile")
+def choose_profile(choice: ProfileChoice) -> dict:
+    """Show Live or Demo. Opening Demo starts it over; nothing else changes."""
+    if choice.name == "demo":
+        jobs.open_profile(jobs.DEMO)
+    elif jobs.LIVE is None:
+        raise HTTPException(status_code=409, detail=jobs.DEMO_ONLY)
+    elif not jobs.live_has_data():
+        raise HTTPException(status_code=409, detail="Live opens once your bank is connected.")
+    else:
+        jobs.open_live()
+    return _profile_status()
 
 
 @router.post("/sync")

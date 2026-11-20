@@ -257,6 +257,60 @@ def test_goose_settings_in_demo_say_the_key_goes_to_the_keychain(home):
     assert disclosure == goose_words.DISCLOSURE  # Demo shares the real keychain
 
 
+# --- the switch in Settings: GET and PUT /api/profile -------------------------------
+
+
+def test_a_fresh_install_shows_demo_and_cant_open_live_yet(home):
+    jobs.start()
+
+    with _client() as client:
+        assert client.get("/api/profile").json() == {
+            "name": "demo", "live_available": False, "syncs": False
+        }
+        refused = client.put("/api/profile", json={"name": "live"})
+
+    assert refused.status_code == 409
+    assert refused.json()["detail"] == "Live opens once your bank is connected."
+    assert jobs.PROFILE is jobs.DEMO
+    assert not (home / "blitzave.db").exists()
+
+
+def test_with_a_token_the_switch_goes_both_ways(home):
+    simplefin.store_access_url(ACCESS_URL)
+    _live_database_with_a_category(home)
+    jobs.start()
+
+    with _client() as client:
+        assert client.get("/api/profile").json() == {
+            "name": "live", "live_available": True, "syncs": True
+        }
+        in_demo = client.put("/api/profile", json={"name": "demo"}).json()
+        demo_names = _category_names(client)
+        back = client.put("/api/profile", json={"name": "live"}).json()
+        live_names = _category_names(client)
+
+    assert in_demo == {"name": "demo", "live_available": True, "syncs": False}
+    assert "Mine, not made up" not in demo_names
+    assert back == {"name": "live", "live_available": True, "syncs": True}
+    assert "Mine, not made up" in live_names
+
+
+def test_choosing_demo_again_starts_it_over(home):
+    jobs.start()
+
+    with _client() as client:
+        client.post("/api/categories", json={"name": "Tried in the demo", "kind": "expense"})
+        assert client.put("/api/profile", json={"name": "demo"}).status_code == 200
+        assert "Tried in the demo" not in _category_names(client)
+
+
+def test_the_switch_only_knows_live_and_demo(home):
+    jobs.start()
+
+    with _client() as client:
+        assert client.put("/api/profile", json={"name": "other"}).status_code == 422
+
+
 # --- `blitzave --demo`: Demo alone, and nothing real touched ------------------------
 
 
@@ -328,6 +382,16 @@ def test_the_demo_flag_refuses_to_connect_before_spending_the_token(throwaway, m
     assert "run `blitzave`" in response.json()["detail"]
     assert claimed == []  # a setup token works once; this one is still good
     assert jobs.PROFILE is jobs.DEMO
+
+
+def test_the_demo_flag_has_no_live_to_switch_to(throwaway):
+    with _client() as client:
+        status = client.get("/api/profile").json()
+        refused = client.put("/api/profile", json={"name": "live"})
+
+    assert status == {"name": "demo", "live_available": False, "syncs": False}
+    assert refused.status_code == 409
+    assert "run `blitzave`" in refused.json()["detail"]
 
 
 def test_the_demo_flag_refuses_an_import(throwaway):

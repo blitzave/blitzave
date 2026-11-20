@@ -76,10 +76,17 @@ def start(demo_only: bool = False) -> Profile:
         home = db.home_path()
         LIVE = Profile("live", home, simplefin)
         DEMO = Profile("demo", home / "demo", None)
-    has_real_data = LIVE is not None and (db.database_exists() or simplefin.is_connected())
-    first = LIVE if has_real_data else DEMO
+    first = LIVE if live_has_data() else DEMO
     open_profile(first)
     return first
+
+
+def live_has_data() -> bool:
+    """Whether Live has anything to show: a saved token or a database. False
+    for `blitzave --demo`, which has no Live and never reads the keychain."""
+    if LIVE is None:
+        return False
+    return (LIVE.home / "blitzave.db").exists() or simplefin.is_connected()
 
 
 def open_profile(profile: Profile) -> None:
