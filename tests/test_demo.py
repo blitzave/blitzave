@@ -13,11 +13,11 @@ from pathlib import Path
 
 import httpx
 import keyring
+import keyring.backend
 import keyring.core
 import pytest
 from fastapi.testclient import TestClient
 from keyring.backend import KeyringBackend
-from keyring.backends import fail
 
 from blitzave import assistant, demo, jobs
 from blitzave.__main__ import app
@@ -87,9 +87,12 @@ def test_demo_keeps_every_secret_in_memory(in_demo):
 
 
 def test_keyring_never_picks_the_memory_keychain_on_its_own():
-    # Below the fail backend, so a machine with no keychain still gets a loud
-    # failure instead of secrets that vanish on exit.
-    assert demo.MemoryKeyring.priority < fail.Keyring.priority
+    # A machine with no keychain must get a loud failure, never secrets that
+    # quietly vanish on exit.
+    assert not demo.MemoryKeyring.viable
+    with pytest.raises(TypeError):
+        demo.MemoryKeyring()  # what keyring tries when it looks for a default
+    assert not any(isinstance(k, demo.MemoryKeyring) for k in keyring.backend.get_all_keyring())
 
 
 def test_demo_never_touches_the_network_at_startup(in_demo, monkeypatch):

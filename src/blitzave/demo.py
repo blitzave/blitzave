@@ -39,13 +39,13 @@ class MemoryKeyring(KeyringBackend):
     """A keychain that's a dict: whatever is saved in demo mode (a Goose API
     key, say) is forgotten when the process ends."""
 
-    # Below the fail backend's 0, so keyring never picks this on its own.
-    # Only set_keyring() in start() does.
-    priority = -1
+    # keyring only builds backends it can construct with no arguments, and
+    # one with no priority isn't viable, so it never picks this on its own
+    # (on a Linux machine with no keychain, say). Only start() does.
 
-    def __init__(self):
+    def __init__(self, secrets: dict[tuple[str, str], str]):
         super().__init__()
-        self._secrets: dict[tuple[str, str], str] = {}
+        self._secrets = secrets
 
     def get_password(self, service: str, username: str) -> str | None:
         return self._secrets.get((service, username))
@@ -77,7 +77,7 @@ def start() -> Path:
     the caller removes on exit."""
     home = Path(tempfile.mkdtemp(prefix="blitzave-demo-"))
     os.environ["BLITZAVE_HOME"] = str(home)
-    keyring.set_keyring(MemoryKeyring())
+    keyring.set_keyring(MemoryKeyring({}))
     jobs.SOURCE = FictionalBank(build(date.today()))
     jobs.DEMO = True
     return home
