@@ -12,6 +12,11 @@ MATCH_JOB = "match_transfers"  # its watermark only records that the one full pa
 WATERMARK_OVERLAP_DAYS = 7  # banks post late; re-fetching the overlap is safe, upserts are idempotent
 INITIAL_LOOKBACK_DAYS = 90  # how far back the very first sync reaches, before any watermark exists
 
+# Where a sync gets its data: anything with is_connected() and
+# fetch(since, until). Always SimpleFIN, except in demo mode, which swaps in
+# its fictional bank (blitzave.demo) with one assignment.
+SOURCE = simplefin
+
 
 class ConnectError(Exception):
     """Connecting to SimpleFIN failed for a reason the user can fix."""
@@ -26,7 +31,7 @@ class UpdateCheckError(Exception):
 
 
 def simplefin_connected() -> bool:
-    return simplefin.is_connected()
+    return SOURCE.is_connected()
 
 
 def connect_simplefin(setup_token: str) -> None:
@@ -102,10 +107,10 @@ def _match_pairs(conn, user_id: int, fetched: Fetched) -> dict:
 
 
 def _fetch(since: date, until: date | None = None) -> Fetched:
-    if not simplefin.is_connected():
+    if not SOURCE.is_connected():
         raise SyncError("not connected to SimpleFIN yet — POST /api/connect first")
     try:
-        return simplefin.fetch(since, until)
+        return SOURCE.fetch(since, until)
     except simplefin.SimpleFinError as e:
         raise SyncError(str(e)) from e
 
