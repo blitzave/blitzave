@@ -10,9 +10,14 @@ rule: before anything is drawn, the checks must pass, or nothing is written.
 - every count agrees with a plain-Python recount of the same files;
 - every request in the files is searched again, here, for the household's
   canaries, account numbers and amounts. The run said it found none (or, for
-  the leaky control, some). A search that finds one the run didn't is an error.
+  the leaky control, some). A search that finds one the run didn't is an error;
+- every request is sorted into the one call that sends it (a plan, a repair,
+  a writer call, Ollama's model check), and the sort must agree with the run:
+  one plan per question, at most one repair, a writer call per writer verdict.
 
-A square in requests.svg is one request, as the tap recorded it. The SVGs are
+A square in requests.svg is one request, as the tap recorded it, colored by
+that call. bytes.svg splits each run's median-size plan request, one real
+request, so its parts add up to its bytes on the wire. The SVGs are
 deterministic: the same runs give the same bytes.
 """
 
@@ -27,30 +32,46 @@ import httpx
 import pandas as pd
 import run  # evals/run.py, beside this file
 
+from blitzave import assistant
 from blitzave.sources import models
 
 W = charts.WIDTH * 72  # 510 points. One unit is one point, so a square is as big as it looks.
 INK, INK_2, MUTED, NEUTRAL = charts.INK, charts.INK_2, charts.MUTED, charts.NEUTRAL
 BLUE, ORANGE, AQUA, YELLOW = charts.BLUE, charts.ORANGE, charts.AQUA, charts.YELLOW
 
-PARTS = [  # what a request is made of, in the order it's built
+# A segmented bar takes the palette's slots in its own order (blue, orange,
+# aqua, yellow), which is the order validated for touching segments: orange
+# and yellow fail it side by side, so they never are.
+PARTS = [  # what a plan request is made of, in the order it's built
     ("instructions", "Instructions", BLUE),
-    ("labels", "Your labels", AQUA),
-    ("question", "Your question", ORANGE),
-    ("other_messages", "The date", YELLOW),
+    ("labels", "Your labels", ORANGE),
+    ("question", "Your question", AQUA),
+    ("date", "The date", YELLOW),
     ("schema_and_framing", "Plan schema and framing", NEUTRAL),
 ]
+# The calls that put a request on the wire, in the order a question makes them.
+# Orange is the control's, on a row of its own under the blue, so it never
+# touches yellow.
+KINDS = [
+    ("plan", "Plan", BLUE),
+    ("repair", "Repair", AQUA),
+    ("write", "Writer", YELLOW),
+    ("check", "Model check", NEUTRAL),
+]
+NOUN = {"plan": ("plan", "plans"), "repair": ("repair", "repairs"), "write": ("writer call", "writer calls"),
+        "check": ("model check", "model checks")}
+PLANNER_HEAD = assistant.PLANNER[: assistant.PLANNER.index(run.LABELS_START)]
 CARDS = [  # what the engine made of a question
     ("transactions", "Listed rows", BLUE),
-    ("summary", "Summarized", AQUA),
-    ("proposal", "Previewed a change", ORANGE),
+    ("summary", "Summarized", ORANGE),
+    ("proposal", "Previewed a change", AQUA),
     ("clarify", "Asked which you meant", YELLOW),
     ("message", "Said so in its own words", NEUTRAL),
 ]
 SENTENCES = [  # what fill() did with the writer's sentence
     ("kept", "Shown", BLUE),
     ("slot", "Invented a slot", ORANGE),
-    ("figure", "Typed a figure or a comparison", YELLOW),
+    ("figure", "Typed a figure or a comparison", AQUA),
     ("other", "Too long, or not allowed", NEUTRAL),
 ]
 
@@ -76,6 +97,56 @@ def as_request(recorded: dict) -> httpx.Request:
     return httpx.Request(recorded["method"], recorded["url"], headers=recorded["headers"], content=content.encode())
 
 
+def chat_of(recorded: dict) -> tuple[str, list[dict]]:
+    """The system prompt and the other messages of a chat request, for
+    Anthropic (a system field) and Ollama (a first system message) alike."""
+    body = recorded["body"]
+    messages = body["messages"]
+    if "system" in body:
+        return body["system"], messages
+    if messages and messages[0]["role"] == "system":
+        return messages[0]["content"], messages[1:]
+    raise SystemExit(f"a chat request with no system prompt: {recorded['url']}")
+
+
+def request_kind(recorded: dict) -> str:
+    """Which call sent a request, read from the request itself: Ollama's model
+    check, or a chat whose system prompt is the writer's or the planner's. A
+    planner chat that quotes the model's own reply back is the repair. Anything
+    else stops the script, so no request is ever drawn as something it isn't."""
+    path = httpx.URL(recorded["url"]).path
+    if path == "/api/show":
+        return "check"
+    if path not in ("/api/chat", "/v1/messages"):
+        raise SystemExit(f"a request this script can't name: {recorded['method']} {recorded['url']}")
+    system, messages = chat_of(recorded)
+    if system.startswith(assistant.WRITER):
+        return "write"
+    if system.startswith(PLANNER_HEAD):
+        return "repair" if any(m["role"] == "assistant" for m in messages) else "plan"
+    raise SystemExit(f"a chat request with a system prompt this script doesn't know: {recorded['url']}")
+
+
+def plan_parts(recorded: dict, question: str) -> dict[str, int]:
+    """A plan request's bytes on the wire, split into what it carries. The
+    total is its Content-Length; the schema and the vendor's framing (JSON
+    keys, quotes, escapes, settings) are whatever the text parts don't cover."""
+    system, messages = chat_of(recorded)
+    [message] = messages
+    cut = system.find(run.LABELS_START)
+    content = message["content"]
+    if cut < 0 or not content.endswith(question):
+        raise SystemExit(f"a plan request this script can't split: {recorded['url']}")
+    wire = int(recorded["headers"]["content-length"])
+    parts = {
+        "instructions": len(system[:cut].encode()),
+        "labels": len(system[cut:].encode()),
+        "question": len(question.encode()),
+        "date": len(content.encode()) - len(question.encode()),
+    }
+    return {"wire": wire, **parts, "schema_and_framing": wire - sum(parts.values())}
+
+
 def rescan(lines: list[dict], secrets: set[str]) -> list[list[bool]]:
     """For each line of a run, whether each of its requests holds a canary,
     an account number or a seeded amount. Searched here, not read from the run."""
@@ -84,17 +155,25 @@ def rescan(lines: list[dict], secrets: set[str]) -> list[list[bool]]:
     return [[bool(run.leaks([as_request(q)], base_url, secrets, None)) for q in line["requests"]] for line in lines]
 
 
-def load(paths: list[Path]) -> tuple[pd.DataFrame, dict[str, list[tuple[str, bool]]]]:
-    """One row per question (the control left out), and per run the squares of
-    requests.svg: (question or control, whether the request holds a canary)."""
+def load(paths: list[Path]) -> tuple[pd.DataFrame, dict[str, list[tuple[bool, str, bool]]], dict[str, dict]]:
+    """One row per question (the control left out); per run the squares of
+    requests.svg: (the control's or not, the call that sent it, whether it
+    holds a canary); and per run its median-size plan request, split."""
     secrets = run.seeded_secrets(run.load_privacy()["household"])
-    rows, squares = [], {}
+    rows, squares, medians = [], {}, {}
     for path in paths:
         lines = run.read_run(path)
         found = rescan(lines, secrets)
         squares[path.name] = [
-            (line["group"] == "control", hit) for line, hits in zip(lines, found) for hit in hits
+            (line["group"] == "control", request_kind(q), hit)
+            for line, hits in zip(lines, found) for q, hit in zip(line["requests"], hits)
         ]
+        plans = sorted(
+            (plan_parts(q, line["question"]) for line in lines if line["group"] != "control"
+             for q in line["requests"] if request_kind(q) == "plan"),
+            key=lambda parts: parts["wire"],
+        )
+        medians[path.name] = plans[len(plans) // 2]  # an odd count: one real request, not an average
         for line, hits in zip(lines, found):
             if line["group"] == "control":
                 continue
@@ -102,12 +181,12 @@ def load(paths: list[Path]) -> tuple[pd.DataFrame, dict[str, list[tuple[str, boo
                 "run": path.name, "model": line["model"], "provider": line["provider"], "group": line["group"],
                 "hits": len(line["hits"]), "rescanned": sum(hits), "requests": len(line["requests"]),
                 "cards": line.get("cards", []), "kinds": [verdict_kind(w["verdict"]) for w in line["writer"]],
-                **{f"bytes_{key}": line["inventory"][key] for key, _, _ in PARTS},
+                "calls": [request_kind(q) for q in line["requests"]],
             })
     df = pd.DataFrame(rows)
     df["name"] = df["model"].map(lambda m: charts.MODEL_NAME.get(m, m))
     df["where"] = df["provider"].map(lambda p: charts.WHERE.get(p, p))
-    return df, squares
+    return df, squares, medians
 
 
 def check(df: pd.DataFrame, paths: list[Path], squares: dict) -> None:
@@ -130,22 +209,39 @@ def check(df: pd.DataFrame, paths: list[Path], squares: dict) -> None:
         wrongly = [line["case"] for line, (_, row) in zip(asked, mine.iterrows()) if row["rescanned"] and not row["hits"]]
         if wrongly:
             raise SystemExit(f"{path.name}: searched again, a canary is in {wrongly}, which the run called clean")
+        for line in lines:
+            calls = [request_kind(q) for q in line["requests"]]
+            chats = [c for c in calls if c != "check"]
+            right = (
+                calls.count("plan") == (1 if line["outcome"] == "answered" else calls.count("plan"))
+                and calls.count("plan") <= 1 and calls.count("repair") <= calls.count("plan")
+                and (not chats or chats[0] == "plan")
+                and calls.count("write") == len(line["writer"])
+            )
+            if not right:
+                raise SystemExit(f"{path.name}: {line['case']} sent {calls}, which isn't how a question goes")
+        if sum(kind == "check" for _, kind, _ in squares[path.name]) > (1 if lines[0]["provider"] == "ollama" else 0):
+            raise SystemExit(f"{path.name}: more model checks than one per run")
         control = next((line for line in lines if line["group"] == "control"), None)
-        if control is None or not control["caught"] or not any(hit for is_control, hit in squares[path.name] if is_control):
+        if control is None or not control["caught"] or not any(hit for is_control, _, hit in squares[path.name] if is_control):
             raise SystemExit(f"{path.name}: the leaky control wasn't caught, so a clean run proves nothing")
 
 
-def summary(df: pd.DataFrame) -> pd.DataFrame:
-    """One row per run, in the order the runs were named."""
+def summary(df: pd.DataFrame, medians: dict[str, dict]) -> pd.DataFrame:
+    """One row per run, in the order the runs were named: the counts, the
+    requests by call, and the parts of its median-size plan request."""
     grouped = df.groupby("run", sort=False)
     out = grouped.agg(
         name=("name", "first"), where=("where", "first"), questions=("group", "size"),
         requests=("requests", "sum"), hits=("hits", "sum"),
-    )
-    for key, _, _ in PARTS:
-        out[key] = grouped[f"bytes_{key}"].median()
-    out["wire"] = out[[key for key, _, _ in PARTS]].sum(axis=1)
-    return out.reset_index()
+    ).reset_index()
+    for key, _, _ in KINDS:
+        out[f"calls_{key}"] = [sum(c.count(key) for c in df[df["run"] == r]["calls"]) for r in out["run"]]
+    for key in ["wire", *(k for k, _, _ in PARTS)]:
+        out[key] = [medians[r][key] for r in out["run"]]
+    if not (out[[f"calls_{k}" for k, _, _ in KINDS]].sum(axis=1) == out["requests"]).all():
+        raise SystemExit("requests by call don't add up to the requests")
+    return out
 
 
 # --- drawing -------------------------------------------------------------------------------
@@ -181,37 +277,50 @@ def model_label(ax, y: float, name: str, where: str) -> None:
 
 
 def requests_figure(table: pd.DataFrame, squares: dict, path: Path) -> None:
-    """One square per request, a row of them per model. Orange squares are the
-    leaky control's, which the check had to catch."""
+    """One square per request, a row of them per model, colored by the call
+    that sent it and grouped in the order a question makes them. Under each
+    model, the counts in words. The control's requests, orange, sit apart:
+    the check had to catch them. A canary in any other request would be ink."""
     cols, x0 = 44, 128
     pitch = (W - 10 - x0) / cols
     size = pitch - 1.7
-    top, hits = 64, sum(table["hits"])
+    order = [key for key, _, _ in KINDS]
+    color = {key: c for key, _, c in KINDS}
+    top, hits = 72, int(table["hits"].sum())
     blocks = []
     for _, row in table.iterrows():
         marks = squares[row["run"]]
-        real, control = [m for m in marks if not m[0]], [m for m in marks if m[0]]
-        blocks.append((row, real, control, math.ceil(len(real) / cols) * pitch + 6 + pitch + 14))
-    fig, ax = canvas(top + sum(b[3] for b in blocks) + 4)
-    total = int(table["requests"].sum())
+        real = sorted((m for m in marks if not m[0]), key=lambda m: order.index(m[1]))
+        control = [m for m in marks if m[0]]
+        grid = math.ceil(len(real) / cols) * pitch
+        blocks.append((row, real, control, grid, grid + 15 + pitch + 16))
+    fig, ax = canvas(top + sum(b[4] for b in blocks) + 4)
     heading(ax, "Every request, one square", (
-        f"{total:,} requests from {int(table['questions'].sum())} questions, each searched again for the household's data. "
-        f"{'No square holds any.' if not hits else str(hits) + ' did.'}"
+        f"{int(table['requests'].sum()):,} requests from {int(table['questions'].sum())} questions, "
+        f"each searched again for the household's data. {'None holds any.' if not hits else str(hits) + ' did.'}"
     ))
-    key(fig, ax, 48, [("A request, clean", BLUE), ("The leaky adapter's, caught", ORANGE)]
-        + ([("A canary in a real request", YELLOW)] if any(hit for m in squares.values() for c, hit in m if hit and not c) else []))
+    present = [key for key in order if any(kind == key for m in squares.values() for c, kind, _ in m if not c)]
+    leaked = any(hit for m in squares.values() for c, _, hit in m if hit and not c)
+    key(fig, ax, 48, [(name, c) for k, name, c in KINDS if k in present] + [("Leaky adapter, caught", ORANGE)]
+        + ([("A canary in a real request", INK)] if leaked else []))
     y = top
-    for row, real, control, height in blocks:
+    for row, real, control, grid, height in blocks:
         model_label(ax, y + pitch / 2, row["name"], row["where"])
-        for n, (_, hit) in enumerate(real):
+        for n, (_, kind, hit) in enumerate(real):
             r, c = divmod(n, cols)
             cx, cy = x0 + c * pitch, y + r * pitch + size / 2
-            charts.block(ax, cx, cx + size, cy, size, YELLOW if hit else BLUE, radius_pt=1.2)
-        cy = y + math.ceil(len(real) / cols) * pitch + 6
-        for n, (_, hit) in enumerate(control):
+            charts.block(ax, cx, cx + size, cy, size, INK if hit else color[kind], radius_pt=1.2)
+        counts = Counter(kind for _, kind, _ in real)
+        words = " · ".join(f"{counts[k]} {NOUN[k][counts[k] != 1]}" for k in order if counts[k])
+        ax.text(x0, y + grid + 4, words, fontsize=7.5, color=INK_2, va="top")
+        cy = y + grid + 15
+        for n, (_, kind, hit) in enumerate(control):
             cx = x0 + n * pitch
             charts.block(ax, cx, cx + size, cy + size / 2, size, ORANGE if hit else BLUE, radius_pt=1.2)
-        ax.text(x0 + len(control) * pitch + 4, cy + size / 2, "the control: a leaky adapter, caught on the wire", fontsize=7.5, color=INK_2, va="center")
+        plural = "s" if len(control) != 1 else ""
+        ax.text(x0 + len(control) * pitch + 4, cy + size / 2,
+                f"the control: one more question, through a leaky adapter. {len(control)} request{plural}, caught",
+                fontsize=7.5, color=INK_2, va="center")
         y += height
     charts.save(fig, path)
 
@@ -243,12 +352,12 @@ def stacked(table: pd.DataFrame, values: list[list[float]], parts: list[tuple[st
 def bytes_figure(sums: pd.DataFrame, path: Path) -> None:
     values = [[row[key] for key, _, _ in PARTS] for _, row in sums.iterrows()]
     notes = [
-        "labels {:,.0f} B · question {:,.0f} B · date {:,.0f} B".format(r["labels"], r["question"], r["other_messages"])
+        "labels {:,.0f} B · question {:,.0f} B · date {:,.0f} B".format(r["labels"], r["question"], r["date"])
         for _, r in sums.iterrows()
     ]
     stacked(sums, values, PARTS, path, (
-        "What a request is made of",
-        "Median bytes of each part, as sent on the wire. No byte comes from a transaction, a balance or an account.",
+        "What a plan request is made of",
+        "Each run's median-size plan request, in bytes on the wire. No byte comes from a transaction, a balance or an account.",
     ), notes, unit=" B")
 
 
@@ -283,6 +392,9 @@ def tables(df: pd.DataFrame, sums: pd.DataFrame) -> str:
     lines = [
         "| Model | Questions | Requests | Canary hits |", "|---|---|---|---|",
         *(f"| {r['name']} | {r['questions']} | {r['requests']} | {r['hits']} |" for _, r in sums.iterrows()),
+        "", "| Model | " + " | ".join(name for _, name, _ in KINDS) + " | Total |", "|---|" + "---|" * (len(KINDS) + 1),
+        *(f"| {r['name']} | " + " | ".join(str(r[f'calls_{k}']) for k, _, _ in KINDS) + f" | {r['requests']} |"
+          for _, r in sums.iterrows()),
         "", "| Model | " + " | ".join(name for _, name, _ in PARTS) + " | Total |",
         "|---|" + "---|" * (len(PARTS) + 1),
         *(f"| {r['name']} | " + " | ".join(f"{r[k]:,.0f}" for k, _, _ in PARTS) + f" | {r['wire']:,.0f} |" for _, r in sums.iterrows()),
@@ -299,9 +411,9 @@ def main() -> None:
     parser.add_argument("runs", nargs="+", type=Path, help="one run per model")
     parser.add_argument("--out", type=Path, required=True)
     args = parser.parse_args()
-    df, squares = load(args.runs)
+    df, squares, medians = load(args.runs)
     check(df, args.runs, squares)
-    sums = summary(df)
+    sums = summary(df, medians)
     args.out.mkdir(parents=True, exist_ok=True)
     requests_figure(sums, squares, args.out / "requests.svg")
     bytes_figure(sums, args.out / "bytes.svg")
