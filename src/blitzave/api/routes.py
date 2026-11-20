@@ -815,7 +815,13 @@ def export_data() -> JSONResponse:
 
 @router.post("/import")
 def import_data(document: ExportDocument) -> dict:
-    """Loads an export into a fresh install, all of it or none of it."""
+    """Loads an export into a fresh install, all of it or none of it. A fresh
+    install is showing the demo, so this leaves it first: the export goes to
+    the real data folder, never the demo's."""
+    try:
+        jobs.leave_demo()
+    except jobs.DemoOnlyError as e:
+        raise HTTPException(status_code=409, detail=str(e)) from e
     conn = db.connect()
     try:
         try:

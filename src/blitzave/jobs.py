@@ -32,6 +32,10 @@ class UpdateCheckError(Exception):
     """The opt-in update check couldn't get an answer from GitHub."""
 
 
+class DemoOnlyError(Exception):
+    """`blitzave --demo` was asked to become the real setup; it never does."""
+
+
 def simplefin_connected() -> bool:
     return SOURCE.is_connected()
 
@@ -45,8 +49,15 @@ def start_demo(real_keyring=None) -> demo.Demo:
     return DEMO
 
 
-def _leave_demo() -> None:
+def leave_demo() -> None:
+    """Back to the real keychain, data folder and bank: the user is bringing
+    in their own (connecting, or importing an export). Nothing to do outside
+    a demo; `blitzave --demo` refuses."""
     global SOURCE, DEMO
+    if DEMO is None:
+        return
+    if not DEMO.can_connect:
+        raise DemoOnlyError("This demo can't hold your data. Stop it and run `blitzave` instead.")
     DEMO.leave()
     SOURCE, DEMO = simplefin, None
 
@@ -62,7 +73,7 @@ def connect_simplefin(setup_token: str) -> None:
             # Claim first, so a bad token leaves the demo as it was. Then
             # leave it, so the access URL lands in the real keychain.
             access_url = simplefin.claim_access_url(setup_token)
-            _leave_demo()
+            leave_demo()
             simplefin.store_access_url(access_url)
             simplefin_hash = simplefin.access_url_hash(access_url)
     except simplefin.SimpleFinError as e:

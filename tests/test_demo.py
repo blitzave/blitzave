@@ -323,3 +323,30 @@ def test_the_demo_flag_refuses_to_connect_before_spending_the_token(in_demo, mon
     assert "run `blitzave`" in response.json()["detail"]
     assert claimed == []  # a setup token works once; this one is still good
     assert jobs.DEMO is not None
+
+
+def test_bringing_in_an_export_from_the_demo_lands_in_the_real_folder(trying_demo, tmp_path):
+    started, real = trying_demo
+    demo.set_up(app)
+
+    with _client() as client:
+        document = client.get("/api/export").json()  # any valid export will do
+        response = client.post("/api/import", json=document)
+        status = client.get("/api/connect").json()
+
+    assert response.status_code == 200, response.text
+    assert status["demo"] is False
+    assert (tmp_path / "set-before-demo" / "blitzave.db").exists()
+    assert not started.home.exists()
+    assert keyring.get_keyring() is real
+
+
+def test_the_demo_flag_refuses_an_import(in_demo):
+    demo.set_up(app)
+
+    with _client() as client:
+        document = client.get("/api/export").json()
+        response = client.post("/api/import", json=document)
+
+    assert response.status_code == 409
+    assert jobs.DEMO is not None
