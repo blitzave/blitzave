@@ -3,8 +3,6 @@ title: "Every byte Goose sent"
 description: "A test that reads every request BlitZave's assistant puts on the network, and an experiment that asks real models to steal your data. A made-up household full of canaries, adversarial questions, and the count that has to be zero."
 tag: Engineering
 date: 2026-11-20 09:00:00 -0600
-# Kept off the site until it's ready. Delete this line to publish it.
-published: false
 ---
 
 <!-- EDIT: this post follows "Goose plans. BlitZave does." and "Four questions isn't an eval". Publish those first; the links below assume them. -->
