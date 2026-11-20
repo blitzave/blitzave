@@ -1,6 +1,7 @@
 from datetime import date, timedelta
 from importlib import metadata
 
+from blitzave import demo
 from blitzave.refine import transfers as match
 from blitzave.refine.categorize import is_match, match_key
 from blitzave.sources import github, simplefin
@@ -16,7 +17,7 @@ INITIAL_LOOKBACK_DAYS = 90  # how far back the very first sync reaches, before a
 # fetch(since, until). Always SimpleFIN, except in demo mode, which swaps in
 # its fictional bank (blitzave.demo) with one assignment.
 SOURCE = simplefin
-DEMO = False  # True once blitzave.demo.start() has run: made-up data, nothing kept
+DEMO: demo.Demo | None = None  # set by start_demo(): made-up data, nothing kept
 
 
 class ConnectError(Exception):
@@ -35,9 +36,35 @@ def simplefin_connected() -> bool:
     return SOURCE.is_connected()
 
 
+def start_demo(real_keyring=None) -> demo.Demo:
+    """Swap in the made-up household: its folder, an in-memory keychain and
+    the fictional bank (see blitzave.demo)."""
+    global SOURCE, DEMO
+    DEMO = demo.start(real_keyring)
+    SOURCE = demo.FictionalBank(demo.build(date.today()))
+    return DEMO
+
+
+def _leave_demo() -> None:
+    global SOURCE, DEMO
+    DEMO.leave()
+    SOURCE, DEMO = simplefin, None
+
+
 def connect_simplefin(setup_token: str) -> None:
+    if DEMO is not None and not DEMO.can_connect:
+        # Refused before claiming: a setup token works only once.
+        raise ConnectError("This demo can't connect a bank. Stop it and run `blitzave` instead.")
     try:
-        simplefin_hash = simplefin.connect(setup_token)
+        if DEMO is None:
+            simplefin_hash = simplefin.connect(setup_token)
+        else:
+            # Claim first, so a bad token leaves the demo as it was. Then
+            # leave it, so the access URL lands in the real keychain.
+            access_url = simplefin.claim_access_url(setup_token)
+            _leave_demo()
+            simplefin.store_access_url(access_url)
+            simplefin_hash = simplefin.access_url_hash(access_url)
     except simplefin.SimpleFinError as e:
         raise ConnectError(str(e)) from e
 

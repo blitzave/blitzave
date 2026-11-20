@@ -19,6 +19,7 @@ import pytest
 from fastapi.testclient import TestClient
 from keyring.backend import KeyringBackend
 
+from blitzave import __main__ as app_main
 from blitzave import assistant, demo, jobs
 from blitzave.__main__ import app
 from blitzave.sources import models, simplefin
@@ -28,9 +29,7 @@ from blitzave.store import db
 
 class TrapKeyring(KeyringBackend):
     """Stands in for the real keychain: any call means demo mode didn't
-    replace it."""
-
-    priority = -2
+    replace it. No priority, so keyring never picks it on its own."""
 
     def get_password(self, service, username):
         raise AssertionError("demo mode asked the real keychain")
@@ -42,13 +41,30 @@ class TrapKeyring(KeyringBackend):
         raise AssertionError("demo mode deleted from the real keychain")
 
 
+class RealKeyring(KeyringBackend):
+    """The keychain a fresh install goes back to when the user connects."""
+
+    def __init__(self, secrets: dict):
+        super().__init__()
+        self.secrets = secrets
+
+    def get_password(self, service, username):
+        return self.secrets.get((service, username))
+
+    def set_password(self, service, username, password):
+        self.secrets[(service, username)] = password
+
+    def delete_password(self, service, username):
+        self.secrets.pop((service, username))
+
+
 @pytest.fixture
-def in_demo(monkeypatch, tmp_path):
-    """demo.start() changes process-wide state. Each piece is registered with
-    monkeypatch first, so the test leaves everything as it found it."""
+def demo_state(monkeypatch, tmp_path):
+    """Starting a demo changes process-wide state. Each piece is registered
+    with monkeypatch first, so a test leaves everything as it found it."""
     monkeypatch.setenv("BLITZAVE_HOME", str(tmp_path / "set-before-demo"))
     monkeypatch.setattr(jobs, "SOURCE", jobs.SOURCE)
-    monkeypatch.setattr(jobs, "DEMO", False)
+    monkeypatch.setattr(jobs, "DEMO", None)
     monkeypatch.setattr(keyring.core, "_keyring_backend", TrapKeyring())
     # conftest fakes keyring's functions with a dict; put the real ones back
     # here, so what answers is whichever backend is set.
@@ -57,9 +73,22 @@ def in_demo(monkeypatch, tmp_path):
     monkeypatch.setattr(Path, "home", lambda: tmp_path / "real-home")
     monkeypatch.setattr(tempfile, "tempdir", str(tmp_path))
 
-    home = demo.start()
-    yield home
-    shutil.rmtree(home, ignore_errors=True)
+
+@pytest.fixture
+def in_demo(demo_state):
+    """`blitzave --demo`: a demo and nothing else."""
+    started = jobs.start_demo()
+    yield started.home
+    shutil.rmtree(started.home, ignore_errors=True)
+
+
+@pytest.fixture
+def trying_demo(demo_state):
+    """Plain `blitzave` on a fresh install: a demo until the user connects."""
+    real = RealKeyring({})
+    started = jobs.start_demo(real)
+    yield started, real
+    shutil.rmtree(started.home, ignore_errors=True)
 
 
 def _client():
@@ -104,7 +133,9 @@ def test_demo_never_touches_the_network_at_startup(in_demo, monkeypatch):
     demo.set_up(app)  # syncs the fictional bank
     jobs.set_update_check(True)  # even with the update check on
     with _client() as client:  # a second startup
-        assert client.get("/api/connect").json() == {"connected": True, "demo": True}
+        assert client.get("/api/connect").json() == {
+            "connected": True, "demo": True, "can_connect": False
+        }
 
 
 def test_the_bank_is_the_fictional_one(in_demo, monkeypatch):
@@ -209,3 +240,86 @@ def test_stopping_the_demo_deletes_its_folder(tmp_path, stop):
     assert server.returncode == 0, server.stderr.read()
     assert list(tmp_path.glob("blitzave-demo-*")) == []
     assert not (tmp_path / "real-home" / "BlitZave").exists()
+
+
+# --- plain `blitzave` on a fresh install: a demo until the bank is connected -----
+
+CLAIM_TOKEN = "aHR0cHM6Ly9icmlkZ2Uuc2ltcGxlZmluLm9yZy9jbGFpbS9hYmM="  # base64 of a claim URL
+ACCESS_URL = "https://user:pass@bridge.simplefin.org/simplefin"
+
+
+def _claim_answers(monkeypatch, response: httpx.Response) -> list:
+    claimed = []
+
+    def post(url, *args, **kwargs):
+        claimed.append(url)
+        return response
+
+    monkeypatch.setattr(httpx, "post", post)
+    return claimed
+
+
+def test_a_fresh_install_starts_as_a_demo(monkeypatch, tmp_path):
+    monkeypatch.setenv("BLITZAVE_HOME", str(tmp_path / "BlitZave"))
+    assert app_main._fresh_install()
+    assert not (tmp_path / "BlitZave").exists()  # looking never creates the folder
+
+
+def test_anyone_with_a_database_never_sees_the_demo(monkeypatch, tmp_path):
+    monkeypatch.setenv("BLITZAVE_HOME", str(tmp_path))
+    db.connect().close()  # real data, even with the keychain entry gone
+    assert not app_main._fresh_install()
+
+
+def test_anyone_with_a_token_never_sees_the_demo(monkeypatch, tmp_path):
+    monkeypatch.setenv("BLITZAVE_HOME", str(tmp_path / "BlitZave"))
+    simplefin.store_access_url(ACCESS_URL)
+    assert not app_main._fresh_install()
+
+
+def test_connecting_from_the_demo_switches_to_the_real_setup(trying_demo, monkeypatch, tmp_path):
+    started, real = trying_demo
+    demo.set_up(app)
+    models.save_api_key("sk-typed-in-the-demo")
+    _claim_answers(monkeypatch, httpx.Response(200, text=ACCESS_URL))
+
+    with _client() as client:
+        assert client.get("/api/connect").json()["can_connect"] is True
+        assert client.post("/api/connect", json={"setup_token": CLAIM_TOKEN}).status_code == 200
+        after = client.get("/api/connect").json()
+
+    assert after == {"connected": True, "demo": False, "can_connect": True}
+    assert jobs.DEMO is None and jobs.SOURCE is simplefin
+    assert keyring.get_keyring() is real
+    assert real.secrets == {(simplefin.KEYRING_SERVICE, simplefin.KEYRING_USERNAME): ACCESS_URL}
+    assert db.home_dir() == tmp_path / "set-before-demo"  # BLITZAVE_HOME as it was
+    assert (tmp_path / "set-before-demo" / "blitzave.db").exists()
+    assert not started.home.exists()  # the demo folder, made-up data and all
+
+
+def test_a_bad_token_leaves_the_demo_as_it_was(trying_demo, monkeypatch):
+    started, real = trying_demo
+    demo.set_up(app)
+    _claim_answers(monkeypatch, httpx.Response(403, text="forbidden"))
+
+    with _client() as client:
+        assert client.post("/api/connect", json={"setup_token": CLAIM_TOKEN}).status_code == 400
+        assert client.get("/api/connect").json()["demo"] is True
+
+    assert jobs.DEMO is started
+    assert isinstance(keyring.get_keyring(), demo.MemoryKeyring)
+    assert started.home.exists()
+    assert real.secrets == {}
+
+
+def test_the_demo_flag_refuses_to_connect_before_spending_the_token(in_demo, monkeypatch):
+    demo.set_up(app)
+    claimed = _claim_answers(monkeypatch, httpx.Response(200, text=ACCESS_URL))
+
+    with _client() as client:
+        response = client.post("/api/connect", json={"setup_token": CLAIM_TOKEN})
+
+    assert response.status_code == 400
+    assert "run `blitzave`" in response.json()["detail"]
+    assert claimed == []  # a setup token works once; this one is still good
+    assert jobs.DEMO is not None

@@ -8,14 +8,20 @@ amount. Demo mode never touches the user's real setup:
 - the bank is FictionalBank below, swapped in as jobs.SOURCE,
 - there's no update check.
 
+Two ways in: `blitzave --demo` is a demo and nothing else. Plain `blitzave` on
+a fresh install is one too, until the user connects their bank: then leave()
+puts their real keychain and data folder back (jobs.connect_simplefin).
+
 Dates are relative to today, so Home always has something true to say.
 """
 
 import os
 import random
+import shutil
 import tempfile
 import warnings
 from calendar import monthrange
+from dataclasses import dataclass
 from datetime import date, timedelta
 from pathlib import Path
 
@@ -24,7 +30,6 @@ import keyring.errors
 from fastapi import FastAPI
 from keyring.backend import KeyringBackend
 
-from blitzave import jobs
 from blitzave.sources.base import AccountRow, BalanceRow, Fetched, TxRow
 from blitzave.store import categories, db
 
@@ -71,16 +76,43 @@ class FictionalBank:
         return self.fetched
 
 
-def start() -> Path:
+@dataclass
+class Demo:
+    """A running demo: its temporary data folder, and what to put back if
+    the user connects their real bank."""
+
+    home: Path
+    real_keyring: KeyringBackend | None  # None for --demo, which never turns real
+    home_before: str | None  # BLITZAVE_HOME as it was, usually unset
+
+    @property
+    def can_connect(self) -> bool:
+        return self.real_keyring is not None
+
+    def leave(self) -> None:
+        """Back to the user's real keychain and data folder. The demo's
+        folder, and every secret typed into it, are gone."""
+        keyring.set_keyring(self.real_keyring)
+        if self.home_before is None:
+            os.environ.pop("BLITZAVE_HOME", None)
+        else:
+            os.environ["BLITZAVE_HOME"] = self.home_before
+        shutil.rmtree(self.home, ignore_errors=True)
+
+
+def start(real_keyring: KeyringBackend | None = None) -> Demo:
     """Enter demo mode. Call it before anything opens the database: db reads
-    BLITZAVE_HOME on every connect. Returns the temporary data folder, which
-    the caller removes on exit."""
-    home = Path(tempfile.mkdtemp(prefix="blitzave-demo-"))
-    os.environ["BLITZAVE_HOME"] = str(home)
+    BLITZAVE_HOME on every connect. Pass the keychain to go back to when the
+    user connects their bank, or nothing for a demo that never turns real.
+    The caller removes the folder on exit."""
+    started = Demo(
+        home=Path(tempfile.mkdtemp(prefix="blitzave-demo-")),
+        real_keyring=real_keyring,
+        home_before=os.environ.get("BLITZAVE_HOME"),
+    )
+    os.environ["BLITZAVE_HOME"] = str(started.home)
     keyring.set_keyring(MemoryKeyring({}))
-    jobs.SOURCE = FictionalBank(build(date.today()))
-    jobs.DEMO = True
-    return home
+    return started
 
 
 # --- The fictional household -----------------------------------------------------

@@ -109,8 +109,8 @@ flowchart TB
 
 | File | Job |
 |---|---|
-| `__main__.py` | The `blitzave` command. Builds the FastAPI app, refuses any `Host` but `127.0.0.1` or `localhost`, mounts `web/` at `/` (and `dev/` at `/dev` when it exists), runs the startup sync, binds `127.0.0.1:8742` and opens the browser. `--demo` starts `demo.py` first and binds `8791` instead. |
-| `jobs.py` | The sync pipeline (`sync`, `sync_month`), category-rule application, pair matching, and the opt-in daily update check. `SOURCE` is where a sync fetches from: SimpleFIN, or the demo's fictional bank. |
+| `__main__.py` | The `blitzave` command. Builds the FastAPI app, refuses any `Host` but `127.0.0.1` or `localhost`, mounts `web/` at `/` (and `dev/` at `/dev` when it exists), runs the startup sync, binds `127.0.0.1:8742` and opens the browser. On a fresh install (no database, no token) it starts the demo first, which ends when the user connects a bank. `--demo` starts a demo that never turns real, on `8791`. |
+| `jobs.py` | The sync pipeline (`sync`, `sync_month`), category-rule application, pair matching, and the opt-in daily update check. `SOURCE` is where a sync fetches from: SimpleFIN, or the demo's fictional bank. `DEMO` holds a running demo; `connect_simplefin` claims the token, then leaves it for the real keychain and data folder. |
 | `demo.py` | Demo mode: a made-up household (`build()`), set up through the API in-process (`set_up()`), in a temporary data folder with a keychain held in memory (`MemoryKeyring`). Swaps `jobs.SOURCE`, skips the update check, and touches nothing real. |
 | `assistant.py` | Goose (see [Goose](#goose)): the plan grammar, the planner prompt with one repair, the Show, Change and Summarize lanes, previews held in memory with Apply and Undo, `fill()` for a model's wording, and the model settings. |
 | `backup.py` | Copies the database before a migration and keeps the last three copies. |

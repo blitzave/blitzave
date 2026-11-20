@@ -68,7 +68,7 @@ def test_browser_tab_opens_only_once_the_server_accepts_connections(monkeypatch)
 def test_connect_status_starts_false(client):
     response = client.get("/api/connect")
     assert response.status_code == 200
-    assert response.json() == {"connected": False, "demo": False}
+    assert response.json() == {"connected": False, "demo": False, "can_connect": True}
 
 
 def test_post_connect_success_updates_status(client, monkeypatch):
@@ -83,7 +83,7 @@ def test_post_connect_success_updates_status(client, monkeypatch):
     assert response.json() == {"connected": True}
 
     status = client.get("/api/connect")
-    assert status.json() == {"connected": True, "demo": False}
+    assert status.json() == {"connected": True, "demo": False, "can_connect": True}
 
 
 def test_post_connect_bad_token_returns_400(client, monkeypatch):
@@ -93,7 +93,7 @@ def test_post_connect_bad_token_returns_400(client, monkeypatch):
     assert response.status_code == 400
 
     status = client.get("/api/connect")
-    assert status.json() == {"connected": False, "demo": False}
+    assert status.json() == {"connected": False, "demo": False, "can_connect": True}
 
 
 def test_post_sync_without_connecting_returns_400(client):

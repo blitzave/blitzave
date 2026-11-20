@@ -356,8 +356,13 @@ def health() -> dict[str, str]:
 
 @router.get("/connect")
 def connect_status() -> dict[str, bool]:
-    # The UI reads this at boot; `demo` tells it to show the made-up-data banner.
-    return {"connected": jobs.simplefin_connected(), "demo": jobs.DEMO}
+    # The UI reads this at boot. `demo`: show the made-up-data banner.
+    # `can_connect`: false only in `blitzave --demo`, which never turns real.
+    return {
+        "connected": jobs.simplefin_connected(),
+        "demo": jobs.DEMO is not None,
+        "can_connect": jobs.DEMO is None or jobs.DEMO.can_connect,
+    }
 
 
 @router.post("/connect")
