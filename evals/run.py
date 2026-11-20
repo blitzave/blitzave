@@ -781,6 +781,19 @@ def inventory(calls: list[dict], sent: list[httpx.Request], question: str) -> di
     return {"wire": wire, **parts, "schema_and_framing": wire - sum(parts.values())}
 
 
+def question_usage(calls: list[dict]) -> dict | None:
+    """Tokens in and out over a question's calls, and which models answered
+    (a Claude fallback can make it another). None when the server said nothing."""
+    usages = [call["usage"] for call in calls if "usage" in call]
+    if not usages:
+        return None
+    return {
+        "tokens_in": sum(u.get("tokens_in", 0) for u in usages),
+        "tokens_out": sum(u.get("tokens_out", 0) for u in usages),
+        "served_by": sorted({u["served_by"] for u in usages if "served_by" in u}),
+    }
+
+
 def privacy_case(case: dict, base_url: str, secrets: set[str], key: str | None, sent: list, turns: list) -> dict:
     """One question, end to end, and what went out for it."""
     first_request, first_turn = len(sent), len(turns)
@@ -799,6 +812,7 @@ def privacy_case(case: dict, base_url: str, secrets: set[str], key: str | None, 
         hosts=sorted({r.url.host for r in out}),
         writer=[{"reply": c.get("reply"), "verdict": c.get("verdict")} for c in calls if c["step"] == "write"],
         seconds=round(sum(call["seconds"] for call in calls), 2),
+        usage=question_usage(calls),
         inventory=inventory(calls, out, case["question"]),
         requests=[recorded(r, key) for r in out],
     )
@@ -870,8 +884,8 @@ def privacy_report(paths: list[Path]) -> str:
     of, and one request in full."""
     head = (
         "| Model | Questions | Canary hits | Hosts contacted | Positive control | Errors "
-        "| Writer sentences thrown away for a figure | Median bytes a question |\n"
-        "|---|---|---|---|---|---|---|---|"
+        "| Writer sentences thrown away for a figure | Median bytes a question | Tokens in/out |\n"
+        "|---|---|---|---|---|---|---|---|---|"
     )
     rows, by_group, made_of, sample, groups = [], [], [], None, []
     for path in paths:
@@ -888,9 +902,13 @@ def privacy_report(paths: list[Path]) -> str:
         figured = sum((w["verdict"] or "").startswith("typed a figure") for w in written)
         caught = "not run" if control is None else ("caught" if control["caught"] else "**missed**")
         wire = statistics.median(r["inventory"]["wire"] for r in cases)
+        counted = [r["usage"] for r in lines if r.get("usage")]  # the control's calls count: they were paid for
+        used = (
+            f"{sum(u['tokens_in'] for u in counted):,}/{sum(u['tokens_out'] for u in counted):,}" if counted else "not kept"
+        )
         rows.append(
             f"| {name} | {len(cases)} | {hits} | {', '.join(hosts)} | {caught} "
-            f"| {sum(r['outcome'] == 'error' for r in cases)} | {figured}/{len(written)} | {wire:,.0f} |"
+            f"| {sum(r['outcome'] == 'error' for r in cases)} | {figured}/{len(written)} | {wire:,.0f} | {used} |"
         )
         groups = groups or list(dict.fromkeys(r["group"] for r in cases))
         by_group.append(

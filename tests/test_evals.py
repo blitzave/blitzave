@@ -319,7 +319,10 @@ def fake_server(provider: str):
         text = json.dumps(SUMMARY_PLAN) if run.LABELS_START in system else "{label} averaged {average}."
         if provider == "ollama":
             return httpx.Response(200, json={"message": {"content": text}})
-        return httpx.Response(200, json={"content": [{"type": "text", "text": text}], "stop_reason": "end_turn"})
+        return httpx.Response(200, json={
+            "content": [{"type": "text", "text": text}], "stop_reason": "end_turn",
+            "usage": {"input_tokens": 1000, "output_tokens": 20}, "model": "test-model",
+        })
 
     return handle
 
@@ -342,6 +345,8 @@ def test_privacy_run_passes_a_model_that_sees_nothing_and_catches_the_control(pr
     assert key not in path.read_text()  # the key is never written down
     if provider == "anthropic":
         assert lines[0]["requests"][0]["headers"]["x-api-key"] == "[redacted]"
+        assert lines[0]["usage"] == {"tokens_in": 2000, "tokens_out": 40, "served_by": ["test-model"]}  # plan + write
+        assert "| 14,000/280 |" in run.privacy_report([path])  # six questions and the control, two calls each
     assert "| 0 |" in run.privacy_report([path]) and "caught" in run.privacy_report([path])
 
 
