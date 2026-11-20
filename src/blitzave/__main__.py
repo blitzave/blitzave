@@ -1,6 +1,7 @@
 import argparse
 import atexit
 import logging
+import os
 import shutil
 import signal
 import sys
@@ -184,6 +185,9 @@ def main() -> None:
         "and your real setup is never touched",
     )
     args = parser.parse_args()
+    # Every file BlitZave makes from here on (the database, its backups, a dev
+    # trace) is readable by this user alone, not only the folder it sits in.
+    os.umask(0o077)
     if not args.demo:
         # Before anything reads a secret (the fresh-install check below does):
         # the OS keychain, or a file only the user can read when this machine
