@@ -67,6 +67,25 @@ def is_remote(base_url: str) -> bool:
     return urlsplit(base_url).hostname not in LOOPBACK
 
 
+# What the settings screen offers for Claude. Any other name can be typed.
+CLAUDE_MODELS = ["claude-opus-5-5", "claude-sonnet-5-5", "claude-haiku-5-5"]
+LIST_TIMEOUT_SECONDS = 3  # Ollama answers this at once, or it isn't running
+
+
+def ollama_models(base_url: str) -> list[str]:
+    """The models an Ollama on this laptop has, by name, as `ollama list`
+    shows them. Never another machine's: asking it would be an outbound call
+    before the user agreed to one."""
+    if is_remote(base_url):
+        raise ModelError("Only an Ollama on this laptop is asked what models it has.")
+    try:
+        response = httpx.get(f"{base_url.rstrip('/')}/api/tags", timeout=LIST_TIMEOUT_SECONDS)
+        response.raise_for_status()
+        return sorted(model["name"] for model in response.json()["models"])
+    except (httpx.HTTPError, ValueError, KeyError, TypeError) as e:
+        raise ModelError("Ollama didn't answer at that address.") from e
+
+
 def save_api_key(key: str) -> None:
     keyring.set_password(KEYRING_SERVICE, KEYRING_USERNAME, key)
 

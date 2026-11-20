@@ -165,3 +165,52 @@ def test_an_unreachable_ollama_is_a_model_error(monkeypatch):
     monkeypatch.setattr(httpx, "post", refuse)
     with pytest.raises(models.ModelError, match="couldn't reach the model at 127.0.0.1:11434"):
         models.Ollama("qwen3:8b").chat("rules", MESSAGES)
+
+
+# --- the names the settings screen offers --------------------------------------------
+
+
+def _tags(monkeypatch, response: httpx.Response | Exception) -> list[str]:
+    asked = []
+
+    def fake_get(url, timeout):
+        asked.append(url)
+        if isinstance(response, Exception):
+            raise response
+        return response
+
+    monkeypatch.setattr(httpx, "get", fake_get)
+    return asked
+
+
+def test_ollama_is_asked_what_it_has(monkeypatch):
+    tags = {"models": [{"name": "qwen3:8b"}, {"name": "gemma3:12b"}]}
+    asked = _tags(monkeypatch, httpx.Response(200, json=tags, request=httpx.Request("GET", "x")))
+
+    assert models.ollama_models("http://127.0.0.1:11434/") == ["gemma3:12b", "qwen3:8b"]
+    assert asked == ["http://127.0.0.1:11434/api/tags"]
+
+
+@pytest.mark.parametrize(
+    "answer",
+    [
+        httpx.ConnectError("refused"),
+        httpx.Response(500, request=httpx.Request("GET", "x")),
+        httpx.Response(200, text="not json", request=httpx.Request("GET", "x")),
+        httpx.Response(200, json={"no": "models"}, request=httpx.Request("GET", "x")),
+    ],
+    ids=["not running", "server error", "not json", "unexpected shape"],
+)
+def test_an_ollama_that_cant_say_is_a_model_error(monkeypatch, answer):
+    _tags(monkeypatch, answer)
+
+    with pytest.raises(models.ModelError, match="didn't answer"):
+        models.ollama_models("http://127.0.0.1:11434")
+
+
+def test_an_ollama_on_another_machine_is_never_asked(monkeypatch):
+    asked = _tags(monkeypatch, httpx.ConnectError("should not be called"))
+
+    with pytest.raises(models.ModelError, match="on this laptop"):
+        models.ollama_models("http://192.168.1.20:11434")
+    assert asked == []

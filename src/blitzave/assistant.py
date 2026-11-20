@@ -621,6 +621,18 @@ def settings() -> dict:
     }
 
 
+def model_names(provider: str, base_url: str | None) -> list[str]:
+    """The model names the settings screen offers. Claude's are a short
+    fixed list; Ollama's are what it has, asked only on this laptop. Empty
+    when Ollama can't be asked, and the screen takes a typed name instead."""
+    if provider == "anthropic":
+        return list(models.CLAUDE_MODELS)
+    try:
+        return models.ollama_models(base_url or models.OLLAMA_URL)
+    except ModelError:
+        return []
+
+
 def save_settings(provider: str, model: str, base_url: str | None, api_key: str | None, remote_ok: bool) -> dict:
     """A model whose host isn't this laptop needs remote_ok, which the
     settings screen sends only after showing the disclosure. The consent is

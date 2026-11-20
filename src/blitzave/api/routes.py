@@ -1040,6 +1040,12 @@ def goose_settings() -> dict:
     return assistant.settings()
 
 
+@router.get("/goose/models")
+def goose_models(provider: Literal["ollama", "anthropic"], base_url: str | None = None) -> dict:
+    # Only ever asks an Ollama on this laptop, at the fixed /api/tags path.
+    return {"models": assistant.model_names(provider, base_url)}
+
+
 @router.put("/goose/settings")
 def save_goose_settings(request: GooseSettingsUpdate) -> dict:
     try:
