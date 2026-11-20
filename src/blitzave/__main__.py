@@ -1,16 +1,22 @@
+import argparse
+import atexit
 import logging
+import shutil
+import signal
+import sys
 import webbrowser
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from datetime import date
 from pathlib import Path
 
+import keyring
 import uvicorn
 from fastapi import FastAPI
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from fastapi.staticfiles import StaticFiles
 
-from blitzave import jobs, keychain
+from blitzave import demo, jobs, keychain
 from blitzave.api.routes import router
 from blitzave.store import db, users
 
@@ -67,11 +73,13 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         logger.info("startup sync skipped: %s", e)
 
     # Opt-in and at most once a day (see jobs.check_for_update). Offline or
-    # no release yet just means there's nothing new to show.
-    try:
-        jobs.check_for_update(date.today())
-    except jobs.UpdateCheckError as e:
-        logger.info("update check skipped: %s", e)
+    # no release yet just means there's nothing new to show. Never in demo
+    # mode: a demo touches the network for nothing.
+    if jobs.DEMO is None:
+        try:
+            jobs.check_for_update(date.today())
+        except jobs.UpdateCheckError as e:
+            logger.info("update check skipped: %s", e)
 
     yield
 
@@ -101,16 +109,56 @@ class BrowserOpeningServer(uvicorn.Server):
 
     async def startup(self, sockets=None):
         await super().startup(sockets)
-        webbrowser.open(URL)
+        webbrowser.open(f"http://{HOST}:{self.config.port}")
+
+
+def _fresh_install() -> bool:
+    """No database yet and nothing in the keychain: someone who has never
+    connected a bank. Anyone with real data never sees made-up numbers, even
+    if their keychain entry went missing."""
+    return not db.database_exists() and not jobs.simplefin_connected()
+
+
+def _start_demo(can_connect: bool) -> None:
+    """Made-up data in a temporary folder, removed however the process ends:
+    Ctrl+C arrives as a KeyboardInterrupt and kill as SIGTERM, which uvicorn
+    raises again after shutting down. Both end in atexit. can_connect: the
+    keychain is read before the swap, so connecting can go back to it."""
+    started = jobs.start_demo(keyring.get_keyring() if can_connect else None)
+    atexit.register(shutil.rmtree, started.home, ignore_errors=True)
+    signal.signal(signal.SIGTERM, lambda signum, frame: sys.exit(0))
+    demo.set_up(app)
+    then = "Connect your bank in the app" if can_connect else "Stop it (Ctrl+C) and run `blitzave`"
+    print(
+        "BlitZave is showing a made-up household. Nothing here is yours, and it's "
+        f"deleted when you stop. {then} when you're ready.",
+        file=sys.stderr,
+    )
 
 
 def main() -> None:
-    # Before anything reads a secret: the OS keychain, or a file only the
-    # user can read when this machine has no keychain (keychain.py).
-    keychain.use_file_if_needed(db.home_dir())
-    server = BrowserOpeningServer(uvicorn.Config(app, host=HOST, port=PORT))
+    parser = argparse.ArgumentParser(prog="blitzave", description="BlitZave, on your own machine.")
+    parser.add_argument(
+        "--demo",
+        action="store_true",
+        help="try it on a made-up household beside your real one; nothing is kept, "
+        "and your real setup is never touched",
+    )
+    args = parser.parse_args()
+    if not args.demo:
+        # Before anything reads a secret (the fresh-install check below does):
+        # the OS keychain, or a file only the user can read when this machine
+        # has no keychain (keychain.py). Not for --demo, which has its own
+        # keychain and must never touch the real home folder.
+        keychain.use_file_if_needed(db.home_dir())
     try:
-        server.run()
+        port = PORT
+        if args.demo:
+            _start_demo(can_connect=False)
+            port = demo.PORT
+        elif _fresh_install():
+            _start_demo(can_connect=True)
+        BrowserOpeningServer(uvicorn.Config(app, host=HOST, port=port)).run()
     except KeyboardInterrupt:
         pass  # Ctrl+C: uvicorn has already shut down; this hides the traceback.
 

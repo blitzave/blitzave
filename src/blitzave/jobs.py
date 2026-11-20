@@ -1,6 +1,7 @@
 from datetime import date, timedelta
 from importlib import metadata
 
+from blitzave import demo
 from blitzave.refine import transfers as match
 from blitzave.refine.categorize import is_match, match_key
 from blitzave.sources import github, simplefin
@@ -11,6 +12,12 @@ SYNC_JOB = "ingest"
 MATCH_JOB = "match_transfers"  # its watermark only records that the one full pass ran
 WATERMARK_OVERLAP_DAYS = 7  # banks post late; re-fetching the overlap is safe, upserts are idempotent
 INITIAL_LOOKBACK_DAYS = 90  # how far back the very first sync reaches, before any watermark exists
+
+# Where a sync gets its data: anything with is_connected() and
+# fetch(since, until). Always SimpleFIN, except in demo mode, which swaps in
+# its fictional bank (blitzave.demo) with one assignment.
+SOURCE = simplefin
+DEMO: demo.Demo | None = None  # set by start_demo(): made-up data, nothing kept
 
 
 class ConnectError(Exception):
@@ -25,13 +32,50 @@ class UpdateCheckError(Exception):
     """The opt-in update check couldn't get an answer from GitHub."""
 
 
+class DemoOnlyError(Exception):
+    """`blitzave --demo` was asked to become the real setup; it never does."""
+
+
 def simplefin_connected() -> bool:
-    return simplefin.is_connected()
+    return SOURCE.is_connected()
+
+
+def start_demo(real_keyring=None) -> demo.Demo:
+    """Swap in the made-up household: its folder, an in-memory keychain and
+    the fictional bank (see blitzave.demo)."""
+    global SOURCE, DEMO
+    DEMO = demo.start(real_keyring)
+    SOURCE = demo.FictionalBank(demo.build(date.today()))
+    return DEMO
+
+
+def leave_demo() -> None:
+    """Back to the real keychain, data folder and bank: the user is bringing
+    in their own (connecting, or importing an export). Nothing to do outside
+    a demo; `blitzave --demo` refuses."""
+    global SOURCE, DEMO
+    if DEMO is None:
+        return
+    if not DEMO.can_connect:
+        raise DemoOnlyError("This demo can't hold your data. Stop it and run `blitzave` instead.")
+    DEMO.leave()
+    SOURCE, DEMO = simplefin, None
 
 
 def connect_simplefin(setup_token: str) -> None:
+    if DEMO is not None and not DEMO.can_connect:
+        # Refused before claiming: a setup token works only once.
+        raise ConnectError("This demo can't connect a bank. Stop it and run `blitzave` instead.")
     try:
-        simplefin_hash = simplefin.connect(setup_token)
+        if DEMO is None:
+            simplefin_hash = simplefin.connect(setup_token)
+        else:
+            # Claim first, so a bad token leaves the demo as it was. Then
+            # leave it, so the access URL lands in the real keychain.
+            access_url = simplefin.claim_access_url(setup_token)
+            leave_demo()
+            simplefin.store_access_url(access_url)
+            simplefin_hash = simplefin.access_url_hash(access_url)
     except simplefin.SimpleFinError as e:
         raise ConnectError(str(e)) from e
 
@@ -102,10 +146,10 @@ def _match_pairs(conn, user_id: int, fetched: Fetched) -> dict:
 
 
 def _fetch(since: date, until: date | None = None) -> Fetched:
-    if not simplefin.is_connected():
+    if not SOURCE.is_connected():
         raise SyncError("not connected to SimpleFIN yet — POST /api/connect first")
     try:
-        return simplefin.fetch(since, until)
+        return SOURCE.fetch(since, until)
     except simplefin.SimpleFinError as e:
         raise SyncError(str(e)) from e
 

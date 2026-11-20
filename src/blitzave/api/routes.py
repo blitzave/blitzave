@@ -356,7 +356,13 @@ def health() -> dict[str, str]:
 
 @router.get("/connect")
 def connect_status() -> dict[str, bool]:
-    return {"connected": jobs.simplefin_connected()}
+    # The UI reads this at boot. `demo`: show the made-up-data banner.
+    # `can_connect`: false only in `blitzave --demo`, which never turns real.
+    return {
+        "connected": jobs.simplefin_connected(),
+        "demo": jobs.DEMO is not None,
+        "can_connect": jobs.DEMO is None or jobs.DEMO.can_connect,
+    }
 
 
 @router.post("/connect")
@@ -809,7 +815,13 @@ def export_data() -> JSONResponse:
 
 @router.post("/import")
 def import_data(document: ExportDocument) -> dict:
-    """Loads an export into a fresh install, all of it or none of it."""
+    """Loads an export into a fresh install, all of it or none of it. A fresh
+    install is showing the demo, so this leaves it first: the export goes to
+    the real data folder, never the demo's."""
+    try:
+        jobs.leave_demo()
+    except jobs.DemoOnlyError as e:
+        raise HTTPException(status_code=409, detail=str(e)) from e
     conn = db.connect()
     try:
         try:

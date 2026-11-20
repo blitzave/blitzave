@@ -118,6 +118,7 @@ let topbarSubtitleEl = null;
 let updatesEl = null;
 let updateNoteEl = null;
 let updateStatus = null;
+let demoNoteEl = null;
 
 function shellMarkup() {
   return `
@@ -163,6 +164,9 @@ function shellMarkup() {
             </button>
           </div>
         </header>
+        <div class="update-note demo-note" id="demo-note" role="status" hidden>
+          <p data-demo-text></p>
+        </div>
         <div class="update-note" id="update-note" role="status" hidden>
           <p>BlitZave <span data-update-version></span> is ready.
             <span data-update-notes-line hidden><a data-update-notes href="#" target="_blank" rel="noopener noreferrer">See what's new</a>.</span>
@@ -342,6 +346,7 @@ function wireShell() {
   topbarSubtitleEl = document.getElementById("topbar-subtitle");
   updatesEl = document.getElementById("sidebar-updates");
   updateNoteEl = document.getElementById("update-note");
+  demoNoteEl = document.getElementById("demo-note");
 
   syncBtn.addEventListener("click", handleSync);
   updatesEl.addEventListener("click", handleUpdateFooterClick);
@@ -349,6 +354,36 @@ function wireShell() {
   window.addEventListener("hashchange", refreshTopbar);
   refreshSyncHint();
   refreshTopbar();
+}
+
+// --------------------------------- Demo ---------------------------------
+// The engine says when it's showing the made-up household (GET /api/connect:
+// `demo`, `can_connect`). One calm line on every page, never dismissed and
+// never a countdown: it's just what's true.
+
+function renderDemoNote(canConnect) {
+  const text = demoNoteEl.querySelector("[data-demo-text]");
+  text.innerHTML = canConnect
+    ? `Made-up data. Nothing here is yours. When you're ready,
+       <button type="button" class="link-button" data-demo-connect>connect your bank</button>.`
+    : `Made-up data. Nothing here is yours. When you're ready, stop this and run <code>blitzave</code>.`;
+  const connect = text.querySelector("[data-demo-connect]");
+  if (connect) {
+    connect.addEventListener("click", () => {
+      shellEl.classList.add("is-onboarding");
+      navigate("/onboarding");
+    });
+  }
+  demoNoteEl.hidden = false;
+}
+
+/** Called by onboarding.js once the engine has left the demo (a bank
+ * connected, or an export brought in): the made-up data is gone. */
+function leftDemo() {
+  if (demoNoteEl) demoNoteEl.hidden = true;
+  window.__bz.demo = false;
+  localStorage.removeItem("bz.lastSyncedAt"); // that was the demo's sync
+  refreshSyncHint();
 }
 
 /** Called by onboarding.js once setup is complete and it has already set
@@ -366,16 +401,21 @@ async function boot() {
   wireShell();
 
   let connected = false;
+  let demo = false;
   try {
     const status = await api.connectStatus();
     connected = Boolean(status && status.connected);
+    demo = Boolean(status && status.demo);
+    if (demo) renderDemoNote(Boolean(status.can_connect));
   } catch {
     connected = false; // backend unreachable reads the same as "not connected yet"
   }
+  window.__bz.demo = demo;
 
   const onboarded = localStorage.getItem("bz.onboarded") === "1";
 
-  if (!connected || !onboarded) {
+  // The demo opens straight on Home: the point is to see it working first.
+  if (!demo && (!connected || !onboarded)) {
     shellEl.classList.add("is-onboarding");
     navigate("/onboarding");
   }
@@ -384,6 +424,6 @@ async function boot() {
   loadUpdates();
 }
 
-window.__bz = { refreshShell };
+window.__bz = { refreshShell, leftDemo, demo: false };
 
 boot();
