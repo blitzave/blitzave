@@ -59,6 +59,10 @@ class ConnectRequest(BaseModel):
     setup_token: str
 
 
+class ProfileChoice(BaseModel):
+    name: Literal["live", "demo"]
+
+
 class UpdateCheckSetting(BaseModel):
     enabled: StrictBool  # true or false only; "yes" or 1 is a 422, not a guess
 
@@ -356,7 +360,13 @@ def health() -> dict[str, str]:
 
 @router.get("/connect")
 def connect_status() -> dict[str, bool]:
-    return {"connected": jobs.simplefin_connected()}
+    # The UI reads this at boot. `demo`: show the made-up-data banner.
+    # `can_connect`: false only in `blitzave --demo`, which never turns real.
+    return {
+        "connected": jobs.simplefin_connected(),
+        "demo": jobs.PROFILE is jobs.DEMO,
+        "can_connect": jobs.LIVE is not None,
+    }
 
 
 @router.post("/connect")
@@ -366,6 +376,33 @@ def connect(request: ConnectRequest) -> dict[str, bool]:
     except jobs.ConnectError as e:
         raise HTTPException(status_code=400, detail=str(e)) from e
     return {"connected": True}
+
+
+def _profile_status() -> dict:
+    return {
+        "name": jobs.PROFILE.name,  # what's showing: "live" or "demo"
+        "live_available": jobs.live_has_data(),  # can the switch open Live
+        "syncs": jobs.PROFILE.source is not None,  # Demo has no bank: no Sync button
+    }
+
+
+@router.get("/profile")
+def profile_status() -> dict:
+    return _profile_status()
+
+
+@router.put("/profile")
+def choose_profile(choice: ProfileChoice) -> dict:
+    """Show Live or Demo. Opening Demo starts it over; nothing else changes."""
+    if choice.name == "demo":
+        jobs.open_profile(jobs.DEMO)
+    elif jobs.LIVE is None:
+        raise HTTPException(status_code=409, detail=jobs.DEMO_ONLY)
+    elif not jobs.live_has_data():
+        raise HTTPException(status_code=409, detail="Live opens once your bank is connected.")
+    else:
+        jobs.open_live()
+    return _profile_status()
 
 
 @router.post("/sync")
@@ -809,7 +846,13 @@ def export_data() -> JSONResponse:
 
 @router.post("/import")
 def import_data(document: ExportDocument) -> dict:
-    """Loads an export into a fresh install, all of it or none of it."""
+    """Loads an export into a fresh install, all of it or none of it. A fresh
+    install is showing Demo, so this opens Live first: the export goes to
+    the real data folder, never Demo's."""
+    try:
+        jobs.open_live()
+    except jobs.DemoOnlyError as e:
+        raise HTTPException(status_code=409, detail=str(e)) from e
     conn = db.connect()
     try:
         try:
@@ -995,6 +1038,12 @@ def undo_proposal(proposal_id: str) -> dict:
 @router.get("/goose/settings")
 def goose_settings() -> dict:
     return assistant.settings()
+
+
+@router.get("/goose/models")
+def goose_models(provider: Literal["ollama", "anthropic"], base_url: str | None = None) -> dict:
+    # Only ever asks an Ollama on this laptop, at the fixed /api/tags path.
+    return {"models": assistant.model_names(provider, base_url)}
 
 
 @router.put("/goose/settings")

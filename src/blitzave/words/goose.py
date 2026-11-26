@@ -44,6 +44,12 @@ DISCLOSURE = (
     " or your bank's name. A Claude API key stays in your system's keychain and"
     " goes only to Anthropic."
 )
+# The same, in the demo: there the key is held in memory (demo.MemoryKeyring).
+DEMO_DISCLOSURE = DISCLOSURE.replace(
+    "stays in your system's keychain and goes only to Anthropic.",
+    "goes only to Anthropic. In the demo it stays in memory and is forgotten"
+    " when you stop BlitZave.",
+)
 
 TREND = {"higher": "higher than usual", "lower": "lower than usual", "usual": "close to usual"}
 

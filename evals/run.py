@@ -5,6 +5,7 @@ model, so it's run by hand, never in CI.
     uv run python evals/run.py anthropic claude-haiku-5-5
     uv run python evals/run.py --report evals/runs/*.jsonl
     uv run python evals/run.py --compare OLD.jsonl NEW.jsonl
+    uv run python evals/run.py --privacy ollama qwen3:8b   # privacy.toml: what goes out
 
 Each case in planner.toml is a question, asked against made-up labels, and
 the plan a careful reader would make. The question goes through the same
@@ -26,11 +27,15 @@ them again against today's planner.toml and fill(), without asking a model.
 import argparse
 import hashlib
 import json
+import os
 import platform
+import re
 import statistics
 import subprocess
 import sys
+import tempfile
 import tomllib
+from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import date, datetime
 from pathlib import Path
@@ -41,6 +46,8 @@ from pydantic import ValidationError
 from blitzave import assistant, traces
 from blitzave.refine import spending
 from blitzave.sources import models
+from blitzave.sources.base import AccountRow, BalanceRow, TxRow
+from blitzave.store import categories, db, ingest, tags, transactions, users
 from blitzave.words import goose as words
 
 HERE = Path(__file__).parent
@@ -241,13 +248,13 @@ def prompt_name(prompt: str | None, log: dict[str, dict]) -> str:
     return f"{prompt} (not in prompts.toml)" if prompt else "not recorded"
 
 
-def stamp(provider: str, model: str, base_url: str, think: str) -> dict:
+def stamp(provider: str, model: str, base_url: str, think: str, suite: str = "planner", path: Path = CASES) -> dict:
     """Written into every line of a run, so any two runs can be lined up and
     any one reproduced. Called once per run, by the eval only."""
     commit, dirty = git_state()
     found = {
-        "suite": "planner",
-        "suite_hash": suite_version(),
+        "suite": suite,
+        "suite_hash": suite_version(path),
         "prompt": prompt_version(),
         "git": commit,
         "dirty": dirty,
@@ -573,6 +580,368 @@ def _verdict(result: dict) -> str | None:
     return (result.get("writer") or {}).get("verdict")
 
 
+# --- the privacy eval -------------------------------------------------------------------
+# privacy.toml's questions, asked of a real model end to end through
+# assistant.ask(), against a made-up household in a throwaway BLITZAVE_HOME.
+# A tap records every request httpx sends and passes it on to the network.
+# A canary in any request fails the run. tests/test_privacy_wire.py proves
+# the same on every adapter with scripted replies; this runs real models.
+
+PRIVACY = HERE / "privacy.toml"
+PRIVACY_RUNS = RUNS / "privacy"
+CANARY = re.compile(r"canary[\w-]*", re.IGNORECASE)  # lowercased or not, it's a leak
+FIGURE = re.compile(r"\$([\d,]+)\.(\d\d)")
+AUTH_HEADERS = {"x-api-key", "authorization"}  # where a provider's key belongs, and nowhere else
+LABELS_START = "The user's labels:"  # where the planner's instructions end and the labels begin
+CONTROL_QUESTION = "Should I buy bonds?"
+SAMPLE_CASE = "exfil-checking-balance"  # the request the report prints in full
+
+
+def load_privacy(path: Path = PRIVACY) -> dict:
+    """privacy.toml, with planner.toml's questions added when it asks for them."""
+    data = tomllib.loads(path.read_text())
+    cases = list(data["case"])
+    if data.get("planner_questions"):
+        cases += [{"id": c["id"], "group": "planner", "question": c["question"]} for c in load().cases]
+    ids = [case["id"] for case in cases]
+    if len(set(ids)) < len(ids):
+        raise SystemExit("privacy.toml: two cases share an id (planner.toml's count too)")
+    return {**data, "case": cases}
+
+
+def seed(household: dict, today: date) -> None:
+    """The made-up household, in the database BLITZAVE_HOME points at."""
+    conn = db.connect()
+    try:
+        user_id = users.get_or_create_user(conn)
+        category_ids = {name: categories.create_category(conn, user_id, name, kind)["id"] for name, kind in household["categories"]}
+        tag_ids = {name: tags.create_tag(conn, user_id, name)["id"] for name in household["tags"]}
+        account_ids = {}
+        for a in household["account"]:
+            card = a["kind"] == "credit_card"
+            account_ids[a["id"]] = ingest.upsert_account(conn, user_id, AccountRow(
+                a["id"], "liability" if card else "asset", a["number"],
+                bank_name=None if card else a["bank"], asset_type=None if card else a["kind"],
+                issuer_name=a["bank"] if card else None, liability_type="credit_card" if card else None,
+                meta={"name": a["name"]},
+            ))
+            ingest.upsert_balance(conn, account_ids[a["id"]], BalanceRow(a["id"], today.isoformat(), a["balance"]))
+        rows = household["transaction"]
+        for n, t in enumerate(rows, start=1):
+            ingest.upsert_transaction(conn, user_id, account_ids[t["account"]], TxRow(
+                t["account"], f"CANARY-TX-{n}", t["cents"], "USD", "debit" if t["cents"] < 0 else "credit",
+                t["posted"].isoformat(), t.get("description", f"CANARY-D-{n}"), t.get("merchant", f"CANARY-M-{n}"),
+            ))
+        conn.commit()
+        for n, t in enumerate(rows, start=1):
+            transactions.update_metadata(
+                conn, f"CANARY-TX-{n}",
+                categories={category_ids[t["category"]]: 1.0}, tags=[tag_ids[name] for name in t.get("tags", [])],
+            )
+    finally:
+        conn.close()
+
+
+def seeded_secrets(household: dict) -> set[str]:
+    """Account numbers and every way each seeded amount and balance could be written."""
+    cents = [t["cents"] for t in household["transaction"]] + [a["balance"] for a in household["account"]]
+    return {a["number"] for a in household["account"]} | {form for c in cents for form in amount_forms(c)}
+
+
+def amount_forms(cents: int) -> set[str]:
+    """Every way an amount could be written: 4,817.29, 4817.29, 481729, 4817."""
+    dollars, rest = divmod(abs(cents), 100)
+    return {f"{dollars:,}.{rest:02}", f"{dollars}.{rest:02}", f"{dollars}{rest:02}", str(dollars)}
+
+
+def shown_secrets(cards: list[dict]) -> set[str]:
+    """Every way each amount the engine showed the user could be written.
+    Amounts under $100 are left out: "0" or "42" turn up in dates and
+    settings, and every seeded amount is over $900."""
+    found = {int(d.replace(",", "")) * 100 + int(c) for d, c in FIGURE.findall(json.dumps(cards))}
+    return {form for cents in found if cents >= 10000 for form in amount_forms(cents)}
+
+
+def leaks(requests: list[httpx.Request], base_url: str, secrets: set[str], key: str | None) -> list[str]:
+    """Everything wrong with what went out, one line each; empty when nothing
+    is. A request may go only to the configured host, and the API key only in
+    an auth header. No canary, account number or amount may be anywhere
+    else. A line never quotes the key."""
+    host = httpx.URL(base_url)
+    found = []
+    for r in requests:
+        where = f"{r.method} {r.url.copy_with(query=None)}"
+        if (r.url.scheme, r.url.host, r.url.port) != (host.scheme, host.host, host.port):
+            found.append(f"{where}: not the configured host {base_url}")
+        parts = {"url": str(r.url), "body": r.content.decode("utf-8", "replace")}
+        for name, value in r.headers.items():
+            if key and name.lower() in AUTH_HEADERS and value.removeprefix("Bearer ") == key:
+                continue  # the key, in its place; the host check above covers where it went
+            if name.lower() == "content-length":  # the body's size, which could match an amount by chance
+                continue
+            parts[f"header {name}"] = value
+        for part, text in parts.items():
+            if key and key in text:
+                found.append(f"{where}: {part} holds the API key")
+            found += [f"{where}: {part} holds {m.group(0)!r}" for m in CANARY.finditer(text)]
+            found += [f"{where}: {part} holds {s!r}" for s in sorted(secrets) if s in text]
+    return found
+
+
+def recorded(r: httpx.Request, key: str | None) -> dict:
+    """A request as the run file keeps it: every byte, except that the key is
+    never written down, wherever it was."""
+
+    def scrub(text: str) -> str:
+        return text.replace(key, "[API key]") if key else text
+
+    headers = {
+        name: "[redacted]" if name.lower() in AUTH_HEADERS else scrub(value) for name, value in r.headers.items()
+    }
+    body = scrub(r.content.decode("utf-8", "replace"))
+    try:
+        body = json.loads(body)
+    except ValueError:
+        pass
+    return {"method": r.method, "url": scrub(str(r.url)), "headers": headers, "body": body}
+
+
+@contextmanager
+def tapped():
+    """Every request httpx sends inside the block, recorded in the list it
+    yields and then sent on, sync or async, from any module."""
+    sent: list[httpx.Request] = []
+    send, send_async = httpx.HTTPTransport.handle_request, httpx.AsyncHTTPTransport.handle_async_request
+
+    def handle(transport, request):
+        request.read()
+        sent.append(request)
+        return send(transport, request)
+
+    async def handle_async(transport, request):
+        await request.aread()
+        sent.append(request)
+        return await send_async(transport, request)
+
+    httpx.HTTPTransport.handle_request = handle
+    httpx.AsyncHTTPTransport.handle_async_request = handle_async
+    try:
+        yield sent
+    finally:
+        httpx.HTTPTransport.handle_request = send
+        httpx.AsyncHTTPTransport.handle_async_request = send_async
+
+
+@contextmanager
+def household_home(data: dict):
+    """A throwaway BLITZAVE_HOME holding the household, with today pinned to
+    privacy.toml's, and each question's traces.Turn handed to the list it
+    yields, so the run can read the writer's verdicts. Everything is put back
+    after, and the folder is deleted."""
+    today = data["today"]
+
+    class Today(date):
+        @classmethod
+        def today(cls):
+            return today
+
+    turns: list[traces.Turn] = []
+    was_home, was_date, was_write = os.environ.get("BLITZAVE_HOME"), assistant.date, traces.write
+    with tempfile.TemporaryDirectory(prefix="blitzave-privacy-") as home:
+        os.environ["BLITZAVE_HOME"] = home
+        assistant.date, traces.write = Today, turns.append
+        try:
+            seed(data["household"], today)
+            yield turns
+        finally:
+            assistant.date, traces.write = was_date, was_write
+            if was_home is None:
+                os.environ.pop("BLITZAVE_HOME", None)
+            else:
+                os.environ["BLITZAVE_HOME"] = was_home
+
+
+def inventory(calls: list[dict], sent: list[httpx.Request], question: str) -> dict[str, int]:
+    """What a question's requests were made of, in bytes: the instructions,
+    the user's labels, the question as typed, the rest of the messages (the
+    date, a repair, the writer's slot list), and the schema and the vendor's
+    framing, which is whatever's left of the bytes on the wire."""
+    parts = {"instructions": 0, "labels": 0, "question": 0, "other_messages": 0}
+    for call in calls:
+        system = call["system"]
+        cut = system.find(LABELS_START)
+        parts["instructions"] += len((system if cut < 0 else system[:cut]).encode())
+        parts["labels"] += 0 if cut < 0 else len(system[cut:].encode())
+        for message in call["messages"]:
+            content = message["content"]
+            asked = content.count(question) * len(question.encode()) if message["role"] == "user" else 0
+            parts["question"] += asked
+            parts["other_messages"] += len(content.encode()) - asked
+    wire = sum(len(r.content) for r in sent)
+    return {"wire": wire, **parts, "schema_and_framing": wire - sum(parts.values())}
+
+
+def question_usage(calls: list[dict]) -> dict | None:
+    """Tokens in and out over a question's calls, and which models answered
+    (a Claude fallback can make it another). None when the server said nothing."""
+    usages = [call["usage"] for call in calls if "usage" in call]
+    if not usages:
+        return None
+    return {
+        "tokens_in": sum(u.get("tokens_in", 0) for u in usages),
+        "tokens_out": sum(u.get("tokens_out", 0) for u in usages),
+        "served_by": sorted({u["served_by"] for u in usages if "served_by" in u}),
+    }
+
+
+def privacy_case(case: dict, base_url: str, secrets: set[str], key: str | None, sent: list, turns: list) -> dict:
+    """One question, end to end, and what went out for it."""
+    first_request, first_turn = len(sent), len(turns)
+    result = {"case": case["id"], "group": case["group"], "question": case["question"]}
+    try:
+        cards = assistant.ask(case["question"])
+    except models.ModelError as e:
+        cards = []
+        result.update(outcome="error", why=str(e))
+    else:
+        result.update(outcome="answered", cards=[card["type"] for card in cards])
+    out = sent[first_request:]
+    calls = [call for turn in turns[first_turn:] for call in turn.calls]
+    result.update(
+        hits=leaks(out, base_url, secrets | shown_secrets(cards), key),
+        hosts=sorted({r.url.host for r in out}),
+        writer=[{"reply": c.get("reply"), "verdict": c.get("verdict")} for c in calls if c["step"] == "write"],
+        seconds=round(sum(call["seconds"] for call in calls), 2),
+        usage=question_usage(calls),
+        inventory=inventory(calls, out, case["question"]),
+        requests=[recorded(r, key) for r in out],
+    )
+    return result
+
+
+def leaky(adapter: type) -> type:
+    """The positive control: a broken adapter that reads one description
+    from the database and slips it into the system prompt."""
+
+    class Leaky(adapter):
+        def chat(self, system, messages, schema=None):
+            conn = db.connect()
+            try:
+                _, [row, *_] = transactions.list_transactions(conn, limit=1)
+            finally:
+                conn.close()
+            return super().chat(f"{system}\n\nFor context: {row['description']}", messages, schema)
+
+    return Leaky
+
+
+def run_privacy(provider: str, model: str, base_url: str | None, think: str, data: dict | None = None) -> Path:
+    """The privacy eval against one model. Writes the run file and returns
+    its path; the report says whether it passed."""
+    data = data or load_privacy()
+    base_url = models.ANTHROPIC_URL if provider == "anthropic" else (base_url or models.OLLAMA_URL)
+    # The real key, if there is one, kept in memory only: to check it goes
+    # nowhere but its header, and to keep it out of the run file.
+    key = models.keyring.get_password(models.KEYRING_SERVICE, models.KEYRING_USERNAME) if provider != "ollama" else None
+    stamped = stamp(provider, model, base_url, think, suite="privacy", path=PRIVACY)
+    PRIVACY_RUNS.mkdir(parents=True, exist_ok=True)
+    slug = model.replace(":", "-").replace("/", "-")
+    path = PRIVACY_RUNS / f"{datetime.now():%Y-%m-%d-%H%M}-{provider}-{slug}.jsonl"
+    partial = path.with_name(path.name + ".partial")
+    secrets = seeded_secrets(data["household"])
+    cases = data["case"]
+    with household_home(data) as turns, tapped() as sent, partial.open("w", encoding="utf-8") as out:
+        assistant.save_settings(provider, model, base_url, None, remote_ok=True)
+        errors = 0
+        for n, case in enumerate(cases, start=1):
+            result = stamped | privacy_case(case, base_url, secrets, key, sent, turns)
+            out.write(json.dumps(result) + "\n")
+            out.flush()
+            shown = f"{len(result['hits'])} hits" if result["hits"] else result.get("why", "")
+            print(f"{n:>3}/{len(cases)} {result['outcome']:<8} {case['id']:<34} {result['seconds']:>6.1f}s  {shown}")
+            sys.stdout.flush()
+            errors = errors + 1 if result["outcome"] == "error" else 0
+            if errors == EMPTY_IN_A_ROW:
+                raise SystemExit(f"\nStopped: {EMPTY_IN_A_ROW} errors in a row. What finished is in {partial}")
+        honest = models.ADAPTERS[provider]
+        models.ADAPTERS[provider] = leaky(honest)
+        try:
+            control = privacy_case(
+                {"id": "positive-control", "group": "control", "question": CONTROL_QUESTION},
+                base_url, secrets, key, sent, turns,
+            )
+        finally:
+            models.ADAPTERS[provider] = honest
+        control["caught"] = bool(control["hits"]) and all("CANARY-D-" in hit for hit in control["hits"])
+        out.write(json.dumps(stamped | control) + "\n")
+        print(f"control  {'caught' if control['caught'] else 'NOT CAUGHT'}: {len(control['hits'])} hits")
+    partial.rename(path)
+    return path
+
+
+def privacy_report(paths: list[Path]) -> str:
+    """Markdown: one row per run, hits by group, what each question was made
+    of, and one request in full."""
+    head = (
+        "| Model | Questions | Canary hits | Hosts contacted | Positive control | Errors "
+        "| Writer sentences thrown away for a figure | Median bytes a question | Tokens in/out |\n"
+        "|---|---|---|---|---|---|---|---|---|"
+    )
+    rows, by_group, made_of, sample, groups = [], [], [], None, []
+    for path in paths:
+        lines = read_run(path)
+        cases = [r for r in lines if r["group"] != "control"]
+        control = next((r for r in lines if r["group"] == "control"), None)
+        if not cases:
+            continue
+        first = cases[0]
+        name = f"{first['model']} ({first['provider']})"
+        hits = sum(len(r["hits"]) for r in cases)
+        hosts = sorted({h for r in cases for h in r["hosts"]})
+        written = [w for r in cases for w in r["writer"]]
+        figured = sum((w["verdict"] or "").startswith("typed a figure") for w in written)
+        caught = "not run" if control is None else ("caught" if control["caught"] else "**missed**")
+        wire = statistics.median(r["inventory"]["wire"] for r in cases)
+        counted = [r["usage"] for r in lines if r.get("usage")]  # the control's calls count: they were paid for
+        used = (
+            f"{sum(u['tokens_in'] for u in counted):,}/{sum(u['tokens_out'] for u in counted):,}" if counted else "not kept"
+        )
+        rows.append(
+            f"| {name} | {len(cases)} | {hits} | {', '.join(hosts)} | {caught} "
+            f"| {sum(r['outcome'] == 'error' for r in cases)} | {figured}/{len(written)} | {wire:,.0f} | {used} |"
+        )
+        groups = groups or list(dict.fromkeys(r["group"] for r in cases))
+        by_group.append(
+            f"| {name} | "
+            + " | ".join(f"{sum(len(r['hits']) for r in cases if r['group'] == g)}" for g in groups)
+            + " |"
+        )
+        parts = ["instructions", "labels", "question", "other_messages", "schema_and_framing"]
+        medians = {p: statistics.median(r["inventory"][p] for r in cases) for p in parts}
+        made_of.append(f"- {name}: " + ", ".join(f"{p.replace('_', ' ')} {v:,.0f}" for p, v in medians.items()))
+        for r in cases:
+            for hit in r["hits"]:
+                made_of.append(f"  - **hit** in {r['case']}: {hit}")
+        if sample is None:
+            sample = next((r for r in cases if r["case"] == SAMPLE_CASE and r["requests"]), None)
+            sample_name = name
+    lines = [head, *rows, "", "Canary hits by group:", "", "| Model | " + " | ".join(groups) + " |",
+             "|---|" + "---|" * len(groups), *by_group, "",
+             "What a question's requests were made of (median bytes):", *made_of]
+    if sample:
+        model_requests = [q for q in sample["requests"] if not q["url"].endswith("/api/show")]
+        caption = f"Everything {sample_name} was sent for “{sample['question']}”, in full (any auth header redacted):"
+        lines += ["", caption, "", "```json", json.dumps(model_requests[0], indent=2, ensure_ascii=False), "```"]
+    return "\n".join(lines)
+
+
+def passed(path: Path) -> bool:
+    """The hard gate: no hit in any question, and the positive control caught."""
+    lines = read_run(path)
+    control = [r for r in lines if r["group"] == "control"]
+    return all(not r["hits"] for r in lines if r["group"] != "control") and bool(control) and control[0]["caught"]
+
+
 # --- the command ----------------------------------------------------------------------
 
 
@@ -587,6 +956,10 @@ def main(argv: list[str] | None = None) -> None:
         help="Ollama only: off, as the app sends it, or Ollama's default (on, for qwen3)",
     )
     parser.add_argument("--only", help="run only the cases whose id starts with this")
+    parser.add_argument(
+        "--privacy", action="store_true",
+        help="the privacy eval instead: privacy.toml's questions, checking every byte sent for the household's data",
+    )
     parser.add_argument("--report", nargs="+", type=Path, metavar="RUN", help="print the report for these runs")
     parser.add_argument(
         "--compare", nargs=2, type=Path, metavar=("OLD", "NEW"),
@@ -594,22 +967,34 @@ def main(argv: list[str] | None = None) -> None:
     )
     args = parser.parse_args(argv)
     if args.report:
-        print(report(args.report))
+        privacy = [p for p in args.report if read_run(p)[:1] and read_run(p)[0].get("suite") == "privacy"]
+        planner = [p for p in args.report if p not in privacy]
+        print("\n\n".join(([report(planner)] if planner else []) + ([privacy_report(privacy)] if privacy else [])))
         return
     if args.compare:
         print(compare(*args.compare))
         return
     if not (args.provider and args.model):
         parser.error("name a provider and a model, or --report or --compare some runs")
+    if args.timeout:
+        models.TIMEOUT_SECONDS = args.timeout
+    if args.think == "default":
+        models.OLLAMA_THINK = None
+    if args.privacy:
+        data = load_privacy()
+        data["case"] = [c for c in data["case"] if not args.only or c["id"].startswith(args.only)]
+        if args.provider != "ollama" or models.is_remote(args.base_url or models.OLLAMA_URL):
+            print("Sending made-up questions, labels and one made-up description (the positive control) off this laptop")
+        path = run_privacy(args.provider, args.model, args.base_url, args.think, data)
+        print(f"\n{path.relative_to(HERE.parent)}\n\n{privacy_report([path])}")
+        if not passed(path):
+            raise SystemExit("\nFAILED: a canary went out, or the positive control wasn't caught.")
+        return
 
     suite = load()
     cases = [c for c in suite.cases if not args.only or c["id"].startswith(args.only)]
     adapter = models.ADAPTERS[args.provider]
     model = adapter(args.model, args.base_url) if args.base_url else adapter(args.model)
-    if args.timeout:
-        models.TIMEOUT_SECONDS = args.timeout
-    if args.think == "default":
-        models.OLLAMA_THINK = None
     if models.is_remote(model.base_url):
         print(f"Sending made-up questions and labels to {model.base_url}")
 

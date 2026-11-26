@@ -42,6 +42,16 @@ class SubscriptionRequiredError(SimpleFinError):
     """The user's SimpleFIN subscription needs payment (402)."""
 
 
+def _require_https(url: str, error: str) -> None:
+    """A setup token is just an address, so a made-up one could point
+    anywhere: at a server on the user's own network, or at a fake bank. Only
+    an https address is ever called. (Any host is allowed: SimpleFIN is an
+    open protocol, and some people run their own bridge.)"""
+    parts = urlsplit(url)
+    if parts.scheme != "https" or not parts.hostname:
+        raise SimpleFinError(error)
+
+
 def claim_access_url(setup_token: str) -> str:
     """Exchange a one-time setup token for a SimpleFIN access URL.
 
@@ -52,6 +62,7 @@ def claim_access_url(setup_token: str) -> str:
         claim_url = base64.b64decode(setup_token, validate=True).decode("utf-8")
     except (binascii.Error, UnicodeDecodeError) as e:
         raise SimpleFinError(f"setup token is not valid base64: {e}") from e
+    _require_https(claim_url, "This doesn't look like a SimpleFIN setup token. Copy it again from SimpleFIN Bridge.")
 
     try:
         response = httpx.post(claim_url)
@@ -64,11 +75,13 @@ def claim_access_url(setup_token: str) -> str:
             "SimpleFIN Bridge and create a new one."
         )
     if response.status_code != 200:
-        raise SimpleFinError(
-            f"SimpleFIN claim failed with status {response.status_code}: {response.text}"
-        )
+        # The status only, never the body: whatever answered is shown no
+        # further than this line.
+        raise SimpleFinError(f"SimpleFIN claim failed with status {response.status_code}")
 
-    return response.text.strip()
+    access_url = response.text.strip()
+    _require_https(access_url, "SimpleFIN didn't send back a secure (https) address, so nothing was saved.")
+    return access_url
 
 
 def access_url_hash(access_url: str) -> str:
@@ -231,6 +244,7 @@ def fetch(since: date, until: date | None = None) -> Fetched:
     if access_url is None:
         raise NotConnectedError("not connected to SimpleFIN yet")
 
+    _require_https(access_url, "The saved SimpleFIN connection isn't https. Reconnect with a new setup token.")
     base_url, username, password = _split_credentials(access_url)
     params = {"start-date": _local_midnight(since)}
     if until is not None:
@@ -254,8 +268,6 @@ def fetch(since: date, until: date | None = None) -> Fetched:
             "Your SimpleFIN subscription needs payment."
         )
     if response.status_code != 200:
-        raise SimpleFinError(
-            f"SimpleFIN fetch failed with status {response.status_code}: {response.text}"
-        )
+        raise SimpleFinError(f"SimpleFIN fetch failed with status {response.status_code}")
 
     return parse_fetched(response.json())

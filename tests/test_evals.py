@@ -6,6 +6,7 @@ import importlib.util
 import json
 from pathlib import Path
 
+import httpx
 import pytest
 
 from blitzave.sources import models
@@ -283,3 +284,90 @@ def test_flips_sort_every_shared_case_into_one_list():
     assert found["wrong both"] == ["show-account", "show-yesterday"] and found["moved"] == ["show-account"]
     assert found["only second"] == ["show-typos"]
     assert sorted(case for flip in run.FLIPS for case in found[flip]) == sorted(found["both"])
+
+
+# --- the privacy eval ----------------------------------------------------------------
+
+PRIVACY = run.load_privacy()
+SUMMARY_PLAN = {"intents": [{"intent": "spending_summary", "category": "Groceries", "tag": None, "months": 6}]}
+
+
+def test_privacy_cases_are_unique_and_the_household_holds_together():
+    household = PRIVACY["household"]
+    groups = {case["group"] for case in PRIVACY["case"]}
+    assert {"exfiltration", "prompt leak", "injection via label", "injection via data", "writer pressure", "planner"} == groups
+    assert sum(case["group"] == "planner" for case in PRIVACY["case"]) == len(SUITE.cases)
+    categories = {name for name, _ in household["categories"]}
+    accounts = {a["id"] for a in household["account"]}
+    for t in household["transaction"]:
+        assert t["category"] in categories and t["account"] in accounts
+        assert set(t.get("tags", [])) <= set(household["tags"])
+    for name in [*categories, *household["tags"]]:  # labels reach the model, so they hold no canary
+        assert not run.CANARY.search(name)
+
+
+def fake_server(provider: str):
+    """Answers like the provider's server: a grocery summary to every
+    planner call and a slot sentence to every writer call, so each question
+    goes through the planner and the writer."""
+
+    def handle(transport, request):
+        if request.url.path == "/api/show":
+            return httpx.Response(200, json={"capabilities": ["completion"]})
+        body = json.loads(request.content)
+        system = body.get("system") or body["messages"][0]["content"]
+        text = json.dumps(SUMMARY_PLAN) if run.LABELS_START in system else "{label} averaged {average}."
+        if provider == "ollama":
+            return httpx.Response(200, json={"message": {"content": text}})
+        return httpx.Response(200, json={
+            "content": [{"type": "text", "text": text}], "stop_reason": "end_turn",
+            "usage": {"input_tokens": 1000, "output_tokens": 20}, "model": "test-model",
+        })
+
+    return handle
+
+
+@pytest.mark.parametrize("provider", sorted(models.ADAPTERS))
+def test_privacy_run_passes_a_model_that_sees_nothing_and_catches_the_control(provider, tmp_path, monkeypatch, fake_keyring):
+    key = "sk-ant-test-privacy-0000"
+    fake_keyring[(models.KEYRING_SERVICE, models.KEYRING_USERNAME)] = key
+    monkeypatch.setattr(run, "PRIVACY_RUNS", tmp_path)
+    monkeypatch.setattr(httpx.HTTPTransport, "handle_request", fake_server(provider))  # the tap passes on to this
+    data = {**PRIVACY, "case": [c for c in PRIVACY["case"] if c["group"] != "planner"][:6]}
+
+    path = run.run_privacy(provider, "test-model", None, "off", data)
+    lines = run.read_run(path)
+    assert run.passed(path)
+    assert [line["case"] for line in lines] == [c["id"] for c in data["case"]] + ["positive-control"]
+    assert all(line["cards"] == ["summary"] and line["writer"][0]["verdict"] == "kept" for line in lines)
+    control = lines[-1]
+    assert control["caught"] and any("CANARY-D-" in hit for hit in control["hits"])
+    assert key not in path.read_text()  # the key is never written down
+    if provider == "anthropic":
+        assert lines[0]["requests"][0]["headers"]["x-api-key"] == "[redacted]"
+        assert lines[0]["usage"] == {"tokens_in": 2000, "tokens_out": 40, "served_by": ["test-model"]}  # plan + write
+        assert "| 14,000/280 |" in run.privacy_report([path])  # six questions and the control, two calls each
+    assert "| 0 |" in run.privacy_report([path]) and "caught" in run.privacy_report([path])
+
+
+def test_privacy_gate_fails_a_run_with_a_hit(tmp_path):
+    path = tmp_path / "run.jsonl"
+    lines = [{"group": "exfiltration", "hits": ["POST …: body holds 'CANARY-D-3'"]}, {"group": "control", "hits": ["x"], "caught": True}]
+    path.write_text("\n".join(json.dumps(line) for line in lines))
+    assert not run.passed(path)
+    path.write_text("\n".join(json.dumps(line) for line in [{**lines[0], "hits": []}, {**lines[1], "caught": False}]))
+    assert not run.passed(path)  # a control that isn't caught proves nothing
+
+
+def test_a_key_out_of_place_is_reported_without_quoting_it_and_scrubbed_from_the_record():
+    key = "sk-ant-real-looking-1234"
+    request = httpx.Request(
+        "POST", "https://api.anthropic.com/v1/messages", json={"note": key}, headers={"x-api-key": key},
+    )
+    [hit] = run.leaks([request], models.ANTHROPIC_URL, set(), key)
+    assert hit.endswith("body holds the API key") and key not in hit
+    assert key not in json.dumps(run.recorded(request, key))
+    elsewhere = httpx.Request("GET", "https://elsewhere.example.test/", headers={"x-api-key": key})
+    assert run.leaks([elsewhere], models.ANTHROPIC_URL, set(), key) == [
+        "GET https://elsewhere.example.test/: not the configured host https://api.anthropic.com"
+    ]

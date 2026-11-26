@@ -388,3 +388,38 @@ def test_goose_refuses_a_body_that_isnt_sent_as_json(client, headers):
     # application/json, so these bodies must not be read (TODOS.md P1.2).
     response = client.post("/api/goose", content='{"question": "hi"}', headers=headers)
     assert response.status_code == 422
+
+
+# --- the model list on the settings screen --------------------------------------------
+
+
+def test_claude_offers_a_short_fixed_list(client):
+    assert client.get("/api/goose/models", params={"provider": "anthropic"}).json() == {
+        "models": models.CLAUDE_MODELS
+    }
+
+
+def test_ollama_offers_what_it_has_on_this_laptop(client, monkeypatch):
+    monkeypatch.setattr(models, "ollama_models", lambda base_url: ["qwen3:8b"])
+
+    listed = client.get(
+        "/api/goose/models", params={"provider": "ollama", "base_url": "http://127.0.0.1:11434"}
+    )
+
+    assert listed.json() == {"models": ["qwen3:8b"]}
+
+
+def test_an_ollama_that_cant_be_asked_offers_nothing_and_a_name_is_typed(client, monkeypatch):
+    def unreachable(base_url):
+        raise models.ModelError("Ollama didn't answer at that address.")
+
+    monkeypatch.setattr(models, "ollama_models", unreachable)
+
+    listed = client.get("/api/goose/models", params={"provider": "ollama"})
+
+    assert listed.status_code == 200
+    assert listed.json() == {"models": []}
+
+
+def test_the_model_list_only_knows_two_providers(client):
+    assert client.get("/api/goose/models", params={"provider": "other"}).status_code == 422

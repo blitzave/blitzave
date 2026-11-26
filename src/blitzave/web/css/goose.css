@@ -203,47 +203,15 @@
   font-size: var(--text-sm);
 }
 
-.goose-settings {
+/* No model yet: one line, and the way to Settings, where it's chosen. */
+.goose-setup {
   display: flex;
   flex-direction: column;
+  align-items: flex-start;
   gap: var(--space-4);
 }
 
-.goose-providers {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
-  margin: 0;
-  padding: 0;
-  border: 0;
-  font-size: var(--text-sm);
-}
-
-.goose-providers legend {
-  margin-bottom: var(--space-2);
-}
-
-.goose-disclosure {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-3);
-  padding: var(--space-3) var(--space-4);
-  border-radius: var(--radius-control);
-  background: var(--bg-well);
-  font-size: var(--text-sm);
-  line-height: var(--leading-body);
-  color: var(--text-secondary);
-}
-
-.goose-disclosure p {
-  margin: 0;
-}
-
-.goose-disclosure label {
-  color: var(--text-primary);
-}
-
-/* .field and .goose-disclosure set display, which would beat [hidden]. */
+/* A display rule would otherwise beat [hidden]. */
 .goose-drawer [hidden] {
   display: none !important;
 }

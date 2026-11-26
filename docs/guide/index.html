@@ -309,7 +309,7 @@
         <p class="lede">From nothing to your first calm month. Setup takes about ten minutes, most of it in SimpleFIN. After that, each chapter walks through one page of the app: what it shows, and the few things worth doing there.</p>
         <div class="needs" role="list">
           <div class="need" role="listitem"><b>Your own computer</b><span>macOS, Windows or Linux. Nothing else to set up.</span></div>
-          <div class="need" role="listitem"><b>A SimpleFIN account</b><span>Read-only bank access, a small subscription paid to SimpleFIN.</span></div>
+          <div class="need" role="listitem"><b>A SimpleFIN account</b><span>Read-only bank access, a small subscription paid to SimpleFIN. Not needed to <a href="#try-it-first">try the demo</a>.</span></div>
           <div class="need" role="listitem"><b>Ten minutes</b><span>One command to install, one token to paste.</span></div>
         </div>
         <details class="toc-mobile">
@@ -333,7 +333,7 @@
         <div class="chapter-head">
           <span class="chapter-num" aria-hidden="true">1</span>
           <h2 id="install-title">Install BlitZave</h2>
-          <p>Two commands, and BlitZave opens in your browser.</p>
+          <p>Try it on made-up data first if you like, then two commands for your own money.</p>
         </div>
 
         <ol class="steps">
@@ -342,12 +342,16 @@
             <div class="code"><pre><code>curl -LsSf https://astral.sh/uv/install.sh | sh</code></pre><button class="copy" type="button" aria-label="Copy command"><svg class="idle" viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg><svg class="done" viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg></button></div>
             <div class="code"><pre><code>powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"</code></pre><button class="copy" type="button" aria-label="Copy the Windows command"><svg class="idle" viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg><svg class="done" viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg></button></div>
           </li>
+          <li id="try-it-first">
+            <b>Try it first, if you like.</b> Before you install anything for good or pay for SimpleFIN, this runs BlitZave once on a made-up household at <strong>127.0.0.1:8791</strong>: a few months of spending, budgets and goals. Every bank, merchant and amount is fictional, and a line at the top of every page says so. Goose works on it too, and an API key typed there is kept in memory only. <kbd>Ctrl</kbd>&nbsp;+&nbsp;<kbd>C</kbd> deletes all of it. Like it? Carry on below.
+            <div class="code"><pre><code>uvx --from git+https://github.com/blitzave/blitzave blitzave --demo</code></pre><button class="copy" type="button" aria-label="Copy command"><svg class="idle" viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg><svg class="done" viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg></button></div>
+          </li>
           <li>
             <b>Install BlitZave.</b> This gives you a <code>blitzave</code> command that works from any folder. There's nothing to clone.
             <div class="code"><pre><code>uv tool install git+https://github.com/blitzave/blitzave</code></pre><button class="copy" type="button" aria-label="Copy command"><svg class="idle" viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg><svg class="done" viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg></button></div>
           </li>
           <li>
-            <b>Start it.</b> The first run creates your data folder at <code>~/BlitZave</code> and opens <strong>127.0.0.1:8742</strong> in your browser. Keep the terminal open while you use it; <kbd>Ctrl</kbd>&nbsp;+&nbsp;<kbd>C</kbd> stops it.
+            <b>Start it.</b> It opens <strong>127.0.0.1:8742</strong> in your browser, on a made-up household until you connect a bank, so you can look around first. It starts over each time you open it, and once you connect, <span class="ui">Settings</span> switches between it and your own money. Your data lives in <code>~/BlitZave</code>. Keep the terminal open while you use it; <kbd>Ctrl</kbd>&nbsp;+&nbsp;<kbd>C</kbd> stops it.
             <div class="code"><pre><code>blitzave</code></pre><button class="copy" type="button" aria-label="Copy command"><svg class="idle" viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg><svg class="done" viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg></button></div>
           </li>
         </ol>
@@ -355,7 +359,7 @@
         <figure class="shot">
           <div class="frame"><div class="frame-bar" aria-hidden="true"><span class="frame-url"><svg viewBox="0 0 24 24"><path d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/></svg>127.0.0.1:8742</span></div>
             <img src="../assets/guide/onboarding-welcome.webp" width="2560" height="1600" loading="lazy" decoding="async" alt="BlitZave's welcome screen: the name, the line 'Clarity over money', a Get started button, and a link to bring in an export from another laptop."></div>
-          <figcaption>The first thing you see. The next chapter starts from <span class="ui">Get started</span>.</figcaption>
+          <figcaption>Choose <span class="ui">connect your bank</span> in the demo's top line to get here. The next chapter starts from <span class="ui">Get started</span>.</figcaption>
         </figure>
 
         <h3>Day to day</h3>

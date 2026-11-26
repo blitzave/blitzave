@@ -343,7 +343,7 @@
               Watch the tour
             </a>
           </div>
-          <p class="hero-meta"><span>Apache-2.0</span><span>No account</span><span>No telemetry</span></p>
+          <p class="hero-meta"><span>Apache-2.0</span><span>No account</span><span>No telemetry</span><span>Try it before you connect</span></p>
         </div>
         <figure class="hero-shot" id="tour">
           <div class="frame">
@@ -530,7 +530,7 @@
         <div class="section-head center">
           <p class="eyebrow">Get started</p>
           <h2 class="h2" id="start-title">Running in a few minutes.</h2>
-          <p class="lede">One command to start. One token to paste. That's the whole setup.</p>
+          <p class="lede">Try it on made-up data first. When you're ready, one install and one token. That's the whole setup.</p>
         </div>
         <ol class="steps" style="list-style: none; padding: 0;">
           <li class="step">
@@ -544,23 +544,22 @@
           <li class="step">
             <span class="step-num">2</span>
             <div class="step-text">
-              <h3>Install and start</h3>
-              <p>One install gives you a <code>blitzave</code> command. The first run creates your data folder at <code>~/BlitZave</code>.</p>
+              <h3>Try it first</h3>
+              <p>Before you commit, one line runs BlitZave on a made-up household, Goose included. No bank, no SimpleFIN, nothing kept. <kbd>Ctrl</kbd>&nbsp;+&nbsp;<kbd>C</kbd> deletes it all.</p>
             </div>
-            <div class="code"><pre><code>uv tool install git+https://github.com/blitzave/blitzave
-blitzave</code></pre><button class="copy" type="button" aria-label="Copy commands"><svg class="idle" viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg><svg class="done" viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg></button></div>
+            <div class="code"><pre><code>uvx --from git+https://github.com/blitzave/blitzave blitzave --demo</code></pre><button class="copy" type="button" aria-label="Copy command"><svg class="idle" viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg><svg class="done" viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg></button></div>
           </li>
           <li class="step">
             <span class="step-num">3</span>
             <div class="step-text">
-              <h3>Connect, once</h3>
-              <p>BlitZave opens <strong>127.0.0.1:8742</strong> in your browser. Paste a setup token from <a href="https://bridge.simplefin.org/" target="_blank" rel="noopener noreferrer">SimpleFIN Bridge</a>. Your accounts arrive with the last 90 days. New to SimpleFIN? <a href="guide/#connect">Here's how to get a token</a>.</p>
+              <h3>Install, and connect once</h3>
+              <p>Like it? Install, choose <strong>connect your bank</strong> at the top, and paste a setup token from <a href="https://bridge.simplefin.org/" target="_blank" rel="noopener noreferrer">SimpleFIN Bridge</a>. Your last 90 days arrive. New to SimpleFIN? <a href="guide/#connect">Here's how to get a token</a>.</p>
             </div>
-            <div class="code"><pre><code><span class="c"># then, any day</span>
-blitzave</code></pre><button class="copy" type="button" aria-label="Copy command"><svg class="idle" viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg><svg class="done" viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg></button></div>
+            <div class="code"><pre><code>uv tool install git+https://github.com/blitzave/blitzave
+blitzave</code></pre><button class="copy" type="button" aria-label="Copy commands"><svg class="idle" viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg><svg class="done" viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg></button></div>
           </li>
         </ol>
-        <p class="needs">You'll need a <a href="https://bridge.simplefin.org/" target="_blank" rel="noopener noreferrer">SimpleFIN Bridge</a> account (a small subscription, paid to SimpleFIN) and a Mac. Linux should work too.</p>
+        <p class="needs">The demo needs only uv. Your own money needs a <a href="https://bridge.simplefin.org/" target="_blank" rel="noopener noreferrer">SimpleFIN Bridge</a> account (a small subscription, paid to SimpleFIN). It runs on macOS, Windows and Linux.</p>
         <div class="guide-cta">
           <a class="btn btn-ghost" href="guide/">Read the setup guide
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg>

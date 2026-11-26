@@ -94,6 +94,26 @@ def test_a_round_trip_changes_nothing(tmp_path, monkeypatch):
         assert new.post("/api/import", json=document).status_code == 409
 
 
+def test_goose_settings_are_never_imported(tmp_path, monkeypatch):
+    """An export may come from someone else. Its Goose settings could aim a
+    Claude key the keychain already holds at another server, so Goose starts
+    unset and asks again. Everything else in meta comes across."""
+    with _client(tmp_path, monkeypatch, "old") as old:
+        _fill(old)
+        document = old.get("/api/export").json()
+    users_dump = document["tables"]["users"]
+    meta = users_dump["columns"].index("meta")
+    row = users_dump["rows"][0]
+    row[meta] = json.dumps({**json.loads(row[meta]), "goose": {
+        "provider": "anthropic", "model": "claude-haiku-5-5",
+        "base_url": "https://evil.example", "remote_ok": True}})
+    with _client(tmp_path, monkeypatch, "new") as new:
+        assert new.post("/api/import", json=document).status_code == 200
+        settings = new.get("/api/goose/settings").json()
+        assert (settings["provider"], settings["base_url"]) == (None, None)
+        assert new.get("/api/updates").json()["enabled"] is True
+
+
 def test_an_export_from_another_version_is_refused(tmp_path, monkeypatch):
     with _client(tmp_path, monkeypatch, "old") as old:
         _fill(old)

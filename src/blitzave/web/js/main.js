@@ -8,6 +8,10 @@
 import * as api from "./api.js";
 import { startRouter, navigate } from "./router.js";
 
+// The how-to guide lives on the public site, not in the app: a link goes
+// online only when it's clicked, in a new tab, and is never framed in here.
+const GUIDE_URL = "https://blitzave.github.io/blitzave/guide/";
+
 // Line icons in the Lucide idiom (24px viewBox, currentColor stroke, round
 // caps) — sized and colored by .sidebar-link-icon in base.css.
 const ICON_ACCOUNTS = `
@@ -73,6 +77,21 @@ const ICON_CLOSE = `
   </svg>
 `;
 
+// The profile row above the footer: this laptop, and a way into Settings.
+const ICON_LAPTOP = `
+  <svg viewBox="0 0 24 24" aria-hidden="true">
+    <rect x="4" y="5" width="16" height="11" rx="2" />
+    <path d="M2 19h20" />
+  </svg>
+`;
+
+const ICON_SETTINGS = `
+  <svg class="sidebar-profile-gear" viewBox="0 0 24 24" aria-hidden="true">
+    <circle cx="12" cy="12" r="3" />
+    <path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z" />
+  </svg>
+`;
+
 // Shown before anyone turns update checks on, here and in onboarding step 5.
 const UPDATE_DISCLOSURE =
   "BlitZave can ask GitHub once a day whether a newer version exists. It sends nothing about you or your money.";
@@ -96,6 +115,7 @@ const TOPBAR_COPY = [
   { prefix: "/savings/", title: "Goal", subtitle: "Something you're saving toward." },
   { prefix: "/savings", title: "Savings", subtitle: "Your goals, and the accounts they live in." },
   { prefix: "/onboarding", title: "Setup", subtitle: "One token to paste, then you're done." },
+  { prefix: "/settings", title: "Settings", subtitle: "Which profile you're in, and Goose's model." },
 ];
 
 const BRAND_MARK = `
@@ -118,6 +138,7 @@ let topbarSubtitleEl = null;
 let updatesEl = null;
 let updateNoteEl = null;
 let updateStatus = null;
+let demoNoteEl = null;
 
 function shellMarkup() {
   return `
@@ -142,11 +163,22 @@ function shellMarkup() {
             ).join("")}
           </nav>
         </div>
-        <div class="sidebar-footer">
-          <p class="sidebar-footer-note">${ICON_LOCK}<span>Runs on this laptop. Bank access is read-only.</span></p>
-          <p class="sidebar-footer-meta">Open source · self-hosted</p>
-          <p class="sidebar-footer-meta"><a class="link" href="${api.exportUrl()}" download>Export your data</a></p>
-          <div class="sidebar-updates" id="sidebar-updates" hidden></div>
+        <div class="sidebar-bottom">
+          <a class="sidebar-profile" data-nav-link href="#/settings" aria-label="Profile and settings">
+            <span class="sidebar-profile-avatar">${ICON_LAPTOP}</span>
+            <span class="sidebar-profile-text">
+              <span class="sidebar-profile-name">This laptop</span>
+              <span class="sidebar-profile-sub" id="sidebar-profile-sub"></span>
+            </span>
+            ${ICON_SETTINGS}
+          </a>
+          <div class="sidebar-footer">
+            <p class="sidebar-footer-note">${ICON_LOCK}<span>Runs on this laptop. Bank access is read-only.</span></p>
+            <p class="sidebar-footer-meta">Open source · self-hosted</p>
+            <p class="sidebar-footer-meta"><a class="link" href="${api.exportUrl()}" download>Export your data</a> ·
+              <a class="link" href="${GUIDE_URL}" target="_blank" rel="noopener noreferrer">Guide</a></p>
+            <div class="sidebar-updates" id="sidebar-updates" hidden></div>
+          </div>
         </div>
       </aside>
       <div class="main-col">
@@ -163,6 +195,9 @@ function shellMarkup() {
             </button>
           </div>
         </header>
+        <div class="update-note demo-note" id="demo-note" role="status" hidden>
+          <p data-demo-text></p>
+        </div>
         <div class="update-note" id="update-note" role="status" hidden>
           <p>BlitZave <span data-update-version></span> is ready.
             <span data-update-notes-line hidden><a data-update-notes href="#" target="_blank" rel="noopener noreferrer">See what's new</a>.</span>
@@ -206,7 +241,9 @@ function relativeSyncLabel() {
 }
 
 function refreshSyncHint() {
-  if (syncHintEl) syncHintEl.textContent = relativeSyncLabel();
+  if (!syncHintEl) return;
+  // Demo has no bank (GET /api/profile: syncs), so there's nothing to sync.
+  syncHintEl.textContent = window.__bz.syncs === false ? "Nothing to sync in Demo" : relativeSyncLabel();
 }
 
 function showToast(message, kind = "default") {
@@ -224,7 +261,7 @@ function showToast(message, kind = "default") {
 }
 
 async function handleSync() {
-  if (!syncBtn || syncBtn.disabled) return;
+  if (!syncBtn || syncBtn.disabled || window.__bz.syncs === false) return;
 
   syncBtn.disabled = true;
   syncBtn.classList.add("is-syncing");
@@ -235,7 +272,7 @@ async function handleSync() {
   } catch (err) {
     showToast(err.detail || "Couldn't sync right now. Try again in a moment.", "danger");
   } finally {
-    syncBtn.disabled = false;
+    syncBtn.disabled = window.__bz.syncs === false;
     syncBtn.classList.remove("is-syncing");
     refreshSyncHint();
   }
@@ -342,6 +379,7 @@ function wireShell() {
   topbarSubtitleEl = document.getElementById("topbar-subtitle");
   updatesEl = document.getElementById("sidebar-updates");
   updateNoteEl = document.getElementById("update-note");
+  demoNoteEl = document.getElementById("demo-note");
 
   syncBtn.addEventListener("click", handleSync);
   updatesEl.addEventListener("click", handleUpdateFooterClick);
@@ -349,6 +387,59 @@ function wireShell() {
   window.addEventListener("hashchange", refreshTopbar);
   refreshSyncHint();
   refreshTopbar();
+}
+
+// ------------------------------- Profiles -------------------------------
+// The engine says which profile is showing (GET /api/profile): Live, your
+// own money, or Demo, a made-up household that starts over each time it
+// opens. In Demo, one calm line on every page, never dismissed and never a
+// countdown: it's just what's true.
+
+function startOnboarding() {
+  shellEl.classList.add("is-onboarding");
+  navigate("/onboarding");
+}
+
+function renderDemoNote(connect) {
+  const text = demoNoteEl.querySelector("[data-demo-text]");
+  if (!connect.can_connect) {
+    text.innerHTML = `Made-up data. Nothing here is yours. When you're ready, stop this and run <code>blitzave</code>.`;
+  } else if (connect.connected) {
+    text.innerHTML = `Made-up data. Nothing here is yours. Your own money is in
+       <a href="#/settings">Live</a>, one switch away.`;
+  } else {
+    text.innerHTML = `Made-up data. Nothing here is yours. When you're ready,
+       <button type="button" class="link-button" data-demo-connect>connect your bank</button>.`;
+    text.querySelector("[data-demo-connect]").addEventListener("click", startOnboarding);
+  }
+  demoNoteEl.hidden = false;
+}
+
+/** What the shell shows for the profile: the row above the footer, the
+ * Sync button (greyed in Demo, which has no bank) and the Demo line. */
+function showProfile(profile, connect) {
+  const demo = profile.name === "demo";
+  window.__bz.demo = demo;
+  window.__bz.syncs = profile.syncs;
+  document.getElementById("sidebar-profile-sub").innerHTML = demo
+    ? `<i class="sidebar-profile-dot"></i>Demo`
+    : `<i class="sidebar-profile-dot is-live"></i>Live`;
+  syncBtn.disabled = !profile.syncs;
+  syncBtn.title = profile.syncs ? "" : "Demo has no bank to sync";
+  if (demo) renderDemoNote(connect);
+  else demoNoteEl.hidden = true;
+  refreshSyncHint();
+}
+
+/** Called by onboarding.js once the engine has opened Live (a bank
+ * connected, or an export brought in). Demo is still there in Settings. */
+async function leftDemo() {
+  try {
+    const [profile, connect] = await Promise.all([api.profile(), api.connectStatus()]);
+    showProfile(profile, connect);
+  } catch {
+    demoNoteEl.hidden = true; // the next page load reads it again
+  }
 }
 
 /** Called by onboarding.js once setup is complete and it has already set
@@ -366,16 +457,20 @@ async function boot() {
   wireShell();
 
   let connected = false;
+  let demo = false;
   try {
-    const status = await api.connectStatus();
-    connected = Boolean(status && status.connected);
+    const [profile, connect] = await Promise.all([api.profile(), api.connectStatus()]);
+    connected = Boolean(connect.connected);
+    demo = profile.name === "demo";
+    showProfile(profile, connect);
   } catch {
     connected = false; // backend unreachable reads the same as "not connected yet"
   }
 
   const onboarded = localStorage.getItem("bz.onboarded") === "1";
 
-  if (!connected || !onboarded) {
+  // Demo opens straight on Home: the point is to see it working first.
+  if (!demo && (!connected || !onboarded)) {
     shellEl.classList.add("is-onboarding");
     navigate("/onboarding");
   }
@@ -384,6 +479,6 @@ async function boot() {
   loadUpdates();
 }
 
-window.__bz = { refreshShell };
+window.__bz = { refreshShell, leftDemo, startOnboarding, demo: false, syncs: true };
 
 boot();

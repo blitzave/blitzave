@@ -8,7 +8,6 @@
 import * as api from "../api.js?v=goose";
 
 const ICON_CLOSE = `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" /></svg>`;
-const LOOPBACK = ["127.0.0.1", "localhost", "[::1]"];
 
 let dialog = null;
 let settings = null;
@@ -45,7 +44,7 @@ export async function openGooseDrawer() {
       <div class="goose-body"></div>
     `;
     dialog.querySelector(".goose-close").addEventListener("click", () => dialog.close());
-    dialog.querySelector("[data-model]").addEventListener("click", () => showSettings());
+    dialog.querySelector("[data-model]").addEventListener("click", openSettings);
     // A click on the backdrop lands on the dialog itself.
     dialog.addEventListener("click", (event) => {
       if (event.target === dialog) dialog.close();
@@ -55,6 +54,8 @@ export async function openGooseDrawer() {
     await start();
   } else {
     dialog.showModal();
+    // A model may have been chosen in Settings since this drawer last opened.
+    if (!settings?.provider) await start();
   }
   dialog.querySelector(".goose-input")?.focus();
 }
@@ -68,7 +69,7 @@ async function start() {
     return;
   }
   if (settings.provider) showGoose();
-  else showSettings();
+  else showSetUp();
 }
 
 // ------------------------------- Asking -------------------------------
@@ -103,7 +104,7 @@ async function send(question) {
     answer.replaceChildren(...cards.map((card) => renderCard(card, question)));
   } catch (err) {
     if (err.status === 409) {
-      showSettings(err.detail);
+      showSetUp(err.detail);
       return;
     }
     answer.innerHTML = `<section class="card goose-card"><p class="goose-text">${esc(err.detail)}</p></section>`;
@@ -218,83 +219,20 @@ function wireProposal(el, card) {
 }
 
 // ------------------------------ The model ------------------------------
+// Chosen in Settings (#/settings), the one place for it: Goose needs a model
+// before its first question, and asking without one lands here too.
 
-function showSettings(note = "") {
-  const s = settings || {};
-  const provider = s.provider || "ollama";
+function showSetUp(note = "") {
   body().innerHTML = `
-    <form class="goose-settings">
-      <p class="goose-quiet">Goose turns your question into steps BlitZave runs on this laptop.
-        The model plans those steps; it never sees your transactions.</p>
-      ${note ? `<p class="goose-text">${esc(note)}</p>` : ""}
-      <fieldset class="goose-providers">
-        <legend class="field-label">Model</legend>
-        <label><input type="radio" name="provider" value="ollama" ${provider === "ollama" ? "checked" : ""} />
-          Ollama, on this laptop</label>
-        <label><input type="radio" name="provider" value="anthropic" ${provider === "anthropic" ? "checked" : ""} />
-          Claude, from Anthropic</label>
-      </fieldset>
-      <label class="field"><span class="field-label">Model name</span>
-        <input class="input" name="model" required autocomplete="off" value="${esc(s.model || "")}" />
-        <span class="field-hint" data-hint></span></label>
-      <label class="field" data-only="ollama"><span class="field-label">Ollama's address</span>
-        <input class="input" name="base_url" autocomplete="off"
-               value="${esc(s.provider === "ollama" ? s.base_url : "http://127.0.0.1:11434")}" /></label>
-      <label class="field" data-only="anthropic"><span class="field-label">API key</span>
-        <input class="input" name="api_key" type="password" autocomplete="off"
-               placeholder="${s.key_saved ? "Saved in your keychain" : "sk-ant-…"}" /></label>
-      <div class="goose-disclosure" hidden>
-        <p>${esc(s.disclosure || "")}</p>
-        <label><input type="checkbox" name="remote_ok" /> That's fine, send those</label>
-      </div>
-      <p class="field-error" hidden></p>
-      <div class="goose-actions"><button class="btn btn-primary" type="submit">Save</button></div>
-    </form>
+    <div class="goose-setup">
+      <p class="goose-quiet">${esc(note || "Goose needs a model first: Ollama on this laptop, or Claude.")}</p>
+      <a class="btn btn-primary" href="#/settings" data-settings>Choose one in Settings</a>
+    </div>
   `;
-  const form = body().querySelector(".goose-settings");
-  let shown = provider;
-  const sync = () => {
-    const chosen = form.provider.value;
-    if (chosen !== shown) {
-      // Each provider gets its own model name: the saved one, or a default.
-      form.model.value = s.provider === chosen ? s.model : chosen === "anthropic" ? "claude-opus-5-5" : "";
-      shown = chosen;
-    }
-    form.querySelectorAll("[data-only]").forEach((el) => (el.hidden = el.dataset.only !== chosen));
-    form.querySelector("[data-hint]").textContent =
-      chosen === "ollama"
-        ? "The name Ollama lists for it, like qwen3:8b."
-        : "claude-opus-5-5 by default; claude-haiku-5-5 costs less.";
-    let local = chosen === "ollama";
-    if (local) {
-      try {
-        local = LOOPBACK.includes(new URL(form.base_url.value).hostname);
-      } catch {
-        local = true; // the engine checks the address itself
-      }
-    }
-    form.querySelector(".goose-disclosure").hidden = local;
-  };
-  form.addEventListener("change", sync);
-  form.base_url.addEventListener("input", sync);
-  sync();
+  body().querySelector("[data-settings]").addEventListener("click", () => dialog.close());
+}
 
-  form.addEventListener("submit", async (event) => {
-    event.preventDefault();
-    const error = form.querySelector(".field-error");
-    error.hidden = true;
-    try {
-      settings = await api.saveGooseSettings({
-        provider: form.provider.value,
-        model: form.model.value,
-        base_url: form.provider.value === "ollama" ? form.base_url.value : null,
-        api_key: form.api_key.value || null,
-        remote_ok: form.remote_ok.checked,
-      });
-      showGoose();
-    } catch (err) {
-      error.textContent = err.detail;
-      error.hidden = false;
-    }
-  });
+function openSettings() {
+  dialog.close();
+  window.location.hash = "/settings";
 }

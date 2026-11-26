@@ -4,6 +4,47 @@ What changed in each BlitZave version, in plain words. Newest first.
 
 To update: `uv tool upgrade blitzave`, then start `blitzave` as usual.
 
+## Unreleased
+
+### New
+
+- **Try it before you connect anything.** `blitzave --demo` opens BlitZave on a
+  made-up household at 127.0.0.1:8791: a few months of spending, budgets, goals,
+  and Goose to ask about it. One line runs it without installing:
+  `uvx --from git+https://github.com/blitzave/blitzave blitzave --demo`. Nothing
+  is kept: `Ctrl+C` deletes it all, and it never touches your real data, your
+  keychain or your bank. It runs beside a real BlitZave, on its own port.
+- **Demo and Live, side by side.** Until you connect a bank, plain `blitzave`
+  opens on Demo, the same made-up household, with one calm line at the top
+  saying so. It starts over every time you open it, so try anything. Choose
+  **connect your bank**, paste your SimpleFIN token, and Live, your own money,
+  opens with no restart. Bringing in an export from another laptop works the
+  same way. Demo is never deleted: it stays one switch away. If you already
+  use BlitZave, it opens on your money as before.
+- **Settings.** A row above the sidebar's footer shows which one you're in and
+  opens Settings: the Demo | Live switch, and Goose's model in one place. Pick
+  a provider, then a model from a list (what your Ollama has, or Claude's
+  models), or type another. An API key locks once saved; **Reset** opens it
+  again. Goose's drawer sends you here to choose.
+
+### Good to know
+
+- Sync is greyed out in Demo: it has no bank. Live still syncs when you open
+  BlitZave.
+- Goose's model is set once for both. It moves out of the database into
+  `~/BlitZave/settings.json` the first time you start this version.
+- In `blitzave --demo`, a Claude API key you give Goose is kept in memory and
+  forgotten when you stop it. Goose's settings say so.
+- **The guide is one click away.** A **Guide** link at the bottom of the
+  sidebar opens it in a new tab. Nothing goes online until you click it.
+- **Safer on your own laptop.** No other website you visit can change your
+  BlitZave data, or show BlitZave inside its own page. A setup token only ever
+  connects over https, and an error from it no longer repeats what the server
+  said. New files BlitZave makes are readable by you alone.
+- **Importing an export no longer brings Goose's model settings along.** Choose
+  your model again after you move to a new laptop. Your Claude API key only
+  ever goes to Anthropic.
+
 ## 0.1.3 (2026-11-08)
 
 ### New

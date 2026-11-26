@@ -76,6 +76,21 @@ export function connect(setupToken) {
   });
 }
 
+// ------------------------------- Profile -------------------------------
+
+// { name: "live"|"demo", live_available, syncs }. Demo has no bank to sync.
+export function profile() {
+  return request("/api/profile");
+}
+
+// Opening Demo starts it over. Live is refused (409) until a bank is connected.
+export function chooseProfile(name) {
+  return request("/api/profile", {
+    method: "PUT",
+    body: JSON.stringify({ name }),
+  });
+}
+
 // -------------------------------- Sync --------------------------------
 
 export function sync() {
@@ -228,6 +243,12 @@ export function undoProposal(proposalId) {
 // { provider, model, base_url, remote, key_saved, disclosure }. Never the key.
 export function gooseSettings() {
   return request("/api/goose/settings");
+}
+
+// { models: [...] }. Claude: a short fixed list. Ollama: what it has, asked
+// only on this laptop; empty when it can't say, and a name is typed instead.
+export function gooseModels(provider, baseUrl) {
+  return request(`/api/goose/models${query({ provider, base_url: baseUrl })}`);
 }
 
 // { provider, model, base_url, api_key, remote_ok }

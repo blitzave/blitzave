@@ -1,9 +1,12 @@
 import sqlite3
+from datetime import date
 
 import httpx
 import pytest
 
 from blitzave import jobs
+from blitzave.sources import simplefin
+from blitzave.sources.base import AccountRow, Fetched, TxRow
 from blitzave.store import users
 
 
@@ -42,3 +45,75 @@ def test_connect_simplefin_raises_connect_error_on_bad_token(monkeypatch, isolat
         jobs.connect_simplefin(token)
 
     assert jobs.simplefin_connected() is False
+
+
+# --- the profile's source: where a sync gets its data ---------------------------------
+
+
+class FakeSource:
+    """Anything with is_connected() and fetch(since, until) can feed a sync."""
+
+    def __init__(self, fetched):
+        self.fetched = fetched
+        self.asked = []
+
+    def is_connected(self):
+        return True
+
+    def fetch(self, since, until=None):
+        self.asked.append((since, until))
+        return self.fetched
+
+
+def _one_account_one_charge():
+    return Fetched(
+        accounts=[
+            AccountRow(external_id="chk", account_type="asset", account_number="1234",
+                       bank_name="Made-up bank", asset_type="checking"),
+        ],
+        transactions=[
+            TxRow(account_external_id="chk", external_id="t1", amount_cents=-4_50,
+                  currency="USD", transaction_type="debit", posted_on="2026-11-02",
+                  description="MADE-UP COFFEE"),
+        ],
+        balances=[],
+    )
+
+
+def test_sync_reads_from_the_profiles_source(monkeypatch, isolated_home):
+    def never(*args, **kwargs):
+        raise AssertionError("SimpleFIN must not be asked when another source is set")
+
+    monkeypatch.setattr(simplefin, "is_connected", never)
+    monkeypatch.setattr(simplefin, "fetch", never)
+    source = FakeSource(_one_account_one_charge())
+    monkeypatch.setattr(jobs, "PROFILE", jobs.Profile("live", isolated_home, source))
+
+    result = jobs.sync()
+
+    assert result["accounts"] == 1
+    assert result["transactions"] == 1
+    assert len(source.asked) == 1
+
+
+def test_sync_month_reads_from_the_profiles_source_too(monkeypatch, isolated_home):
+    source = FakeSource(_one_account_one_charge())
+    monkeypatch.setattr(jobs, "PROFILE", jobs.Profile("live", isolated_home, source))
+
+    jobs.sync_month(2026, 11)
+
+    assert source.asked == [(date(2026, 11, 1), date(2026, 12, 1))]
+
+
+def test_live_syncs_simplefin_until_start_picks_a_profile():
+    assert jobs.PROFILE is jobs.LIVE
+    assert jobs.PROFILE.source is simplefin
+
+
+def test_a_profile_with_no_bank_has_nothing_to_sync(monkeypatch, isolated_home):
+    monkeypatch.setattr(jobs, "PROFILE", jobs.Profile("demo", isolated_home, None))
+
+    with pytest.raises(jobs.SyncError, match="no bank"):
+        jobs.sync()
+    with pytest.raises(jobs.SyncError, match="no bank"):
+        jobs.sync_month(2026, 11)

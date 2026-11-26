@@ -82,6 +82,7 @@ The UI and the API share one origin, so there's no CORS and no second server.
 | `refine/` | compute: facts in, facts out | do any I/O |
 | `api/` | validate requests (Pydantic), call `store/` and `refine/`, format money for display | contain SQL, or call `sources/` directly |
 | `jobs.py` | orchestrate a sync: `sources/` → `store/` → `refine/` → `store/` | — |
+| `demo.py` | build the made-up household, then teach it through the API | call the network or sync; `--demo` touches nothing real |
 | `assistant.py` | orchestrate Goose: a plan from `sources/models.py`, then lanes over `store/` and `refine/` | contain SQL, or give a model a row, a count or a result |
 | `web/` | show what the API returns | compute or format money, or call anything but `/api/*` |
 
@@ -108,8 +109,9 @@ flowchart TB
 
 | File | Job |
 |---|---|
-| `__main__.py` | The `blitzave` command. Builds the FastAPI app, refuses any `Host` but `127.0.0.1` or `localhost`, mounts `web/` at `/` (and `dev/` at `/dev` when it exists), runs the startup sync, binds `127.0.0.1:8742` and opens the browser. |
-| `jobs.py` | The sync pipeline (`sync`, `sync_month`), category-rule application, pair matching, and the opt-in daily update check. |
+| `__main__.py` | The `blitzave` command. Builds the FastAPI app, refuses any `Host` but `127.0.0.1` or `localhost`, mounts `web/` at `/` (and `dev/` at `/dev` when it exists), runs the startup sync, binds `127.0.0.1:8742` and opens the browser. `jobs.start()` picks the profile first: Live when there's a token or a database, Demo on a fresh install. `--demo` is Demo alone, on `8791`, deleted on exit. |
+| `jobs.py` | The sync pipeline (`sync`, `sync_month`), category-rule application, pair matching, and the opt-in daily update check. Profiles: `Profile` is a name, a data folder and a bank. `LIVE` is `~/BlitZave` with SimpleFIN; `DEMO` is `~/BlitZave/demo` with no bank, so it never syncs. `PROFILE` is the one showing; `open_profile` points `BLITZAVE_HOME` at it, and opening Demo starts it over (`start_demo_over`). Connecting a bank or importing opens Live; nothing else is deleted. `shared_folder()` is where the settings both share are kept. |
+| `demo.py` | The Demo profile's made-up household (`build()`), taught through the API in-process (`set_up()`, its own small app, so no startup sync). `start_throwaway()` is `--demo`: a temporary folder and a keychain held in memory (`MemoryKeyring`). |
 | `assistant.py` | Goose (see [Goose](#goose)): the plan grammar, the planner prompt with one repair, the Show, Change and Summarize lanes, previews held in memory with Apply and Undo, `fill()` for a model's wording, and the model settings. |
 | `backup.py` | Copies the database before a migration and keeps the last three copies. |
 | `traces.py` | Goose's dev-mode trace: a `Turn` notes each model call in memory (prompt, raw reply, seconds, the server's usage, the engine's verdict), and `write()` appends it to `traces/` when `BLITZAVE_DEV=1`. Nothing is written otherwise. |
@@ -127,6 +129,7 @@ flowchart TB
 | `store/transactions.py` | The transaction list (filters, sort, paging), split categories, tags, and the category summary. Goose's category Apply and Undo (`set_category`, `restore_categories`). |
 | `store/transfers.py` | Matched pairs: list, link, unlink, and the unlinked legs the matcher looks at. |
 | `store/export.py` | Export every table to one JSON document; import one into an empty database, all or nothing. Leaves out the connection hash and generated columns. |
+| `store/settings.py` | `settings.json` in Live's folder (0600): what Live and Demo share, today Goose's model. Never a secret, and not in exports. A file, not a table, since every table lives in one profile's database (maintainer call, 2026-11-20). |
 | `store/tags.py`, `store/users.py` | Tags (with Goose's additive `tag_transactions`, its undo, and a tag's monthly totals), and the single local user (with its `meta` settings). |
 | `store/migrations/` | `001` … `009`, numbered SQL files. The only way the schema changes. |
 | `refine/categorize.py` | `match_key()` normalizes a description; `is_match()` compares keys. |
@@ -368,6 +371,21 @@ The guarantees say what a model can't do. These two say how well it does its job
   written as `.jsonl.partial` until every case is in, so an unfinished one is never
   charted. A case whose every reply was empty is the server's failure, not the
   model's: it's an error, and three in a row stop the run.
+- **The privacy proof.** `tests/test_privacy_wire.py` checks the bytes, not the
+  arguments to `chat()`: it taps httpx's transports, so every request the process
+  sends is recorded as it went out, and runs every intent through every adapter in
+  `models.ADAPTERS` against a canary household (CANARY in every description,
+  merchant, bank and account; odd account numbers and amounts; a fake SimpleFIN URL
+  and API key). Only the configured host is contacted, the key appears only in its
+  auth header, and no canary, account number or amount is in any URL, header or body.
+  A leaky test adapter must be caught, so a pass means something. The same check runs
+  on real models with `evals/run.py --privacy`: `privacy.toml`'s adversarial
+  questions and every planner question, end to end through `assistant.ask()` in a
+  throwaway `BLITZAVE_HOME`, with the tap passing each request on. One hit fails the
+  run. Runs go to `evals/runs/privacy/`, every byte kept except the API key.
+  `evals/privacy_charts.py` draws four figures from those runs and searches every
+  recorded request again for the household's data, so a figure can show only what the
+  bytes hold; it refuses to draw if the leaky control wasn't caught.
 - **Reading runs.** A run keeps every plan and writer sentence, so `--report` and
   `--compare` score them again against today's `planner.toml` and `fill()`, without
   a model, and say which cases score differently from what was recorded. `--report`
@@ -390,6 +408,7 @@ rewritten with made-up names: the repo is public.
 | Route | Page | Endpoints it calls |
 |---|---|---|
 | `#/onboarding` | Bring in an export (optional), connect SimpleFIN, first sync, accounts, update-check choice, an optional first goal | `/import`, `/connect`, `/sync`, `/accounts`, `/updates` |
+| `#/settings` | The profile row above the sidebar footer opens it. Demo or Live (Live greyed until a bank is connected), and Goose's model: provider, model list, key with Save and Reset, the disclosure | `/profile`, `/connect`, `/goose/settings`, `/goose/models` |
 | `#/home` (default) | The ring: how far through the month, one headline and sentence, and three figures. "Ask Goose about your money" opens the Goose drawer. | `GET /home`; the drawer: `/goose`, `/goose/proposals/{id}/apply` and `/undo`, `/goose/settings` |
 | `#/savings` | The total in goal accounts; "was that the goal?" questions; critical goals, shared lines, free goal accounts, completed this year; reorder | `GET /goals`, `PUT /accounts/{id}/goal-order`, `POST /goals/questions/{id}` |
 | `#/savings/new`, `#/savings/:id` | Goal form: name and amount, level, home, when; mark as bought; delete | `GET /goals`, `POST/PATCH/DELETE /categories` |
@@ -409,9 +428,11 @@ All under `/api`. Interactive docs at `http://127.0.0.1:8742/docs` while BlitZav
 | Method | Path | What it does |
 |---|---|---|
 | GET | `/health` | Liveness. |
-| GET | `/connect` | Whether a SimpleFIN access URL is in the keychain. |
+| GET | `/connect` | Whether a SimpleFIN access URL is in the keychain, whether Demo is showing, and whether this run can connect (not `--demo`). |
 | POST | `/connect` | Exchanges a setup token for an access URL and stores it in the keychain. |
-| POST | `/sync` | Runs the sync pipeline now. |
+| GET | `/profile` | Which profile is showing (`live` or `demo`), whether Live can open, and whether it has a bank to sync. |
+| PUT | `/profile` | Opens Live or Demo. Demo starts over; Live is 409 until there's a token or a database, and always in `--demo`. |
+| POST | `/sync` | Runs the sync pipeline now. 400 in Demo, which has no bank. |
 | POST | `/sync/month` | Re-fetches one calendar month. |
 | GET | `/updates` | What the update check last stored. Never goes online. |
 | PUT | `/updates` | Turns the daily update check on or off. |
@@ -440,7 +461,8 @@ All under `/api`. Interactive docs at `http://127.0.0.1:8742/docs` while BlitZav
 | POST | `/goose/proposals/{id}/apply` | Writes a preview's change to the rows still checked, sent as their positions. 404 if used or expired; 422 for a row the preview didn't show. |
 | POST | `/goose/proposals/{id}/undo` | Takes back exactly what that Apply wrote. |
 | GET | `/goose/settings` | The chosen model, whether it's remote, whether a key is saved (never the key), and the disclosure. |
-| PUT | `/goose/settings` | Chooses the model. A remote one needs `remote_ok: true`; a Claude key goes to the keychain. |
+| PUT | `/goose/settings` | Chooses the model, for Live and Demo both (`settings.json`). A remote one needs `remote_ok: true`; a Claude key goes to the keychain. |
+| GET | `/goose/models` | Names to offer: Claude's short list, or what an Ollama on this laptop has (never another machine's). Empty when Ollama can't say. |
 
 ## Safety rails
 
@@ -451,6 +473,16 @@ All under `/api`. Interactive docs at `http://127.0.0.1:8742/docs` while BlitZav
   every path: the API, `/docs`, `/dev` and the UI. Without it, DNS rebinding (a site
   pointing its own name at 127.0.0.1) would let any web page read and change the
   user's data. Only the name is checked, not the port. `tests/test_trusted_host.py`.
+- **Only our own page can write.** `same_origin_writes` in `__main__.py` refuses (403)
+  any non-GET request whose `Origin` isn't this server's own, so a site the user visits
+  can't make their browser change data (a blind `POST /api/sync`, say). No `Origin`
+  means no browser page, so curl and the tests go through. Every answer but the API
+  docs also carries a CSP (own files only, no framing), `nosniff` and
+  `no-referrer`. `tests/test_same_origin.py`.
+- **Outside addresses are checked before they're trusted.** A setup token and the
+  access URL it returns must be `https`, and a failed call's body is never shown. An
+  imported export never carries Goose's settings, and a Claude key only ever goes to
+  `api.anthropic.com`.
 - **The credential lives in the OS keychain**, or, on a machine with none, in
   `credentials.json` (0600) in the data folder. It's never in the database, logs or
   exports. The database stores only a hash of it (`users.simplefin_hash`).

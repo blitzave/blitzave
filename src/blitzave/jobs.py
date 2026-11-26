@@ -1,16 +1,52 @@
+import os
+from dataclasses import dataclass
 from datetime import date, timedelta
 from importlib import metadata
+from pathlib import Path
+from types import ModuleType
 
+from blitzave import demo
 from blitzave.refine import transfers as match
 from blitzave.refine.categorize import is_match, match_key
 from blitzave.sources import github, simplefin
 from blitzave.sources.base import Fetched
-from blitzave.store import categories, db, ingest, transactions, transfers, users
+from blitzave.store import (
+    categories,
+    db,
+    ingest,
+    settings,
+    transactions,
+    transfers,
+    users,
+)
 
 SYNC_JOB = "ingest"
 MATCH_JOB = "match_transfers"  # its watermark only records that the one full pass ran
 WATERMARK_OVERLAP_DAYS = 7  # banks post late; re-fetching the overlap is safe, upserts are idempotent
 INITIAL_LOOKBACK_DAYS = 90  # how far back the very first sync reaches, before any watermark exists
+
+DEMO_ONLY = "This demo can't hold your data. Stop it and run `blitzave` instead."
+
+
+@dataclass(frozen=True)
+class Profile:
+    """Which data the app is showing: Live, the user's own money, or Demo, a
+    made-up household (blitzave.demo). Same engine, same pages; these fields
+    are the differences. Demo also starts over every time it opens: see
+    open_profile."""
+
+    name: str  # "live" or "demo"
+    home: Path  # its data folder; BLITZAVE_HOME points here while it's open
+    source: ModuleType | None  # its bank (sources.simplefin); None: nothing to sync
+
+
+# start() makes the real ones. Until then (in tests, say) Live is showing, in
+# whatever folder BLITZAVE_HOME names, and there's no Demo to switch to.
+# Nothing moves BLITZAVE_HOME before start(): open_live() does nothing when
+# Live is already showing, and there's no DEMO to open.
+PROFILE = Profile("live", db.home_path(), simplefin)  # the one showing
+LIVE: Profile | None = PROFILE  # None: `blitzave --demo`, which has no Live
+DEMO: Profile | None = None
 
 
 class ConnectError(Exception):
@@ -25,15 +61,114 @@ class UpdateCheckError(Exception):
     """The opt-in update check couldn't get an answer from GitHub."""
 
 
+class DemoOnlyError(Exception):
+    """`blitzave --demo` was asked to become the real setup; it never does."""
+
+
 def simplefin_connected() -> bool:
+    """Whether a SimpleFIN token is saved, whichever profile is showing."""
     return simplefin.is_connected()
 
 
-def connect_simplefin(setup_token: str) -> None:
+def start(demo_only: bool = False) -> Profile:
+    """Open the profile to show at startup. Live when there's a token or a
+    Live database: anyone with real data never sees made-up numbers, even if
+    their keychain entry went missing. Demo otherwise, which is a fresh
+    install. `blitzave --demo` is Demo in a temporary folder with a keychain
+    in memory, and no Live to switch to; it never reads the real keychain."""
+    global LIVE, DEMO
+    if demo_only:
+        LIVE = None
+        DEMO = Profile("demo", demo.start_throwaway(), None)
+    else:
+        home = db.home_path()
+        LIVE = Profile("live", home, simplefin)
+        DEMO = Profile("demo", home / "demo", None)
+    first = LIVE if live_has_data() else DEMO
+    open_profile(first)
+    if first is LIVE:
+        _move_goose_settings_to_the_shared_file()
+    return first
+
+
+def shared_folder() -> Path:
+    """Where what Live and Demo share is kept (store/settings.py): Live's
+    folder, or the temporary one for `blitzave --demo`. While Live is showing
+    that's where BLITZAVE_HOME points, which is also true before start()."""
+    if PROFILE is LIVE:
+        return db.home_path()
+    return LIVE.home if LIVE is not None else DEMO.home
+
+
+def _move_goose_settings_to_the_shared_file() -> None:
+    """Goose's settings used to be in users.meta, inside Live's database.
+    Both profiles read them from the shared file now; this moves them once."""
+    if "goose" in settings.read(shared_folder()):
+        return
+    conn = db.connect()
     try:
+        user_id = users.get_or_create_user(conn)
+        saved = users.get_meta(conn, user_id).get("goose")
+        if saved:
+            settings.update(shared_folder(), {"goose": saved})
+            users.update_meta(conn, user_id, {"goose": None})  # None removes the key
+    finally:
+        conn.close()
+
+
+def live_has_data() -> bool:
+    """Whether Live has anything to show: a saved token or a database. False
+    for `blitzave --demo`, which has no Live and never reads the keychain."""
+    if LIVE is None:
+        return False
+    return (LIVE.home / "blitzave.db").exists() or simplefin.is_connected()
+
+
+def open_profile(profile: Profile) -> None:
+    """Show this profile from now on. Nothing is deleted, except Demo's old
+    household: Demo starts over every time it opens, as of today."""
+    global PROFILE
+    os.environ["BLITZAVE_HOME"] = str(profile.home)  # db reads it on every connect
+    PROFILE = profile
+    if profile is DEMO:
+        start_demo_over(demo.build(date.today()))
+
+
+def start_demo_over(household: Fetched) -> None:
+    """Demo's database, made again: the household, then what a few months of
+    use would have taught it (demo.set_up). Only ever Demo's own folder."""
+    if PROFILE is not DEMO or (LIVE is not None and DEMO.home == LIVE.home):
+        raise RuntimeError("only Demo's own database ever starts over")
+    for name in ("blitzave.db", "blitzave.db-wal", "blitzave.db-shm"):
+        (DEMO.home / name).unlink(missing_ok=True)
+    conn = db.connect()
+    try:
+        _ingest(conn, users.get_or_create_user(conn), household)
+    finally:
+        conn.close()
+    demo.set_up()
+
+
+def open_live() -> None:
+    """The user is bringing in their own data (a bank, or an export), and it
+    belongs in Live. `blitzave --demo` has no Live, so it refuses."""
+    if LIVE is None:
+        raise DemoOnlyError(DEMO_ONLY)
+    if PROFILE is not LIVE:
+        open_profile(LIVE)
+
+
+def connect_simplefin(setup_token: str) -> None:
+    if LIVE is None:
+        # Refused before claiming: a setup token works only once.
+        raise ConnectError("This demo can't connect a bank. Stop it and run `blitzave` instead.")
+    try:
+        # Claims, then keeps the access URL in the keychain, which Demo and
+        # Live share. A bad token raises here, so Demo carries on as it was.
         simplefin_hash = simplefin.connect(setup_token)
     except simplefin.SimpleFinError as e:
         raise ConnectError(str(e)) from e
+    open_live()  # the bank's data is Live's
 
     conn = db.connect()
     try:
@@ -102,10 +237,13 @@ def _match_pairs(conn, user_id: int, fetched: Fetched) -> dict:
 
 
 def _fetch(since: date, until: date | None = None) -> Fetched:
-    if not simplefin.is_connected():
+    source = PROFILE.source
+    if source is None:
+        raise SyncError("The demo has no bank to sync.")
+    if not source.is_connected():
         raise SyncError("not connected to SimpleFIN yet — POST /api/connect first")
     try:
-        return simplefin.fetch(since, until)
+        return source.fetch(since, until)
     except simplefin.SimpleFinError as e:
         raise SyncError(str(e)) from e
 
