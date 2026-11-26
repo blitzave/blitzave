@@ -4,10 +4,24 @@ What changed in each BlitZave version, in plain words. Newest first.
 
 To update: `uv tool upgrade blitzave`, then start `blitzave` as usual.
 
-## Unreleased
+## 2.0.0 (2026-11-26)
 
 ### New
 
+- **Ask Goose about your money.** Press **Ask Goose about your money** on Home
+  and ask in your own words: "what did I spend on dining since August?", "tag
+  the Portland charges as PNW trip", "how is groceries trending?". Goose shows
+  the rows, sums a category or a tag by month, or proposes a change you can
+  look over first. Nothing changes until you press **Apply**, and **Undo**
+  takes it back. Goose runs on a model on your laptop through Ollama, or on
+  Claude if you choose it and add a key.
+- **What Goose sends, and what it never does.** A model gets your question,
+  your category and tag names, and your accounts as aliases like `A1
+  (checking)`. It never gets a transaction, an amount, a balance, a merchant,
+  a bank or an account number. BlitZave plans with the model and works out
+  every figure itself. Before you save a model that isn't on your laptop,
+  BlitZave lists what each question would send, and nothing goes until you
+  agree.
 - **Try it before you connect anything.** `blitzave --demo` opens BlitZave on a
   made-up household at 127.0.0.1:8791: a few months of spending, budgets, goals,
   and Goose to ask about it. One line runs it without installing:
