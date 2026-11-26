@@ -44,6 +44,13 @@ To update: `uv tool upgrade blitzave`, then start `blitzave` as usual.
 - **Importing an export no longer brings Goose's model settings along.** Choose
   your model again after you move to a new laptop. Your Claude API key only
   ever goes to Anthropic.
+- **For contributors: a way to see how well Goose plans.** `evals/run.py` asks
+  a real model (Ollama or Claude) a set of made-up questions and scores each
+  plan; `--report` and `--compare` line runs up, and `evals/charts.py` draws
+  them. `BLITZAVE_DEV=1` keeps a trace of each Goose question in
+  `~/BlitZave/traces/`. Both are off for everyone else: nothing is written and
+  nothing ships. Ollama models that think, like qwen3, are now asked not to,
+  so Goose answers faster.
 
 ## 0.1.3 (2026-11-08)
 
